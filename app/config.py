@@ -62,6 +62,10 @@ RAHAVARD_ETF_FUNDS_URL = os.getenv(
 RAHAVARD_LIGHT_BARS_URL = os.getenv(
     "RAHAVARD_LIGHT_BARS_URL", f"{RAHAVARD_API_BASE_URL}/chart/light-bars"
 )
+RAHAVARD_INDEX_BASE_URL = os.getenv(
+    "RAHAVARD_INDEX_BASE_URL", f"{RAHAVARD_API_BASE_URL}/market-data/indexes"
+)
+RAHAVARD_TEPIX_INDEX_ID = os.getenv("RAHAVARD_TEPIX_INDEX_ID", "1")
 TABDEAL_TRADES_URL = os.getenv(
     "TABDEAL_TRADES_URL", "https://api1.tabdeal.org/r/api/v1/trades"
 )

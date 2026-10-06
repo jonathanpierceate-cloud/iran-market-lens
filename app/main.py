@@ -19,7 +19,8 @@ from pydantic import BaseModel, Field
 from .analysis import analyze, analyze_rahavard, stale_status
 from .config import (MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
                      RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_PAGE_URL,
-                     RAHAVARD_LIGHT_BARS_URL, RAHAVARD_USDT_PAGE_URL,
+                     RAHAVARD_INDEX_BASE_URL, RAHAVARD_LIGHT_BARS_URL,
+                     RAHAVARD_TEPIX_INDEX_ID, RAHAVARD_USDT_PAGE_URL,
                      REFRESH_INTERVAL_SECONDS, ROOT)
 from .db import db, utc_now
 from .sources import (SourceError, fetch_fund_indicators, fetch_fund_nav_history,
@@ -48,7 +49,7 @@ def _market_history(symbol: str, limit: int = 1000) -> list[dict[str, Any]]:
     fund = db.get_fund(symbol)
     if fund and not fund.get("ambiguous") and fund.get("source") == "Rahavard365":
         return db.history(fund["fund_key"], limit, source="Rahavard365")
-    preferred = {"GOLD": "Rahavard365", "USD_IR_FREE": "Rahavard365"}.get(symbol)
+    preferred = {"GOLD": "Rahavard365", "USD_IR_FREE": "Rahavard365", "TEPIX": "Rahavard365"}.get(symbol)
     if preferred:
         bars = db.history(symbol, limit, source=preferred)
         if bars:
@@ -107,9 +108,10 @@ def _market_quote(symbol: str) -> dict[str, Any]:
             returns[label] = round((latest["close"] / bars[-periods-1]["close"] - 1) * 100, 3)
         else:
             returns[label] = None
-    source_key = {"GOLD": "rahavard_gold", "DXY": "yahoo_dxy", "USD_IR_FREE": "rahavard_usdt"}.get(symbol)
+    source_key = {"GOLD": "rahavard_gold", "DXY": "yahoo_dxy", "USD_IR_FREE": "rahavard_usdt",
+                  "TEPIX": "rahavard_tepix"}.get(symbol)
     source = _source_map().get(source_key) if source_key else None
-    observed_timestamp = (source.get("last_data_timestamp") if source and symbol in {"GOLD", "USD_IR_FREE"}
+    observed_timestamp = (source.get("last_data_timestamp") if source and symbol in {"GOLD", "USD_IR_FREE", "TEPIX"}
                           else latest["timestamp"])
     observed_timestamp = observed_timestamp or latest["timestamp"]
     is_stale = stale_status(observed_timestamp, max_hours=MAX_STALE_HOURS)
@@ -224,6 +226,8 @@ async def lifespan(_: FastAPI):
     for key, label, url in [
         ("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL),
         ("rahavard_usdt", "قیمت تتر / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL),
+        ("rahavard_tepix", "شاخص کل بورس / ره‌آورد۳۶۵",
+         f"{RAHAVARD_INDEX_BASE_URL}/{RAHAVARD_TEPIX_INDEX_ID}/last-value"),
         ("yahoo_dxy", "شاخص دلار آمریکا", "https://finance.yahoo.com/quote/DX-Y.NYB/"),
         ("rahavard_funds", "صندوق‌های قابل معامله / ره‌آورد۳۶۵", RAHAVARD_ETF_FUNDS_URL),
         ("rahavard_fund_details", "نمایه و NAV صندوق / ره‌آورد۳۶۵", RAHAVARD_API_BASE_URL + "/asset/{asset_id}"),
@@ -308,10 +312,13 @@ def market_summary():
     funds = db.funds(sort="data_timestamp", source="Rahavard365")
     gold_quote = _market_quote("GOLD")
     dollar_quote = _market_quote("USD_IR_FREE")
+    tepix_quote = _market_quote("TEPIX")
     gold_quote.pop("history", None)
     dollar_quote.pop("history", None)
+    tepix_quote.pop("history", None)
     return {"as_of": utc_now(), "gold": gold_quote,
             "dollar": dollar_quote,
+            "tepix": tepix_quote,
             "funds_total": len(funds),
             "top_funds": sorted(funds, key=lambda f: f.get("value") or 0, reverse=True)[:5],
             "sources": db.source_status(), "refresh": REFRESH_STATE}
@@ -336,6 +343,11 @@ def gold_history(limit: int = Query(default=1000, ge=1, le=5000)):
 @app.get("/api/dollar")
 def dollar():
     return _market_quote("USD_IR_FREE")
+
+
+@app.get("/api/tepix")
+def tepix():
+    return _market_quote("TEPIX")
 
 
 @app.get("/api/dollar/history")

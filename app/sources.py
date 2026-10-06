@@ -17,7 +17,8 @@ from .config import (CODAL_API_URL, HTTP_TIMEOUT_SECONDS, NEWS_RSS_URLS,
                      MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
                      RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_ASSET_ID,
                      RAHAVARD_GOLD_PAGE_URL, RAHAVARD_LIGHT_BARS_URL,
-                     RAHAVARD_PUBLIC_BARS_URL, RAHAVARD_USDT_ASSET_ID,
+                     RAHAVARD_PUBLIC_BARS_URL, RAHAVARD_INDEX_BASE_URL,
+                     RAHAVARD_TEPIX_INDEX_ID, RAHAVARD_USDT_ASSET_ID,
                      RAHAVARD_USDT_PAGE_URL)
 from .db import db, utc_now
 
@@ -211,6 +212,31 @@ def rahavard_usdt_history() -> list[dict[str, Any]]:
     if not bars:
         raise SourceError("کندل‌های قیمت تتر از ره‌آورد۳۶۵ معتبر نیستند")
     return bars
+
+
+def rahavard_tepix_current() -> dict[str, Any]:
+    """Return the latest TEPIX (شاخص کل بورس) observation from Rahavard365."""
+    url = f"{RAHAVARD_INDEX_BASE_URL}/{RAHAVARD_TEPIX_INDEX_ID}/last-value"
+    payload = _json(url, referer="https://rahavard365.com/")
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, dict):
+        raise SourceError("پاسخ شاخص کل بورس ره‌آورد۳۶۵ معتبر نیست")
+    close = _num(data.get("close_value"))
+    if close is None or close <= 0:
+        raise SourceError("مقدار شاخص کل بورس در ره‌آورد۳۶۵ یافت نشد")
+    timestamp = data.get("end_date_time") or data.get("start_date_time") or utc_now()
+    return {
+        "bar": {
+            "timestamp": str(timestamp),
+            "fetched_at": utc_now(),
+            "open": _num(data.get("open_value")),
+            "high": _num(data.get("high_value")),
+            "low": _num(data.get("low_value")),
+            "close": close,
+            "volume": _num(data.get("volume")),
+        },
+        "raw": data,
+    }
 
 
 def _rahavard_asset_id(fund: dict[str, Any]) -> str:
@@ -451,6 +477,13 @@ async def refresh_all() -> dict[str, Any]:
         return (len(bars), observed,
                 {"status": "stale", "message": "آخرین مشاهدهٔ USDT/IRT از آستانه تازگی عبور کرده است"} if stale else {})
 
+    def apply_tepix(result):
+        bar = result["bar"]
+        url = f"{RAHAVARD_INDEX_BASE_URL}/{RAHAVARD_TEPIX_INDEX_ID}/last-value"
+        db.save_bars("TEPIX", "شاخص کل بورس", "index", "POINT", "واحد",
+                     "Rahavard365", url, [bar])
+        return 1, bar["timestamp"]
+
     async def funds_from_rahavard():
         started_at, tick = utc_now(), time.monotonic()
         try:
@@ -482,6 +515,9 @@ async def refresh_all() -> dict[str, Any]:
                    lambda: yahoo_history("DX-Y.NYB"), apply_dxy),
         run_source("rahavard_usdt", "قیمت تتر / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL,
                    rahavard_usdt_history, apply_usd),
+        run_source("rahavard_tepix", "شاخص کل بورس / ره‌آورد۳۶۵",
+                   f"{RAHAVARD_INDEX_BASE_URL}/{RAHAVARD_TEPIX_INDEX_ID}/last-value",
+                   rahavard_tepix_current, apply_tepix),
         funds_from_rahavard(),
     ]
     await asyncio.gather(*tasks, return_exceptions=True)

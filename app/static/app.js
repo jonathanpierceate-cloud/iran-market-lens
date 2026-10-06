@@ -1,7 +1,7 @@
 (() => {
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-  const state = { summary: null, gold: null, dollar: null, funds: [], watchlist: [], currentView: "overview" };
+  const state = { summary: null, gold: null, dollar: null, tepix: null, funds: [], watchlist: [], currentView: "overview" };
   const nf = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 2 });
   const en = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const dates = new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium", timeStyle: "short" });
@@ -593,8 +593,8 @@
     try {
       const summary = await api("/api/market/summary");
       state.summary = summary;
-      state.gold = summary.gold; state.dollar = summary.dollar;
-      marketQuote(state.gold, "gold"); marketQuote(state.dollar, "dollar");
+      state.gold = summary.gold; state.dollar = summary.dollar; state.tepix = summary.tepix;
+      marketQuote(state.gold, "gold"); marketQuote(state.dollar, "dollar"); marketQuote(state.tepix, "tepix");
       renderMetrics("gold", state.gold); renderMetrics("dollar", state.dollar);
       $("#gold-detail-price").textContent = state.gold?.price == null ? "داده در دسترس نیست" : `$ ${money(state.gold.price)}`;
       $("#dollar-detail-price").textContent = state.dollar?.price == null ? "داده در دسترس نیست" : `تومان ${money(state.dollar.price)}`;
@@ -776,15 +776,21 @@
   }
 
   function toggleMarketAnalysis(key) {
-    const panel = $(`[data-analysis-panel="${key}"]`);
+    const panel = $("[data-analysis-panel=\"" + key + "\"]");
     if (!panel) return;
     const shouldOpen = panel.classList.contains("hidden");
     $$("[data-analysis-panel]").forEach((node) => node.classList.add("hidden"));
-    $$("[data-analysis-toggle]").forEach((node) => node.classList.remove("is-open"));
+    $$("[data-analysis-toggle]").forEach((node) => {
+      node.classList.remove("is-open");
+      const hint = $(".analysis-toggle-hint", node);
+      if (hint) hint.textContent = "\u0628\u0631\u0627\u06cc \u0645\u0634\u0627\u0647\u062f\u0647 \u062a\u062d\u0644\u06cc\u0644 \u0639\u062f\u062f\u06cc \u06a9\u0644\u06cc\u06a9 \u06a9\u0646\u06cc\u062f \u2190";
+    });
     if (shouldOpen) {
       panel.classList.remove("hidden");
-      const trigger = $(`[data-analysis-toggle="${key}"]`);
+      const trigger = $("[data-analysis-toggle=\"" + key + "\"]");
       trigger?.classList.add("is-open");
+      const hint = trigger ? $(".analysis-toggle-hint", trigger) : null;
+      if (hint) hint.textContent = "\u0628\u0633\u062a\u0646 \u062a\u062d\u0644\u06cc\u0644 \u2191";
       panel.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }
