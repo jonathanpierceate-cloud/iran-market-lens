@@ -185,6 +185,64 @@
     return meanings[key] || value?.interpretation || "برای این شاخص تفسیر کافی ثبت نشده است.";
   }
 
+  function indicatorNumericSummary(name, item) {
+    const parts = Array.isArray(item?.value) ? item.value : Object.entries(item || {}).filter(([key, value]) => key !== "value" && Number.isFinite(Number(value))).map(([key, value]) => ({ name: key, value }));
+    const values = Object.fromEntries(parts.map((part) => [String(part.name || "").toLowerCase(), Number(part.value)]));
+    if (!Array.isArray(item?.value) && Number.isFinite(Number(item?.value))) values.value = Number(item.value);
+    const value = (...keys) => keys.map((key) => values[String(key).toLowerCase()]).find((number) => Number.isFinite(number));
+    const signal = String(item?.signal || "").toLowerCase().replace(/[^a-z]/g, "");
+    const signalText = signal === "buy" || signal === "bullish" || signal === "strongbuy" ? "مثبت"
+      : signal === "sell" || signal === "bearish" || signal === "strongsell" ? "منفی"
+        : signal === "overbought" ? "خریدزدگی" : signal === "oversold" ? "فروش‌زدگی"
+          : signal === "lowvolume" ? "حجم پایین" : signal === "highvolume" ? "حجم بالا" : "خنثی";
+    const first = value("value", "rsi", "mfi", "cci", "wr", "awesome", "mtm", "rv", "sm", "vrsi", "obv");
+    if (/^rsi/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first >= 70 ? "بالاتر از ۷۰ و در ناحیه خریدزدگی است، پس احتمال اصلاح کوتاه‌مدت وجود دارد." : first <= 30 ? "زیر ۳۰ و در ناحیه فروش‌زدگی است، پس امکان برگشت وجود دارد." : "در محدوده میانی ۳۰ تا ۷۰ است و افراط دیده نمی‌شود."}`;
+    if (/^mfi/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first >= 80 ? "بالاتر از ۸۰ و نشان‌دهنده خریدزدگی جریان پول است." : first <= 20 ? "زیر ۲۰ و نشان‌دهنده فروش‌زدگی جریان پول است." : "در محدوده میانی جریان پول قرار دارد."}`;
+    if (/^cci/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first >= 100 ? "بالاتر از ۱۰۰ و نشان‌دهنده حرکت قوی اما کشیده‌شده است." : first <= -100 ? "پایین‌تر از منفی ۱۰۰ و نشان‌دهنده فروش‌زدگی است." : "بین منفی ۱۰۰ و مثبت ۱۰۰ قرار دارد."}`;
+    if (/^wr/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first >= -20 ? "نزدیک صفر و در ناحیه خریدزدگی است." : first <= -80 ? "زیر منفی ۸۰ و در ناحیه فروش‌زدگی است." : "در محدوده میانی دامنه قیمت است."}`;
+    if (/^so/i.test(name)) {
+      const k = value("k"), d = value("d");
+      return `K=${num(k, 2)} و D=${num(d, 2)} است؛ ${k >= 80 && d >= 80 ? "هر دو بالای ۸۰ و در ناحیه خریدزدگی‌اند." : k <= 20 && d <= 20 ? "هر دو زیر ۲۰ و در ناحیه فروش‌زدگی‌اند." : k > d ? "K بالاتر از D است و شتاب کوتاه‌مدت بهتر شده." : "K پایین‌تر از D است و شتاب کوتاه‌مدت ضعیف‌تر شده."}`;
+    }
+    if (/aroon|arron/i.test(name)) {
+      const up = value("up"), down = value("down");
+      return `Aroon صعودی=${num(up, 0)} و نزولی=${num(down, 0)} است؛ ${up > down ? "برتری با روند صعودی است." : down > up ? "برتری با روند نزولی است." : "جهت روند برابر و خنثی است."}`;
+    }
+    if (/^adx/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first >= 25 ? "بالاتر از ۲۵ و نشان‌دهنده روند قدرتمندتر است." : "زیر ۲۵ و نشان‌دهنده روند کم‌قدرت است."} جهت را باید از سایر شاخص‌ها خواند.`;
+    if (/^ao/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first > 0 ? "بالای صفر و به نفع شتاب صعودی است." : first < 0 ? "زیر صفر و به نفع شتاب نزولی است." : "روی صفر و خنثی است."}`;
+    if (/stochrsi/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 3)} است؛ ${first >= .8 ? "بالاتر از ۰٫۸۰ و در خریدزدگی است." : first <= .2 ? "زیر ۰٫۲۰ و در فروش‌زدگی است." : "در محدوده میانی است."}`;
+    if (/^macd/i.test(name)) {
+      const macd = value("macd"), line = value("signal");
+      return `MACD=${num(macd, 2)} و خط سیگنال=${num(line, 2)} است؛ ${macd > line ? "MACD بالاتر از سیگنال و شتاب صعودی است." : macd < line ? "MACD پایین‌تر از سیگنال و شتاب نزولی است." : "دو خط تقریباً برابرند."}`;
+    }
+    if (/^mtm/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first > 0 ? "مثبت و نشان‌دهنده شتاب رو به بالا است." : first < 0 ? "منفی و نشان‌دهنده شتاب رو به پایین است." : "نزدیک صفر و خنثی است."}`;
+    if (/^trend/i.test(name)) return `سیگنال رسمی ره‌آورد «${signalText}» است و جهت روند را مشخص می‌کند.`;
+    if (/^ema|^sma/i.test(name)) {
+      const distance = value("distance");
+      return `میانگین روی ${num(first, 2)} است؛ ${Number.isFinite(distance) ? `فاصله قیمت ${pct(distance * 100)} است و قیمت ${distance >= 0 ? "بالاتر" : "پایین‌تر"} از این میانگین قرار دارد.` : `سیگنال ره‌آورد ${signalText} است.`}`;
+    }
+    if (/^bb|^keltner/i.test(name)) {
+      const upper = value("upper"), lower = value("lower"), distance = value("distance"), dl = value("dl");
+      return `باند بالا ${num(upper, 2)} و پایین ${num(lower, 2)} است؛ ${Number.isFinite(distance) ? `فاصله از باند بالا ${pct(distance * 100)}${Number.isFinite(dl) ? ` و از باند پایین ${pct(dl * 100)}` : ""} است.` : `سیگنال ره‌آورد ${signalText} است.`}`;
+    }
+    if (/ichimoku/i.test(name)) {
+      const tenkan = value("tenken_sen_formula"), kijun = value("kijun_sen_formula");
+      return `تنکن ${num(tenkan, 2)} و کیجون ${num(kijun, 2)} است؛ ${tenkan > kijun ? "تنکن بالاتر از کیجون و متمایل به صعود است." : "تنکن پایین‌تر از کیجون و متمایل به ضعف است."}`;
+    }
+    if (/pivotpoint|pivot/i.test(name)) {
+      const pivot = value("pivot"), r1 = value("r1"), s1 = value("s1");
+      return `پیوت ${num(pivot, 2)}، مقاومت اول ${num(r1, 2)} و حمایت اول ${num(s1, 2)} است؛ این‌ها سطح قیمت‌اند، نه امتیاز.`;
+    }
+    if (/^rv/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 3)} است؛ ${first < 1 ? "پایین‌تر از خط مبنای ۱ و نشان‌دهنده حجم کمتر از مرجع است." : "بالاتر از خط مبنای ۱ و نشان‌دهنده حجم بیشتر از مرجع است."}`;
+    if (/^vmacd/i.test(name)) {
+      const line = value("vmacd"), signalLine = value("signal");
+      return `VMACD=${num(line, 2)} و سیگنال=${num(signalLine, 2)} است؛ ${line > signalLine ? "شتاب حجم بهتر شده." : "شتاب حجم ضعیف‌تر شده."}`;
+    }
+    if (/^obv/i.test(name) && Number.isFinite(first)) return `عدد انباشته OBV برابر ${num(first, 0)} است؛ جهت تغییرات آن برای تأیید روند مهم‌تر از خود عدد است.`;
+    if (Number.isFinite(first)) return `عدد ${num(first, 2)} است و سیگنال رسمی ره‌آورد «${signalText}» ثبت شده.`;
+    return `عدد مستقیمی برای این شاخص منتشر نشده؛ سیگنال رسمی ره‌آورد «${signalText}» است.`;
+  }
+
   function indicatorAssessment(key, value) {
     const signal = value?.signal || "neutral";
     const unavailable = value?.value == null || signal === "unavailable";
@@ -338,13 +396,14 @@
         : ["neutral", "hold"].includes(trendSignal) ? 0 : null;
     const trendLabel = trendDirection == null ? "نامشخص" : trendDirection > 0 ? "صعودی" : trendDirection < 0 ? "نزولی" : "خنثی";
     const trendTone = trendDirection == null ? "unknown" : trendDirection > 0 ? "positive" : trendDirection < 0 ? "negative" : "neutral";
-    const rationale = direction == null
-      ? "سیگنال تجمیعی قابل‌خواندن از دادهٔ فعلی ره‌آورد دریافت نشد؛ برای این نماد نتیجهٔ خرید یا فروش نمی‌سازم."
-      : direction > 0
-        ? "برآیند سیگنال تجمیعی ره‌آورد مثبت است و جهت غالب فعلی به خرید متمایل است."
-        : direction < 0
-          ? "برآیند سیگنال تجمیعی ره‌آورد منفی است و جهت غالب فعلی به فروش متمایل است."
-          : "برآیند سیگنال تجمیعی ره‌آورد خنثی است؛ فعلاً صبر و بررسی دوباره پس از به‌روزرسانی داده‌ها منطقی‌تر است.";
+    const scenarios = Array.isArray(a.scenarios) ? a.scenarios : [];
+    const selectedScenario = direction > 0 ? scenarios.find((item) => item.direction === "bullish")
+      : direction < 0 ? scenarios.find((item) => item.direction === "bearish") : null;
+    const rationale = selectedScenario?.reason
+      ? `به علت ${selectedScenario.reason}، سناریوی ${selectedScenario.name} فعلاً محتمل‌تر است.`
+      : direction == null
+        ? "از روی دادهٔ فعلی دلیل عددی کافی برای نتیجه‌گیری وجود ندارد."
+        : "مقادیر عددی منتشرشده برای نتیجه‌گیری هم‌جهت کافی نیستند؛ حمایت و مقاومت را زیر نظر بگیر.";
     const trendContext = !trendItem
       ? "شاخص Trend در دادهٔ منتشرشدهٔ این نماد موجود نیست؛ جمع‌بندی فقط از سیگنال تجمیعی استفاده می‌کند."
       : direction == null
@@ -390,8 +449,10 @@
             ? "ورود پله‌ای؛ از خرید یک‌جا پرهیز کن"
           : direction > 0 && trendDirection > 0 ? "ورود پله‌ای قابل بررسی است"
             : "فعلاً صبر؛ نشانه‌ها تأیید همسو نمی‌دهند";
-    const entryReason = strongerCorrectionRisk
-      ? "سیگنال کلی و روند نزولی هم‌جهت‌اند؛ احتمال ادامهٔ فشار و اصلاح بیشتر است."
+    const entryReason = selectedScenario?.reason
+      ? selectedScenario.reason
+      : strongerCorrectionRisk
+      ? "روند و مومنتوم نزولی هم‌جهت‌اند؛ احتمال ادامهٔ فشار و اصلاح بیشتر است."
       : direction > 0 && trendDirection > 0 && (resistanceWarning || overboughtWarning)
         ? `${overboughtWarning ? `خریدزدگی در ${num(overboughtCount, 0)} اندیکاتور` : ""}${overboughtWarning && resistanceWarning ? " و " : ""}${resistanceWarning ? "سیگنال‌های مقاومتی بیشتر از حمایتی" : ""}؛ برای خرید یک‌جا احتیاط کن و احتمال اصلاح را در نظر بگیر.`
         : direction > 0 && trendDirection > 0
@@ -460,7 +521,7 @@
         const rendered = percentValue ? pct(val * 100) : num(val, priceIndicator ? 0 : 2);
         return `<div class="rahavard-indicator-value"><span>${esc(valueNames[key] || part.long_name_en || key)}</span><b>${rendered}</b></div>`;
       }).join("");
-      return `<article class="indicator-card rahavard-indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(groupNames[group] || group)}</small></div><span class="indicator-status ${state}">${esc(signalLabel)}</span></div><div class="rahavard-indicator-values">${values || `<span class="factor-foot">مقداری در پاسخ ره‌آورد نبود.</span>`}</div><p>${esc(note.meaning || "سیگنال و مقدار را همراه روند کلی صندوق بررسی کن.")}</p><div class="indicator-range-guide"><b>راهنمای محدوده</b><span>${esc(indicatorRangeGuide(name))}</span></div></article>`;
+      return `<article class="indicator-card rahavard-indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(groupNames[group] || group)}</small></div><span class="indicator-status ${state}">${esc(signalLabel)}</span></div><div class="rahavard-indicator-values">${values || `<span class="factor-foot">مقداری در پاسخ ره‌آورد نبود.</span>`}</div><p>${esc(indicatorNumericSummary(name, item))}</p><div class="indicator-range-guide"><b>راهنمای محدوده</b><span>${esc(indicatorRangeGuide(name))}</span></div></article>`;
     }));
     const gaugeCards = ["main", "pivot", "volume"].map((key) => {
       const gauge = a.site_gauges?.[key];
@@ -473,7 +534,7 @@
     const score = a.technical_score == null ? "—" : num(a.technical_score, 0);
     const cls = a.signal === "buy" ? "bullish" : a.signal === "sell" ? "bearish" : "";
     const missing = (a.missing_indicators || []).map((name) => `<article class="indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>در پاسخ نماد منتشر نشده</small></div><span class="indicator-status unknown">موجود نیست</span></div><p>برای این مقدار عدد جایگزین ساخته نشده است.</p><div class="indicator-range-guide"><b>راهنمای محدوده</b><span>${esc(indicatorRangeGuide(name))}</span></div></article>`).join("");
-    return `<div class="score-card"><div class="score-ring" style="--score:${Number(a.technical_score) || 0}%"><b>${score}</b></div><div class="score-copy"><strong>امتیاز تجمیعی ره‌آورد</strong><small>سیگنال‌های اندیکاتور همان‌هایی هستند که در صفحهٔ نماد ره‌آورد نمایش داده می‌شوند.</small></div><span class="signal-pill ${cls}">${signalFa[a.signal] || "خنثی"}</span></div><div class="factor-foot">${esc(a.explanation || "")} · داده تا ${esc(formatDate(a.data_timestamp))}</div><section class="indicator-workbench"><div class="indicator-section-title"><div><h3>جمع‌بندی ره‌آورد</h3><p>خرید، فروش و خنثی مستقیماً از شمارنده‌های سایت دریافت شده‌اند.</p></div></div><div class="indicator-readouts">${gaugeCards}</div><div class="indicator-section-title all-indicators-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، معنی و سیگنال رسمی</p></div></div><div class="indicator-card-grid">${cards.join("")}${missing}</div>${rahavardRecommendationHtml(a)}${scenarioHtml(a)}<div class="indicator-key-note"><b>روش خواندن:</b> «مثبت» یا «منفی» جهت سیگنال ره‌آورد را می‌گوید؛ خریدزدگی و فروش‌زدگی هشدار افراط‌اند و به‌تنهایی خوب یا بد قطعی نیستند. پاسخ عمومی این نماد مقدار قبلی را نداد و EMA/SMA(200) را منتشر نکرده است.</div></section>`;
+    return `<div class="score-card"><div class="score-ring" style="--score:${Number(a.technical_score) || 0}%"><b>${score}</b></div><div class="score-copy"><strong>امتیاز تجمیعی ره‌آورد</strong><small>سیگنال‌های اندیکاتور همان‌هایی هستند که در صفحهٔ نماد ره‌آورد نمایش داده می‌شوند.</small></div><span class="signal-pill ${cls}">${signalFa[a.signal] || "خنثی"}</span></div><div class="factor-foot">${esc(a.explanation || "")} · داده تا ${esc(formatDate(a.data_timestamp))}</div><section class="indicator-workbench"><div class="indicator-section-title"><div><h3>جمع‌بندی ره‌آورد</h3><p>عدد هر اندیکاتور و فاصله‌اش از محدوده مرجع در کارت همان شاخص توضیح داده شده است.</p></div></div><div class="indicator-readouts">${gaugeCards}</div><div class="indicator-section-title all-indicators-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div><div class="indicator-card-grid">${cards.join("")}${missing}</div>${rahavardRecommendationHtml(a)}${scenarioHtml(a)}<div class="indicator-key-note"><b>روش خواندن:</b> هر عدد با محدوده رایج همان شاخص مقایسه شده است؛ خریدزدگی و فروش‌زدگی هشدار افراط‌اند و به‌تنهایی سیگنال قطعی خرید یا فروش نیستند.</div></section>`;
   }
 
   function analysisHtml(a) {
@@ -495,7 +556,7 @@
       const name = indicatorFa[key] || (/^(EMA|SMA)\(/.test(key) ? (key.startsWith("EMA") ? "میانگین نمایی" : "میانگین ساده") : key);
       const displayKey = key === "Aroon(25)" ? "ARRON(25)" : key;
       const extra = indicatorExtra(key, value);
-      return `<article class="indicator-card" title="فرمول: ${esc(value.formula || "ثبت نشده")}"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(displayKey)}</small></div><span class="indicator-status ${assessment.state}">${assessment.label}</span></div><div class="indicator-card-value"><strong>${indicatorValueText(key, value)}</strong><span>${key.startsWith("EMA(") || key.startsWith("SMA(") ? "مقدار میانگین" : key === "BB(20)" || key === "KELTNER(16)" ? "خط میانی کانال" : key === "Ichimoku(9,26,52,26)" ? "خط تنکان" : "مقدار فعلی"}</span></div><p>${esc(indicatorMeaning(key, value))}</p><div class="indicator-range-guide"><b>راهنمای محدوده</b><span>${esc(indicatorRangeGuide(key))}</span></div>${extra ? `<div class="indicator-extra">${esc(extra)}</div>` : ""}<div class="indicator-previous">مقدار قبلی <b>${value.previous_value == null ? "—" : num(value.previous_value, 3)}</b></div></article>`;
+      return `<article class="indicator-card" title="فرمول: ${esc(value.formula || "ثبت نشده")}"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(displayKey)}</small></div><span class="indicator-status ${assessment.state}">${assessment.label}</span></div><div class="indicator-card-value"><strong>${indicatorValueText(key, value)}</strong><span>${key.startsWith("EMA(") || key.startsWith("SMA(") ? "مقدار میانگین" : key === "BB(20)" || key === "KELTNER(16)" ? "خط میانی کانال" : key === "Ichimoku(9,26,52,26)" ? "خط تنکان" : "مقدار فعلی"}</span></div><p>${esc(indicatorNumericSummary(key, value))}</p><div class="indicator-range-guide"><b>راهنمای محدوده</b><span>${esc(indicatorRangeGuide(key))}</span></div>${extra ? `<div class="indicator-extra">${esc(extra)}</div>` : ""}<div class="indicator-previous">مقدار قبلی <b>${value.previous_value == null ? "—" : num(value.previous_value, 3)}</b></div></article>`;
     }).join("");
     const levels = a.support_resistance || [];
     const levelHtml = levels.length ? levels.map((l) => `<div class="level-chip ${l.kind}"><span>${l.kind === "support" ? "حمایت" : "مقاومت"} · ${esc(l.strength)}</span><b>${money(l.low)} – ${money(l.high)}</b><small>${esc((l.methods || []).join("، "))}</small></div>`).join("") : `<span class="factor-foot">سطح قابل محاسبه‌ای وجود ندارد.</span>`;
@@ -714,6 +775,20 @@
     }
   }
 
+  function toggleMarketAnalysis(key) {
+    const panel = $(`[data-analysis-panel="${key}"]`);
+    if (!panel) return;
+    const shouldOpen = panel.classList.contains("hidden");
+    $$("[data-analysis-panel]").forEach((node) => node.classList.add("hidden"));
+    $$("[data-analysis-toggle]").forEach((node) => node.classList.remove("is-open"));
+    if (shouldOpen) {
+      panel.classList.remove("hidden");
+      const trigger = $(`[data-analysis-toggle="${key}"]`);
+      trigger?.classList.add("is-open");
+      panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
   async function loadAdmin() {
     try {
       const data = await api("/api/admin");
@@ -867,6 +942,17 @@
   });
   $("#fund-table").addEventListener("click", (event) => { const button = event.target.closest("[data-fund]"); if (button) showFund(button.dataset.fund); });
   $("#fund-detail").addEventListener("click", (event) => { if (event.target.closest("[data-close-fund]")) $("#fund-detail").classList.add("hidden"); });
+  $(".market-detail-grid").addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-analysis-toggle]");
+    if (trigger) toggleMarketAnalysis(trigger.dataset.analysisToggle);
+  });
+  $(".market-detail-grid").addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const trigger = event.target.closest("[data-analysis-toggle]");
+    if (!trigger) return;
+    event.preventDefault();
+    toggleMarketAnalysis(trigger.dataset.analysisToggle);
+  });
   $("#global-search").addEventListener("input", (event) => {
     const value = event.target.value.trim();
     if (value.length >= 2) { openView("funds"); $("#fund-search").value = value; loadFunds({ search: value }); }

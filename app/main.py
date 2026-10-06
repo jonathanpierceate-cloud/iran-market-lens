@@ -146,7 +146,7 @@ def evaluate_alerts() -> list[dict[str, Any]]:
             if alert["condition"] == "volume_spike":
                 # The Rahavard endpoint does not publish a volume-spike boolean.
                 continue
-            result = analyze_rahavard(fund["symbol"], snapshot["data"], snapshot.get("data_timestamp"))
+            result = analyze_rahavard(fund["symbol"], snapshot["data"], snapshot.get("data_timestamp"), fund.get("market_price"))
             rsi_item = next((item for item in result["indicators"].get("oscillators", [])
                              if str(item.get("short_name_en") or "").startswith("RSI(14)")), None)
             rsi_value = None
@@ -406,7 +406,8 @@ def funds(search: str = "", category: str = "", sort: str = "data_timestamp"):
             item[field] = raw.get(field)
         snapshot = snapshots.get(item["fund_key"])
         result = analyze_rahavard(item["symbol"], snapshot["data"],
-                                  snapshot.get("data_timestamp") or item.get("data_timestamp")) if snapshot else None
+                                  snapshot.get("data_timestamp") or item.get("data_timestamp"),
+                                  item.get("market_price")) if snapshot else None
         item["analysis"] = result
         item["technical_score"] = result.get("technical_score") if result else None
         item["trend"] = result.get("trend") if result else "unavailable"
@@ -541,7 +542,7 @@ async def get_watchlist():
         if indicator_data is None and cached:
             indicator_data = cached.get("data")
         stamp = trade.get("end_date_time") or (cached or {}).get("data_timestamp") or fund.get("data_timestamp")
-        analysis_result = analyze_rahavard(asset.get("trade_symbol") or fund["symbol"], indicator_data, stamp) if indicator_data else None
+        analysis_result = analyze_rahavard(asset.get("trade_symbol") or fund["symbol"], indicator_data, stamp, price) if indicator_data else None
         levels = _watchlist_levels(indicator_data, price)
         signal = analysis_result.get("signal") if analysis_result else None
         trend = analysis_result.get("trend") if analysis_result else None
@@ -692,7 +693,7 @@ async def fund_detail(symbol: str):
         if fund.get("market_price") and fund.get("nav"):
             fund["nav_premium_pct"] = (fund["market_price"] / fund["nav"] - 1) * 100
     analysis_result = analyze_rahavard(fund.get("display_symbol") or fund["symbol"], indicator_data,
-                                       fund.get("data_timestamp")) if indicator_data else None
+                                       fund.get("data_timestamp"), fund.get("market_price")) if indicator_data else None
     return {"fund": fund, "history": bars, "nav_history": nav, "portfolio": [],
             "analysis": analysis_result, "market_data_available": bool(bars),
             "fundamentals_source": "Rahavard365", "market_price_source": "Rahavard365" if fund.get("market_price") is not None else None,
@@ -727,7 +728,7 @@ async def fund_technical(symbol: str):
         data = await fetch_fund_indicators(fund["fund_key"])
     except SourceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return analyze_rahavard(fund.get("symbol"), data, fund.get("data_timestamp"))
+    return analyze_rahavard(fund.get("symbol"), data, fund.get("data_timestamp"), fund.get("market_price"))
 
 
 @app.get("/api/funds/{symbol}/signals")
@@ -737,7 +738,7 @@ async def fund_signals(symbol: str):
         data = await fetch_fund_indicators(fund["fund_key"])
     except SourceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    result = analyze_rahavard(fund["symbol"], data, fund.get("data_timestamp"))
+    result = analyze_rahavard(fund["symbol"], data, fund.get("data_timestamp"), fund.get("market_price"))
     return {"symbol": fund["symbol"], "fund_key": fund["fund_key"], "source": "Rahavard365",
             "signal": result["signal"], "score": result["technical_score"],
             "gauges": result["site_gauges"], "indicator_notes": result["indicator_notes"],
@@ -752,7 +753,7 @@ async def fund_analysis(symbol: str):
         data = await fetch_fund_indicators(fund["fund_key"])
     except SourceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return analyze_rahavard(fund["symbol"], data, fund.get("data_timestamp"))
+    return analyze_rahavard(fund["symbol"], data, fund.get("data_timestamp"), fund.get("market_price"))
 
 
 @app.get("/api/admin")

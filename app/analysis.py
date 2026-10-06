@@ -200,11 +200,39 @@ def analyze(symbol: str, bars: list[dict[str, Any]]) -> dict[str, Any]:
 
 
 def analyze_rahavard(symbol: str, payload: dict[str, Any],
-                     data_timestamp: str | None = None) -> dict[str, Any]:
+                     data_timestamp: str | None = None,
+                     current_price: float | None = None) -> dict[str, Any]:
     """Describe Rahavard's published indicator readings without recalculating them."""
     data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
     groups = {key: data.get(key) if isinstance(data.get(key), list) else []
               for key in ("oscillators", "moving_averages", "pivots", "bands", "volumes")}
+    def indicator_values(items: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
+        output: dict[str, dict[str, float]] = {}
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            name = str(item.get("short_name_en") or item.get("name_en") or "").strip()
+            if not name:
+                continue
+            values: dict[str, float] = {}
+            for part in item.get("value") or []:
+                if not isinstance(part, dict):
+                    continue
+                try:
+                    value = float(part.get("value"))
+                    if math.isfinite(value):
+                        values[str(part.get("name") or "").strip()] = value
+                except (TypeError, ValueError):
+                    continue
+            output[name] = values
+        return output
+    indicator_data = indicator_values([item for items in groups.values() for item in items])
+    try:
+        price = float(current_price) if current_price is not None else None
+        if price is not None and (not math.isfinite(price) or price <= 0):
+            price = None
+    except (TypeError, ValueError):
+        price = None
     gauges = data.get("gauges") if isinstance(data.get("gauges"), dict) else {}
     main_gauge = gauges.get("main") if isinstance(gauges.get("main"), dict) else {}
     main_signal = main_gauge.get("signal") if isinstance(main_gauge.get("signal"), dict) else {}
@@ -290,8 +318,6 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
             "bearish" if trend_signal in {"sell", "bearish", "strongsell"} else "neutral"
     footer = main_gauge.get("footer") if isinstance(main_gauge.get("footer"), dict) else {}
     counts = {key: (footer.get(key) or {}).get("value") for key in ("Buy", "Neutral", "Sell")}
-    explanation = (f"سیگنال تجمیعی ره‌آورد: {counts.get('Buy') or 0} خرید، "
-                   f"{counts.get('Neutral') or 0} خنثی، {counts.get('Sell') or 0} فروش.")
     def count_value(value: Any) -> float:
         try:
             parsed = float(value)
@@ -308,40 +334,115 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         bullish_probability = 60 if signal == "buy" or trend == "bullish" else 40
         bearish_probability = 100 - bullish_probability
 
-    all_items = [item for values in groups.values() for item in values if isinstance(item, dict)]
-    raw_signals = [str(item.get("signal") or "neutral").casefold() for item in all_items]
-    bullish_indicators = sum(1 for value in raw_signals if value in {"buy", "bullish", "strongbuy"})
-    bearish_indicators = sum(1 for value in raw_signals if value in {"sell", "bearish", "strongsell"})
-    overbought = sum(1 for value in raw_signals if value == "overbought")
-    oversold = sum(1 for value in raw_signals if value == "oversold")
-    bullish_reasons = [f"در جمع‌بندی اصلی ره‌آورد {int(buy_count)} سیگنال خرید در برابر {int(sell_count)} سیگنال فروش ثبت شده است"]
-    bearish_reasons = [f"در جمع‌بندی اصلی ره‌آورد {int(sell_count)} سیگنال فروش در برابر {int(buy_count)} سیگنال خرید ثبت شده است"]
+    def fmt(value: float | None) -> str:
+        return "نامشخص" if value is None else f"{value:,.2f}"
+
+    def find_values(prefix: str) -> dict[str, float]:
+        for name, values in indicator_data.items():
+            if name.casefold().startswith(prefix.casefold()):
+                return values
+        return {}
+
+    def nearest_level(values: list[float], *, below: bool) -> float | None:
+        valid = [value for value in values if price is None or (value < price if below else value > price)]
+        if not valid:
+            return max(values) if values else None
+        return max(valid) if below else min(valid)
+
+    supports = sorted({value for item in groups["pivots"] if isinstance(item, dict)
+                       for key, value in (indicator_data.get(str(item.get("short_name_en") or item.get("name_en") or ""), {})).items()
+                       if key.casefold().startswith("s")})
+    resistances = sorted({value for item in groups["pivots"] if isinstance(item, dict)
+                          for key, value in (indicator_data.get(str(item.get("short_name_en") or item.get("name_en") or ""), {})).items()
+                          if key.casefold().startswith("r")})
+    nearest_support = nearest_level(supports, below=True)
+    nearest_resistance = nearest_level(resistances, below=False)
+    resistance_above_price = price is None or any(value > price for value in resistances)
+    rsi = find_values("RSI").get("rsi")
+    mfi = find_values("MFI").get("mfi")
+    cci = find_values("CCI").get("cci")
+    wr = find_values("WR").get("wr")
+    so = find_values("SO")
+    aroon = find_values("ARRON") or find_values("Aroon")
+    adx = find_values("ADX").get("adx")
+    ao = find_values("AO").get("awesome")
+    stoch_rsi = find_values("StochRSI").get("stochrsi")
+    macd_values = find_values("MACD")
+    macd_line = macd_values.get("macd")
+    macd_signal = macd_values.get("signal")
+    ema20 = find_values("EMA(20)").get("value")
+    ema50 = find_values("EMA(50)").get("value")
+    bullish_reasons: list[str] = []
+    bearish_reasons: list[str] = []
+    if price is not None and ema20 is not None:
+        bullish_reasons.append(f"قیمت {fmt(price)} بالاتر از EMA20 در {fmt(ema20)} است")
+        bearish_reasons.append(f"حمایت روند کوتاه‌مدت روی EMA20 در {fmt(ema20)} قرار دارد")
+    if price is not None and ema50 is not None:
+        bullish_reasons.append(f"قیمت بالاتر از EMA50 در {fmt(ema50)} تثبیت شده است")
+        bearish_reasons.append(f"شکست EMA50 در {fmt(ema50)} می‌تواند روند میان‌مدت را تضعیف کند")
+    if macd_line is not None and macd_signal is not None:
+        if macd_line >= macd_signal:
+            bullish_reasons.append(f"MACD با عدد {fmt(macd_line)} بالاتر از خط سیگنال {fmt(macd_signal)} است")
+            bearish_reasons.append(f"کاهش MACD از {fmt(macd_line)} به زیر خط سیگنال {fmt(macd_signal)} هشدار نزولی می‌دهد")
+        else:
+            bearish_reasons.append(f"MACD با عدد {fmt(macd_line)} زیر خط سیگنال {fmt(macd_signal)} است")
+            bullish_reasons.append(f"عبور MACD از خط سیگنال {fmt(macd_signal)} شرط بهبود شتاب است")
+    if aroon.get("up") is not None and aroon.get("down") is not None:
+        bullish_reasons.append(f"Aroon صعودی {fmt(aroon['up'])} در برابر Aroon نزولی {fmt(aroon['down'])} است") if aroon["up"] > aroon["down"] else None
+        bearish_reasons.append(f"Aroon نزولی {fmt(aroon['down'])} در برابر Aroon صعودی {fmt(aroon['up'])} برتری دارد") if aroon["down"] > aroon["up"] else None
+    if adx is not None:
+        (bullish_reasons if trend == "bullish" else bearish_reasons).append(f"ADX روی {fmt(adx)} است و قدرت روند را بالای آستانه ۲۵ نشان می‌دهد") if adx >= 25 else None
     if trend == "bullish":
-        bullish_reasons.append("شاخص روند ره‌آورد صعودی است")
-        bearish_reasons.append("روند صعودی است، بنابراین سناریوی نزولی به شکست حمایت نیاز دارد")
+        bullish_reasons.append("شاخص Trend ره‌آورد صعودی است")
     elif trend == "bearish":
-        bearish_reasons.append("شاخص روند ره‌آورد نزولی است")
-        bullish_reasons.append("برای فعال‌شدن سناریوی صعودی، تغییر روند و عبور از مقاومت لازم است")
-    if bullish_indicators > bearish_indicators:
-        bullish_reasons.append(f"تعداد سیگنال‌های مثبت اندیکاتورها بیشتر است ({bullish_indicators} در برابر {bearish_indicators})")
-    elif bearish_indicators > bullish_indicators:
-        bearish_reasons.append(f"تعداد سیگنال‌های منفی اندیکاتورها بیشتر است ({bearish_indicators} در برابر {bullish_indicators})")
-    if overbought:
-        bearish_reasons.append(f"{overbought} اندیکاتور در ناحیه خریدزدگی است و احتمال اصلاح کوتاه‌مدت را بالا می‌برد")
-    if oversold:
-        bullish_reasons.append(f"{oversold} اندیکاتور در ناحیه فروش‌زدگی است و امکان برگشت را مطرح می‌کند")
+        bearish_reasons.append("شاخص Trend ره‌آورد نزولی است")
+    if rsi is not None:
+        if rsi >= 70:
+            bearish_reasons.append(f"RSI(14) روی {fmt(rsi)} است؛ بالای ۷۰ خریدزدگی و ریسک اصلاح را نشان می‌دهد")
+        elif rsi <= 30:
+            bullish_reasons.append(f"RSI(14) روی {fmt(rsi)} است؛ زیر ۳۰ فروش‌زدگی و امکان برگشت را نشان می‌دهد")
+    if mfi is not None and mfi >= 80:
+        bearish_reasons.append(f"MFI روی {fmt(mfi)} و بالای ۸۰ است؛ فشار خرید به ناحیه خریدزدگی رسیده است")
+    elif mfi is not None and mfi <= 20:
+        bullish_reasons.append(f"MFI روی {fmt(mfi)} و زیر ۲۰ است؛ فروش‌زدگی جریان پول دیده می‌شود")
+    if cci is not None and cci >= 100:
+        bearish_reasons.append(f"CCI روی {fmt(cci)} و بالای ۱۰۰ است؛ حرکت قوی اما کشیده شده است")
+    elif cci is not None and cci <= -100:
+        bullish_reasons.append(f"CCI روی {fmt(cci)} و زیر منفی ۱۰۰ است؛ فروش‌زدگی دیده می‌شود")
+    if wr is not None and wr >= -20:
+        bearish_reasons.append(f"Williams %R روی {fmt(wr)} و بالای منفی ۲۰ است؛ خریدزدگی کوتاه‌مدت وجود دارد")
+    elif wr is not None and wr <= -80:
+        bullish_reasons.append(f"Williams %R روی {fmt(wr)} و زیر منفی ۸۰ است؛ فروش‌زدگی کوتاه‌مدت وجود دارد")
+    if so.get("k") is not None and so.get("d") is not None and so["k"] >= 80 and so["d"] >= 80:
+        bearish_reasons.append(f"نوسان‌گر تصادفی K={fmt(so['k'])} و D={fmt(so['d'])} را نشان می‌دهد؛ هر دو بالای ۸۰ و در خریدزدگی‌اند")
+    if ao is not None:
+        (bullish_reasons if ao > 0 else bearish_reasons).append(f"AO با عدد {fmt(ao)} {'مثبت' if ao > 0 else 'منفی'} است")
+    if stoch_rsi is not None and stoch_rsi <= 0.2:
+        bullish_reasons.append(f"StochRSI روی {fmt(stoch_rsi)} و زیر ۰٫۲۰ است؛ فروش‌زدگی دیده می‌شود")
+    elif stoch_rsi is not None and stoch_rsi >= 0.8:
+        bearish_reasons.append(f"StochRSI روی {fmt(stoch_rsi)} و بالای ۰٫۸۰ است؛ خریدزدگی دیده می‌شود")
+    if nearest_support is not None:
+        bearish_reasons.append(f"حمایت محاسباتی نزدیک {fmt(nearest_support)} است؛ از دست‌رفتن آن سناریوی نزولی را فعال می‌کند")
+    if nearest_resistance is not None:
+        bullish_reasons.append(f"مقاومت محاسباتی {'نزدیک' if resistance_above_price else 'قبلی'} {fmt(nearest_resistance)} است؛ {'تثبیت بالای آن ادامه رشد را تأیید می‌کند' if resistance_above_price else 'قیمت بالای آن قرار گرفته و حفظ این سطح به نفع روند است'}")
+    if not bullish_reasons:
+        bullish_reasons.append("برای تأیید سناریوی صعودی، تغییر در مقادیر فعلی و عبور از مقاومت لازم است")
+    if not bearish_reasons:
+        bearish_reasons.append("برای تأیید سناریوی نزولی، شکست حمایت با تأیید مومنتوم لازم است")
+    explanation = "؛ ".join((bullish_reasons if signal == "buy" else bearish_reasons if signal == "sell" else bullish_reasons[:2] + bearish_reasons[:2]))
     scenarios = [
         {"name": "صعودی", "direction": "bullish", "probability": bullish_probability,
          "reason": "؛ ".join(bullish_reasons),
-         "condition": "تثبیت قیمت بالای مقاومت نزدیک و حفظ برتری سیگنال‌های خرید",
-         "risk": "اگر مقاومت حفظ نشود یا شمارنده فروش افزایش یابد، احتمال این سناریو کم می‌شود."},
+         "condition": "تثبیت قیمت بالای مقاومت نزدیک و حفظ برتری اندیکاتورهای عددی صعودی",
+         "risk": "اگر مقاومت حفظ نشود یا RSI/MFI در ناحیه افراطی بمانند، احتمال اصلاح بیشتر می‌شود."},
         {"name": "نزولی", "direction": "bearish", "probability": bearish_probability,
          "reason": "؛ ".join(bearish_reasons),
-         "condition": "شکست حمایت نزدیک با تأیید افزایش سیگنال‌های فروش",
-         "risk": "اگر حمایت حفظ شود و روند تغییر کند، این سناریو اعتبار کمتری دارد."},
+         "condition": "شکست حمایت نزدیک با تأیید MACD، مومنتوم یا حجم",
+         "risk": "اگر حمایت حفظ شود و MACD بالای خط سیگنال بماند، این سناریو اعتبار کمتری دارد."},
     ]
     return {
         "source": "Rahavard365", "symbol": symbol, "data_timestamp": data_timestamp,
+        "price": price, "support_levels": supports, "resistance_levels": resistances,
         "technical_score": round(score, 1) if score is not None else None,
         "signal": signal, "trend": trend, "risk": "unavailable",
         "confidence": None,
@@ -351,7 +452,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         "indicators": groups, "indicator_notes": notes,
         "indicator_count": sum(len(items) for items in groups.values()),
         "missing_indicators": missing, "scenarios": scenarios,
-        "scenario_note": "احتمال‌ها برآورد تحلیلی بر پایه شمارنده‌ها و جهت روند ره‌آورد هستند؛ پیش‌بینی قطعی یا بک‌تست‌شده نیستند.",
+        "scenario_note": "احتمال‌ها برآورد تحلیلی بر پایه عدد اندیکاتورها، روند و سطوح حمایت/مقاومت هستند؛ پیش‌بینی قطعی یا بک‌تست‌شده نیستند.",
     }
 
 
