@@ -2,6 +2,10 @@
 
 داشبورد فارسی برای پایش طلا، دلار تتر، صندوق‌های قابل معامله و تحلیل تکنیکال بر پایه داده‌های ره‌آورد۳۶۵ و تبدیل دلار از تتر/تبدیل.
 
+**نسخهٔ آنلاین:** https://iran-market-lens.onrender.com
+
+**مخزن GitHub:** https://github.com/jonathanpierceate-cloud/iran-market-lens
+
 ## امکانات
 
 - فهرست و جست‌وجوی صندوق‌ها از ره‌آورد۳۶۵
@@ -44,7 +48,7 @@ Dockerfile به‌صورت خودکار از متغیر `PORT` استفاده م
 
 ## انتشار عمومی با GitHub و Render
 
-این مخزن شامل `Dockerfile`، `render.yaml` و workflow ساخت Docker است.
+این مخزن شامل `Dockerfile`، `render.yaml` و workflow ساخت Docker است. Render از فایل `render.yaml` سرویس را از شاخهٔ `main` می‌سازد و با هر push جدید به‌صورت خودکار deploy می‌کند.
 
 1. مخزن را در GitHub روی شاخه `main` قرار دهید.
 2. در Render گزینه New > Blueprint را بزنید.
