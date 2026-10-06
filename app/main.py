@@ -251,6 +251,19 @@ async def lifespan(_: FastAPI):
     # running task is therefore not a reliable scheduler there; refreshes are
     # triggered explicitly through /api/refresh (and can be called by a cron).
     if os.getenv("VERCEL"):
+        # A new Vercel instance has an empty /tmp directory.  Bootstrap it
+        # once before serving the first request so a cold instance still has
+        # live Rahavard365 prices, funds, and indicators instead of an empty
+        # dashboard.  Warm instances can be refreshed through /api/refresh.
+        if not db.funds(source="Rahavard365"):
+            REFRESH_STATE["running"] = True
+            try:
+                REFRESH_STATE["last_result"] = await refresh_all()
+                evaluate_alerts()
+            except Exception as exc:
+                REFRESH_STATE["last_result"] = {"error": str(exc)}
+            finally:
+                REFRESH_STATE["running"] = False
         yield
         return
 
