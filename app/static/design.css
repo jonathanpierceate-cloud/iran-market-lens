@@ -753,6 +753,73 @@ body.light-mode #view-funds .table-footer span:last-child { color: #7a918a; }
   #view-funds .table-footer span:last-child { text-align: right; }
 }
 
+/* On phones the ETF table becomes a readable stack of metric cards instead of a clipped wide table. */
+@media (max-width: 700px) {
+  #view-funds .table-scroll { overflow: visible; }
+  #view-funds #fund-table-grid { display: block; width: 100%; min-width: 0; }
+  #view-funds #fund-table-grid thead { display: none; }
+  #view-funds #fund-table-grid tbody { display: grid; gap: 12px; padding: 12px; }
+  #view-funds #fund-table-grid tbody tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid #315662;
+    border-radius: 16px;
+    background: linear-gradient(145deg, rgba(29, 59, 68, .82), rgba(17, 37, 46, .92));
+    box-shadow: 0 8px 22px rgba(4, 15, 20, .18);
+  }
+  #view-funds #fund-table-grid tbody td,
+  #view-funds #fund-table-grid tbody td:first-child {
+    position: static;
+    right: auto;
+    z-index: auto;
+    min-width: 0 !important;
+    width: auto;
+    padding: 9px 10px;
+    border: 1px solid rgba(88, 133, 137, .24);
+    border-radius: 11px;
+    background: rgba(9, 25, 32, .4) !important;
+    box-shadow: none !important;
+    color: #d3e1dd;
+    direction: ltr;
+    text-align: right;
+    white-space: normal;
+    line-height: 1.55;
+  }
+  #view-funds #fund-table-grid tbody td::before {
+    display: block;
+    margin-bottom: 3px;
+    color: #8eafaa;
+    font: 600 10px Tahoma, sans-serif;
+    line-height: 1.4;
+  }
+  #view-funds #fund-table-grid tbody td:first-child {
+    grid-column: 1 / -1;
+    padding: 0;
+    border: 0;
+    background: transparent !important;
+    direction: rtl;
+  }
+  #view-funds #fund-table-grid tbody td:first-child::before { display: none; }
+  #view-funds #fund-table-grid tbody td:nth-child(2)::before { content: "قیمت پایانی"; }
+  #view-funds #fund-table-grid tbody td:nth-child(3)::before { content: "تغییر روز"; }
+  #view-funds #fund-table-grid tbody td:nth-child(4)::before { content: "بازده 1 ماهه"; }
+  #view-funds #fund-table-grid tbody td:nth-child(5)::before { content: "بازده 3 ماهه"; }
+  #view-funds #fund-table-grid tbody td:nth-child(6)::before { content: "بازده 6 ماهه"; }
+  #view-funds #fund-table-grid tbody td:nth-child(7)::before { content: "بازده 1 ساله"; }
+  #view-funds #fund-table-grid tbody td:nth-child(8)::before { content: "حجم"; }
+  #view-funds #fund-table-grid tbody td:nth-child(9)::before { content: "ارزش معامله"; }
+  #view-funds .fund-table-name { width: 100%; min-width: 0; padding: 11px 12px; }
+  #view-funds .fund-table-name strong { font-size: 16px; }
+  #view-funds .fund-table-name small { font-size: 11px; }
+  #view-funds .table-footer { padding: 12px 14px; }
+  body.light-mode #view-funds #fund-table-grid tbody tr { border-color: #c9dfd4; background: linear-gradient(145deg, #f5fbf8, #eaf5ef); box-shadow: 0 8px 20px rgba(31, 78, 61, .08); }
+  body.light-mode #view-funds #fund-table-grid tbody td,
+  body.light-mode #view-funds #fund-table-grid tbody td:first-child { border-color: #dce8e2; background: rgba(255, 255, 255, .72) !important; color: #46645d; }
+  body.light-mode #view-funds #fund-table-grid tbody td::before { color: #6d8980; }
+}
+
 /* Personal watchlist: clickable symbols and a compact six-column layout. */
 #view-watchlist .watchlist-table { min-width: 980px; border-collapse: separate; border-spacing: 0; direction: rtl; }
 #view-watchlist .watchlist-table th { background: linear-gradient(180deg, #233d46, #1d343d); color: #c8d9d5; border-bottom: 1px solid #3b5a63; font-size: 13px; font-weight: 700; }
