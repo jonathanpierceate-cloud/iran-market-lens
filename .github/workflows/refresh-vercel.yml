@@ -1,0 +1,26 @@
+name: Refresh live market data
+
+on:
+  schedule:
+    # GitHub-hosted egress reaches Rahavard365 even when a hosting provider
+    # cannot.  This keeps the Vercel instance warm with a recent snapshot.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Refresh Vercel data endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          response="$(curl --fail-with-body --silent --show-error --max-time 120 \
+            https://iran-market-lens.vercel.app/api/refresh)"
+          echo "$response"
+          echo "$response" | jq -e '
+            any(.sources[]; .name == "rahavard_funds" and .status == "connected")
+          ' >/dev/null
