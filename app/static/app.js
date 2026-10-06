@@ -937,9 +937,13 @@
       await loadAlerts();
     } catch (err) { toast(`هشدار ثبت نشد: ${err.message}`, true); }
   });
-  ["#fund-search", "#fund-category", "#fund-sort"].forEach((id) => $(id).addEventListener(id === "#fund-search" ? "input" : "change", () => {
-    clearTimeout(loadFunds.timer); loadFunds.timer = setTimeout(() => loadFunds(), id === "#fund-search" ? 250 : 0);
-  }));
+  ["#fund-search", "#fund-category"].forEach((id) => {
+    const control = $(id);
+    if (!control) return;
+    control.addEventListener(id === "#fund-search" ? "input" : "change", () => {
+      clearTimeout(loadFunds.timer); loadFunds.timer = setTimeout(() => loadFunds(), id === "#fund-search" ? 250 : 0);
+    });
+  });
   $("#watchlist-add-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const symbol = $("#watchlist-symbol").value.trim();
