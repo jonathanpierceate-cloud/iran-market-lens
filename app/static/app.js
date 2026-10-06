@@ -14,7 +14,8 @@
     .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
     .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
     .replace(/٫/g, ".")
-    .replace(/٬/g, ",");
+    .replace(/٬/g, ",")
+    .replace(/٪/g, "%");
  const formatDate = (value) => {
    if (!value) return "—";
    const d = new Date(value);
