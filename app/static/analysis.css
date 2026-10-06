@@ -257,10 +257,34 @@
 .watch-remove:hover{background:#40212c}
 .watchlist-footer{gap:18px;flex-wrap:wrap;line-height:1.8}
 .watchlist-footer span:last-child{color:#8292a7}
+.scenario-section{margin-top:22px;padding-top:20px;border-top:1px solid var(--line-soft)}
+.scenario-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.scenario-card{padding:18px;border:1px solid #2a405b;border-radius:14px;background:#0d1a2b;box-shadow:0 10px 24px rgba(0,0,0,.12)}
+.scenario-card.bullish{border-color:rgba(57,186,142,.45);background:linear-gradient(145deg,rgba(24,100,78,.2),#0d1a2b 58%)}
+.scenario-card.bearish{border-color:rgba(224,105,120,.45);background:linear-gradient(145deg,rgba(116,42,57,.2),#0d1a2b 58%)}
+.scenario-card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.scenario-kicker{display:block;color:#8fa4bb;font-size:12px;margin-bottom:2px}
+.scenario-card h4{margin:0;font-size:20px;color:#eef5ff}
+.scenario-card-head>strong{font:700 24px 'DM Mono',monospace;direction:ltr;color:#63d0a9}
+.scenario-card.bearish .scenario-card-head>strong{color:#ef8c9a}
+.scenario-bar{height:7px;border-radius:8px;background:#1d2d43;overflow:hidden;margin:14px 0}
+.scenario-bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#258e6e,#65d0aa)}
+.scenario-card.bearish .scenario-bar i{background:linear-gradient(90deg,#a64759,#ef8c9a)}
+.scenario-card p{margin:0;color:#b8c7d8;font-size:14px;line-height:1.9}
+.scenario-condition{margin-top:13px;padding:9px 11px;border-radius:9px;background:rgba(8,18,31,.45);color:#aebfd1;font-size:13px}
+.scenario-condition b{color:#e5edf7}
+.scenario-card small{display:block;margin-top:10px;color:#8397ae;font-size:12px;line-height:1.7}
+.scenario-note{margin-top:12px;color:#7f93aa;font-size:12px}
+.watchlist-totals{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:16px 20px;border-top:1px solid var(--line-soft);background:rgba(10,20,34,.4)}
+.watch-total-card{padding:12px 14px;border:1px solid #273d58;border-radius:11px;background:#0e1b2d}
+.watch-total-card span{display:block;color:#8396ad;font-size:12px}
+.watch-total-card b{display:block;margin-top:3px;color:#e9f1fb;font:600 16px 'DM Mono',monospace;direction:ltr;text-align:right}
+.watch-total-card.positive b{color:var(--green)}.watch-total-card.negative b{color:var(--red)}
+.light-mode .scenario-card{background:#f7fafd;border-color:#d8e2ee}.light-mode .scenario-card h4{color:#233953}.light-mode .scenario-card p{color:#516982}.light-mode .scenario-condition{background:#eef3f8;color:#5b718a}.light-mode .scenario-condition b{color:#304963}.light-mode .scenario-card small,.light-mode .scenario-note{color:#6d8298}.light-mode .watchlist-totals{background:#f7f9fc}.light-mode .watch-total-card{background:#fff;border-color:#d8e2ee}.light-mode .watch-total-card span{color:#657b92}.light-mode .watch-total-card b{color:#2c435e}
 .light-mode .watchlist-add-form label,.light-mode .watch-fund-cell strong,.light-mode .watch-price b{color:#263951}
 .light-mode .watchlist-add-form input,.light-mode .watch-input{background:#f7f9fc;color:#263951;border-color:#ced9e7}
 .light-mode .watch-level{background:#f4f7fb;border-color:#dae3ee}
 .light-mode .watch-level b{color:#344861}
 .light-mode .watch-outlook{background:#f4f7fb;border-color:#dae3ee}
 .light-mode .watch-remove{background:#fff3f4;border-color:#edcbd0;color:#a84050}
-@media(max-width:720px){.watchlist-toolbar{padding:15px}.watchlist-add-form{grid-template-columns:1fr;gap:8px}.watchlist-add-form label{white-space:normal}.watchlist-add-form .button{justify-content:center}.watchlist-scroll{max-height:calc(100vh - 300px)}.watchlist-footer{padding:10px 12px}}
+@media(max-width:720px){.watchlist-toolbar{padding:15px}.watchlist-add-form{grid-template-columns:1fr;gap:8px}.watchlist-add-form label{white-space:normal}.watchlist-add-form .button{justify-content:center}.watchlist-scroll{max-height:calc(100vh - 300px)}.watchlist-footer{padding:10px 12px}.scenario-grid{grid-template-columns:1fr}.watchlist-totals{grid-template-columns:repeat(2,minmax(0,1fr));padding:12px}.watch-total-card b{font-size:14px}}

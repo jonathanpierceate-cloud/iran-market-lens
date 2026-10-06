@@ -14,9 +14,11 @@ from html import unescape
 from typing import Any
 
 from .config import (CODAL_API_URL, HTTP_TIMEOUT_SECONDS, NEWS_RSS_URLS,
-                     RAHAVARD_API_BASE_URL, RAHAVARD_ETF_FUNDS_URL,
-                     RAHAVARD_LIGHT_BARS_URL, RAHAVARD_PUBLIC_BARS_URL,
-                     TABDEAL_TRADES_URL, MAX_STALE_HOURS)
+                     MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
+                     RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_ASSET_ID,
+                     RAHAVARD_GOLD_PAGE_URL, RAHAVARD_LIGHT_BARS_URL,
+                     RAHAVARD_PUBLIC_BARS_URL, RAHAVARD_USDT_ASSET_ID,
+                     RAHAVARD_USDT_PAGE_URL)
 from .db import db, utc_now
 
 YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
@@ -105,11 +107,11 @@ def rahavard_gold_history() -> list[dict[str, Any]]:
     query = urllib.parse.urlencode({
         "from": "2015-01-01T00:00:00Z",
         "to": now.isoformat(timespec="seconds").replace("+00:00", "Z"),
-        "symbol": "exchange.asset:2016:real_close",
+        "symbol": f"exchange.asset:{RAHAVARD_GOLD_ASSET_ID}:real_close",
         "resolution": "D",
         "countback": "5000",
     })
-    payload = _json(f"{RAHAVARD_PUBLIC_BARS_URL}?{query}", referer="https://rahavard365.com/asset/2016/chart")
+    payload = _json(f"{RAHAVARD_PUBLIC_BARS_URL}?{query}", referer=RAHAVARD_GOLD_PAGE_URL)
     rows = payload.get("data") if isinstance(payload, dict) else None
     if not isinstance(rows, list) or not rows:
         raise SourceError("ره‌آورد۳۶۵ برای نمودار طلای جهانی کندلی برنگرداند")
@@ -163,25 +165,52 @@ def rahavard_gold_history() -> list[dict[str, Any]]:
     return bars
 
 
-def tabdeal_usdt_current() -> dict[str, Any]:
-    """Fetch the latest public USDT/IRT trade from Tabdeal."""
-    query = urllib.parse.urlencode({"symbol": "USDTIRT", "limit": "5"})
-    trades = _json(f"{TABDEAL_TRADES_URL}?{query}", referer="https://www.tabdeal.org/usdt-price")
-    if not isinstance(trades, list) or not trades:
-        raise SourceError("معاملهٔ تازهٔ USDT/IRT از تبدیل دریافت نشد")
-    trade = max(trades, key=lambda item: _num(item.get("time")) or 0)
-    price = _num(trade.get("price"))
-    traded_at_ms = _num(trade.get("time"))
-    if price is None or price <= 0 or traded_at_ms is None:
-        raise SourceError("قیمت یا زمان معاملهٔ USDT/IRT معتبر نیست")
-    observed_at = datetime.fromtimestamp(traded_at_ms / 1000, timezone.utc).isoformat(timespec="milliseconds")
-    now = datetime.now(timezone.utc)
-    observed = datetime.fromtimestamp(traded_at_ms / 1000, timezone.utc)
-    stale = (observed > now + timedelta(minutes=2)
-             or (now - observed).total_seconds() > MAX_STALE_HOURS * 3600)
-    bar = {"timestamp": observed_at, "fetched_at": utc_now(), "open": None,
-           "high": None, "low": None, "close": price, "volume": None}
-    return {"bar": bar, "stale": stale, "observed_at": observed_at, "raw": trade}
+def rahavard_usdt_history() -> list[dict[str, Any]]:
+    """Return recent daily USDT/IRT candles from Rahavard's asset page feed."""
+    query = urllib.parse.urlencode({"symbol": f"exchange.asset:{RAHAVARD_USDT_ASSET_ID}:real_close"})
+    payload = _json(f"{RAHAVARD_LIGHT_BARS_URL}?{query}", referer=RAHAVARD_USDT_PAGE_URL)
+    rows = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(rows, list) or not rows:
+        raise SourceError("ره‌آورد۳۶۵ برای قیمت تتر کندلی برنگرداند")
+    grouped: dict[str, dict[str, Any]] = {}
+    for item in sorted(rows, key=lambda row: _num(row.get("time")) or 0):
+        try:
+            raw_time = item.get("utc")
+            if raw_time:
+                candle_time = datetime.fromisoformat(str(raw_time).replace("Z", "+00:00"))
+            elif _num(item.get("time")) is not None:
+                candle_time = datetime.fromtimestamp(float(item["time"]) / 1000, timezone.utc)
+            else:
+                continue
+            if candle_time.tzinfo is None:
+                candle_time = candle_time.replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        day = candle_time.date().isoformat()
+        open_price, high, low, close = (_num(item.get(k)) for k in ("open", "high", "low", "close"))
+        if close is None or close <= 0:
+            continue
+        current = grouped.get(day)
+        if current is None:
+            grouped[day] = {
+                "timestamp": f"{day}T00:00:00+03:30",
+                "observed_at": candle_time.astimezone(timezone.utc).isoformat(timespec="seconds"),
+                "fetched_at": utc_now(), "open": open_price if open_price is not None else close,
+                "high": high if high is not None else close, "low": low if low is not None else close,
+                "close": close, "volume": _num(item.get("volume")),
+            }
+        else:
+            current["high"] = max(current["high"], high if high is not None else close)
+            current["low"] = min(current["low"], low if low is not None else close)
+            current["close"] = close
+            current["observed_at"] = candle_time.astimezone(timezone.utc).isoformat(timespec="seconds")
+            volume = _num(item.get("volume"))
+            if volume is not None:
+                current["volume"] = volume
+    bars = [grouped[day] for day in sorted(grouped)]
+    if not bars:
+        raise SourceError("کندل‌های قیمت تتر از ره‌آورد۳۶۵ معتبر نیستند")
+    return bars
 
 
 def _rahavard_asset_id(fund: dict[str, Any]) -> str:
@@ -404,7 +433,7 @@ async def refresh_all() -> dict[str, Any]:
     def apply_gold(result):
         bars = result
         db.save_bars("GOLD", "طلای جهانی (XAU/USD)", "commodity", "USD", "دلار/اونس تروا",
-                     "Rahavard365", "https://rahavard365.com/asset/2016/chart", bars)
+                     "Rahavard365", RAHAVARD_GOLD_PAGE_URL, bars)
         return len(bars), bars[-1].get("observed_at") or bars[-1]["timestamp"]
 
     def apply_dxy(result):
@@ -414,11 +443,13 @@ async def refresh_all() -> dict[str, Any]:
         return len(bars), bars[-1]["timestamp"]
 
     def apply_usd(result):
+        bars = result
         db.save_bars("USD_IR_FREE", "تتر (معادل دلار آمریکا)", "currency", "IRT", "تومان",
-                     "Tabdeal", "https://www.tabdeal.org/usdt-price", [result["bar"]])
-        stale = result["stale"]
-        return (1, result["observed_at"],
-                {"status": "stale", "message": "آخرین معاملهٔ USDT/IRT از آستانه تازگی عبور کرده است"} if stale else {})
+                     "Rahavard365", RAHAVARD_USDT_PAGE_URL, bars)
+        observed = bars[-1].get("observed_at") or bars[-1].get("timestamp")
+        stale = bool(observed and (datetime.now(timezone.utc) - datetime.fromisoformat(str(observed).replace("Z", "+00:00"))).total_seconds() > MAX_STALE_HOURS * 3600)
+        return (len(bars), observed,
+                {"status": "stale", "message": "آخرین مشاهدهٔ USDT/IRT از آستانه تازگی عبور کرده است"} if stale else {})
 
     async def funds_from_rahavard():
         started_at, tick = utc_now(), time.monotonic()
@@ -445,20 +476,14 @@ async def refresh_all() -> dict[str, Any]:
         return await run()
 
     tasks = [
-        run_source("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", "https://rahavard365.com/asset/2016/chart",
+        run_source("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL,
                    rahavard_gold_history, apply_gold),
         run_source("yahoo_dxy", "شاخص دلار آمریکا", YAHOO_CHART.format(symbol="DX-Y.NYB"),
                    lambda: yahoo_history("DX-Y.NYB"), apply_dxy),
-        run_source("tabdeal_usdt", "قیمت تتر / تبدیل", "https://www.tabdeal.org/usdt-price",
-                   tabdeal_usdt_current, apply_usd),
+        run_source("rahavard_usdt", "قیمت تتر / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL,
+                   rahavard_usdt_history, apply_usd),
         funds_from_rahavard(),
     ]
-    for feed in NEWS_RSS_URLS:
-        async def news_job(feed_url=feed):
-            key = "news:" + urllib.parse.urlparse(feed_url).netloc
-            await run_source(key, "اخبار RSS", feed_url, lambda: news_from_rss(feed_url),
-                             lambda items: (db.insert_news(items), max((i.get("published_at") or "" for i in items), default=None)))
-        tasks.append(news_job())
     await asyncio.gather(*tasks, return_exceptions=True)
 
     # Codal has a separate request because it is not mixed with market or fund observations.

@@ -141,18 +141,38 @@ def analyze(symbol: str, bars: list[dict[str, Any]]) -> dict[str, Any]:
     atr = _num(indicators.get("ATR(14)"))
     scenarios = []
     if current is not None:
-        for label, direction, condition, target in [
-            ("صعودی", "bullish", "قیمت بالای مقاومت نزدیک تثبیت شود", current + 2 * (atr or 0)),
-            ("خنثی", "neutral", "قیمت در محدوده حمایت تا مقاومت بماند", current),
-            ("نزولی", "bearish", "حمایت نزدیک با تأیید حجم شکسته شود", current - 2 * (atr or 0)),
-        ]:
-            scenarios.append({"name": label, "condition": condition,
-                              "target": target if atr is not None else None,
-                              "support": nearest_support, "resistance": nearest_resistance,
-                              "confidence": None, "probability": None,
-                              "confidence_status": "احتمال سناریو بدون بک‌تست کالیبره نشده است",
-                              "fundamental_drivers": None,
-                              "risk": "هدف سناریویی بر اساس 2×ATR؛ پیش‌بینی قطعی نیست"})
+        bullish_probability = max(5, min(95, round(float(score or 50) + (8 if medium == "bullish" else -8 if medium == "bearish" else 0))))
+        bearish_probability = 100 - bullish_probability
+        bullish_reasons = [f"امتیاز فنی فعلی {score:.1f} از ۱۰۰ است" if score is not None else "امتیاز فنی کامل در دسترس نیست"]
+        bearish_reasons = [f"امتیاز فنی فعلی {score:.1f} از ۱۰۰ هنوز تأیید قطعی صعود نیست" if score is not None else "امتیاز فنی کامل در دسترس نیست"]
+        if medium == "bullish":
+            bullish_reasons.append("روند میان‌مدت صعودی و قیمت بالای میانگین مرجع است")
+        elif medium == "bearish":
+            bearish_reasons.append("روند میان‌مدت نزولی و قیمت زیر میانگین مرجع است")
+        if rsi is not None and rsi >= 70:
+            bearish_reasons.append("RSI در ناحیه خریدزدگی است و احتمال اصلاح کوتاه‌مدت را بالا می‌برد")
+        elif rsi is not None and rsi <= 30:
+            bullish_reasons.append("RSI در ناحیه فروش‌زدگی است و امکان برگشت را مطرح می‌کند")
+        if macd == "bullish":
+            bullish_reasons.append("MACD شتاب صعودی را تأیید می‌کند")
+        elif macd == "bearish":
+            bearish_reasons.append("MACD شتاب نزولی را تأیید می‌کند")
+        scenarios = [
+            {"name": "صعودی", "direction": "bullish", "condition": "قیمت بالای مقاومت نزدیک تثبیت شود",
+             "target": current + 2 * (atr or 0) if atr is not None else None,
+             "support": nearest_support, "resistance": nearest_resistance,
+             "confidence": None, "probability": bullish_probability,
+             "confidence_status": "احتمال تحلیلی و بدون بک‌تست کالیبره‌شده",
+             "reason": "؛ ".join(bullish_reasons),
+             "risk": "هدف سناریویی بر اساس ۲×ATR است و پیش‌بینی قطعی نیست."},
+            {"name": "نزولی", "direction": "bearish", "condition": "حمایت نزدیک با تأیید حجم شکسته شود",
+             "target": current - 2 * (atr or 0) if atr is not None else None,
+             "support": nearest_support, "resistance": nearest_resistance,
+             "confidence": None, "probability": bearish_probability,
+             "confidence_status": "احتمال تحلیلی و بدون بک‌تست کالیبره‌شده",
+             "reason": "؛ ".join(bearish_reasons),
+             "risk": "هدف سناریویی بر اساس ۲×ATR است و پیش‌بینی قطعی نیست."},
+        ]
 
     if rv is None:
         risk = "unavailable"
@@ -174,6 +194,7 @@ def analyze(symbol: str, bars: list[dict[str, Any]]) -> dict[str, Any]:
         "support_resistance": levels,
         "nearest_support": nearest_support, "nearest_resistance": nearest_resistance,
         "scenarios": scenarios,
+        "scenario_note": "احتمال‌ها برآورد تحلیلی بر پایه امتیاز، روند و مومنتوم هستند؛ پیش‌بینی قطعی یا بک‌تست‌شده نیستند.",
         "decision_support": "شرایط مدل برای بررسی بیشتر مناسب‌تر است" if signal in ("buy", "strong_buy") else "مدل فعلی ورود را تأیید نمی‌کند" if signal in ("sell", "strong_sell") else "برای تصمیم‌گیری داده/تأیید بیشتری لازم است",
     }
 
@@ -271,6 +292,54 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     counts = {key: (footer.get(key) or {}).get("value") for key in ("Buy", "Neutral", "Sell")}
     explanation = (f"سیگنال تجمیعی ره‌آورد: {counts.get('Buy') or 0} خرید، "
                    f"{counts.get('Neutral') or 0} خنثی، {counts.get('Sell') or 0} فروش.")
+    def count_value(value: Any) -> float:
+        try:
+            parsed = float(value)
+            return parsed if math.isfinite(parsed) and parsed >= 0 else 0.0
+        except (TypeError, ValueError):
+            return 0.0
+
+    buy_count, neutral_count, sell_count = (count_value(counts.get(key)) for key in ("Buy", "Neutral", "Sell"))
+    total_count = buy_count + neutral_count + sell_count
+    if total_count:
+        bullish_probability = round((buy_count + neutral_count * 0.5) / total_count * 100)
+        bearish_probability = 100 - bullish_probability
+    else:
+        bullish_probability = 60 if signal == "buy" or trend == "bullish" else 40
+        bearish_probability = 100 - bullish_probability
+
+    all_items = [item for values in groups.values() for item in values if isinstance(item, dict)]
+    raw_signals = [str(item.get("signal") or "neutral").casefold() for item in all_items]
+    bullish_indicators = sum(1 for value in raw_signals if value in {"buy", "bullish", "strongbuy"})
+    bearish_indicators = sum(1 for value in raw_signals if value in {"sell", "bearish", "strongsell"})
+    overbought = sum(1 for value in raw_signals if value == "overbought")
+    oversold = sum(1 for value in raw_signals if value == "oversold")
+    bullish_reasons = [f"در جمع‌بندی اصلی ره‌آورد {int(buy_count)} سیگنال خرید در برابر {int(sell_count)} سیگنال فروش ثبت شده است"]
+    bearish_reasons = [f"در جمع‌بندی اصلی ره‌آورد {int(sell_count)} سیگنال فروش در برابر {int(buy_count)} سیگنال خرید ثبت شده است"]
+    if trend == "bullish":
+        bullish_reasons.append("شاخص روند ره‌آورد صعودی است")
+        bearish_reasons.append("روند صعودی است، بنابراین سناریوی نزولی به شکست حمایت نیاز دارد")
+    elif trend == "bearish":
+        bearish_reasons.append("شاخص روند ره‌آورد نزولی است")
+        bullish_reasons.append("برای فعال‌شدن سناریوی صعودی، تغییر روند و عبور از مقاومت لازم است")
+    if bullish_indicators > bearish_indicators:
+        bullish_reasons.append(f"تعداد سیگنال‌های مثبت اندیکاتورها بیشتر است ({bullish_indicators} در برابر {bearish_indicators})")
+    elif bearish_indicators > bullish_indicators:
+        bearish_reasons.append(f"تعداد سیگنال‌های منفی اندیکاتورها بیشتر است ({bearish_indicators} در برابر {bullish_indicators})")
+    if overbought:
+        bearish_reasons.append(f"{overbought} اندیکاتور در ناحیه خریدزدگی است و احتمال اصلاح کوتاه‌مدت را بالا می‌برد")
+    if oversold:
+        bullish_reasons.append(f"{oversold} اندیکاتور در ناحیه فروش‌زدگی است و امکان برگشت را مطرح می‌کند")
+    scenarios = [
+        {"name": "صعودی", "direction": "bullish", "probability": bullish_probability,
+         "reason": "؛ ".join(bullish_reasons),
+         "condition": "تثبیت قیمت بالای مقاومت نزدیک و حفظ برتری سیگنال‌های خرید",
+         "risk": "اگر مقاومت حفظ نشود یا شمارنده فروش افزایش یابد، احتمال این سناریو کم می‌شود."},
+        {"name": "نزولی", "direction": "bearish", "probability": bearish_probability,
+         "reason": "؛ ".join(bearish_reasons),
+         "condition": "شکست حمایت نزدیک با تأیید افزایش سیگنال‌های فروش",
+         "risk": "اگر حمایت حفظ شود و روند تغییر کند، این سناریو اعتبار کمتری دارد."},
+    ]
     return {
         "source": "Rahavard365", "symbol": symbol, "data_timestamp": data_timestamp,
         "technical_score": round(score, 1) if score is not None else None,
@@ -281,7 +350,8 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         "explanation": explanation, "site_gauges": gauges,
         "indicators": groups, "indicator_notes": notes,
         "indicator_count": sum(len(items) for items in groups.values()),
-        "missing_indicators": missing,
+        "missing_indicators": missing, "scenarios": scenarios,
+        "scenario_note": "احتمال‌ها برآورد تحلیلی بر پایه شمارنده‌ها و جهت روند ره‌آورد هستند؛ پیش‌بینی قطعی یا بک‌تست‌شده نیستند.",
     }
 
 

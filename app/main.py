@@ -18,7 +18,8 @@ from pydantic import BaseModel, Field
 
 from .analysis import analyze, analyze_rahavard, stale_status
 from .config import (MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
-                     RAHAVARD_ETF_FUNDS_URL, RAHAVARD_LIGHT_BARS_URL,
+                     RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_PAGE_URL,
+                     RAHAVARD_LIGHT_BARS_URL, RAHAVARD_USDT_PAGE_URL,
                      REFRESH_INTERVAL_SECONDS, ROOT)
 from .db import db, utc_now
 from .sources import (SourceError, fetch_fund_indicators, fetch_fund_nav_history,
@@ -47,7 +48,7 @@ def _market_history(symbol: str, limit: int = 1000) -> list[dict[str, Any]]:
     fund = db.get_fund(symbol)
     if fund and not fund.get("ambiguous") and fund.get("source") == "Rahavard365":
         return db.history(fund["fund_key"], limit, source="Rahavard365")
-    preferred = {"GOLD": "Rahavard365", "USD_IR_FREE": "Tabdeal"}.get(symbol)
+    preferred = {"GOLD": "Rahavard365", "USD_IR_FREE": "Rahavard365"}.get(symbol)
     if preferred:
         bars = db.history(symbol, limit, source=preferred)
         if bars:
@@ -106,9 +107,9 @@ def _market_quote(symbol: str) -> dict[str, Any]:
             returns[label] = round((latest["close"] / bars[-periods-1]["close"] - 1) * 100, 3)
         else:
             returns[label] = None
-    source_key = {"GOLD": "rahavard_gold", "DXY": "yahoo_dxy", "USD_IR_FREE": "tabdeal_usdt"}.get(symbol)
+    source_key = {"GOLD": "rahavard_gold", "DXY": "yahoo_dxy", "USD_IR_FREE": "rahavard_usdt"}.get(symbol)
     source = _source_map().get(source_key) if source_key else None
-    observed_timestamp = (source.get("last_data_timestamp") if source and symbol == "GOLD"
+    observed_timestamp = (source.get("last_data_timestamp") if source and symbol in {"GOLD", "USD_IR_FREE"}
                           else latest["timestamp"])
     observed_timestamp = observed_timestamp or latest["timestamp"]
     is_stale = stale_status(observed_timestamp, max_hours=MAX_STALE_HOURS)
@@ -221,8 +222,8 @@ async def lifespan(_: FastAPI):
     db.init()
     REFRESH_WAKE = asyncio.Event()
     for key, label, url in [
-        ("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", "https://rahavard365.com/asset/2016/chart"),
-        ("tabdeal_usdt", "قیمت تتر / تبدیل", "https://www.tabdeal.org/usdt-price"),
+        ("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL),
+        ("rahavard_usdt", "قیمت تتر / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL),
         ("yahoo_dxy", "شاخص دلار آمریکا", "https://finance.yahoo.com/quote/DX-Y.NYB/"),
         ("rahavard_funds", "صندوق‌های قابل معامله / ره‌آورد۳۶۵", RAHAVARD_ETF_FUNDS_URL),
         ("rahavard_fund_details", "نمایه و NAV صندوق / ره‌آورد۳۶۵", RAHAVARD_API_BASE_URL + "/asset/{asset_id}"),
@@ -234,7 +235,8 @@ async def lifespan(_: FastAPI):
             db.save_source(key, label, "not_tested", url, None, "هنوز بررسی نشده است", None)
     legacy_sources = _source_map()
     for key, label in [("tsetmc", "منبع قبلی قیمت صندوق‌ها · غیرفعال"),
-                       ("fipiran", "منبع قبلی مشخصات صندوق‌ها · غیرفعال")]:
+                       ("fipiran", "منبع قبلی مشخصات صندوق‌ها · غیرفعال"),
+                       ("tabdeal_usdt", "منبع قبلی قیمت تتر · غیرفعال")]:
         previous = legacy_sources.get(key)
         if previous and previous.get("status") != "disabled":
             db.save_source(key, label, "disabled", previous.get("source_url"),
@@ -292,7 +294,7 @@ def health():
         with db.connect() as conn:
             conn.execute("SELECT 1")
             counts = {table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
-                      for table in ["prices", "funds", "news", "alerts"]}
+                      for table in ["prices", "funds", "alerts"]}
         counts["funds"] = len(db.funds(source="Rahavard365"))
         return {"status": "ok", "database": "connected", "counts": counts,
                 "scheduler": "disabled_on_vercel" if os.getenv("VERCEL") else "running",
@@ -312,8 +314,7 @@ def market_summary():
             "dollar": dollar_quote,
             "funds_total": len(funds),
             "top_funds": sorted(funds, key=lambda f: f.get("value") or 0, reverse=True)[:5],
-            "sources": db.source_status(), "refresh": REFRESH_STATE,
-            "news": db.news(5)}
+            "sources": db.source_status(), "refresh": REFRESH_STATE}
 
 
 @app.get("/api/gold")
@@ -340,10 +341,12 @@ def dollar():
 @app.get("/api/dollar/history")
 def dollar_history(limit: int = Query(default=1000, ge=1, le=5000)):
     bars = _market_history("USD_IR_FREE", limit)
+    source = _source_map().get("rahavard_usdt")
+    observed = (source or {}).get("last_data_timestamp") or (bars[-1]["timestamp"] if bars else None)
     return {"symbol": "USD_IR_FREE", "history": bars,
             "source": bars[-1]["source"] if bars else None,
-            "data_timestamp": bars[-1]["timestamp"] if bars else None,
-            "stale": stale_status(bars[-1]["timestamp"], max_hours=MAX_STALE_HOURS) if bars else None}
+            "data_timestamp": observed,
+            "stale": stale_status(observed, max_hours=MAX_STALE_HOURS) if observed else None}
 
 
 @app.get("/api/market/sources")
@@ -571,8 +574,23 @@ async def get_watchlist():
             "source": "Rahavard365",
         }
 
-    return {"items": await asyncio.gather(*(load_item(record) for record in records)),
-            "count": len(records), "source": "Rahavard365"}
+    items = await asyncio.gather(*(load_item(record) for record in records))
+    total_units = sum(_watchlist_number(item.get("units")) or 0 for item in items)
+    cost_basis = sum((_watchlist_number(item.get("units")) or 0) * (_watchlist_number(item.get("break_even_price")) or 0)
+                     for item in items)
+    market_value = sum((_watchlist_number(item.get("units")) or 0) * (_watchlist_number(item.get("price")) or 0)
+                       for item in items)
+    has_cost = any(_watchlist_number(item.get("units")) is not None and _watchlist_number(item.get("break_even_price")) is not None
+                   for item in items)
+    pnl = market_value - cost_basis if has_cost else None
+    totals = {
+        "units": total_units,
+        "cost_basis": cost_basis if has_cost else None,
+        "market_value": market_value if any(_watchlist_number(item.get("units")) is not None and _watchlist_number(item.get("price")) is not None for item in items) else None,
+        "pnl": pnl,
+        "pnl_pct": (pnl / cost_basis * 100) if pnl is not None and cost_basis else None,
+    }
+    return {"items": items, "count": len(records), "source": "Rahavard365", "totals": totals}
 
 
 @app.post("/api/watchlist")
@@ -723,7 +741,8 @@ async def fund_signals(symbol: str):
     return {"symbol": fund["symbol"], "fund_key": fund["fund_key"], "source": "Rahavard365",
             "signal": result["signal"], "score": result["technical_score"],
             "gauges": result["site_gauges"], "indicator_notes": result["indicator_notes"],
-            "explanation": result["explanation"]}
+            "explanation": result["explanation"], "scenarios": result.get("scenarios", []),
+            "scenario_note": result.get("scenario_note")}
 
 
 @app.get("/api/funds/{symbol}/analysis")
@@ -734,14 +753,6 @@ async def fund_analysis(symbol: str):
     except SourceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return analyze_rahavard(fund["symbol"], data, fund.get("data_timestamp"))
-
-
-@app.get("/api/news")
-def news(limit: int = Query(default=100, ge=1, le=500)):
-    items = db.news(limit)
-    return {"items": items, "count": len(items),
-            "status": "available" if items else "unavailable",
-            "note": None if items else "منبع خبری تنظیم نشده یا خبر معتبری دریافت نشده است"}
 
 
 @app.get("/api/admin")
@@ -795,7 +806,6 @@ def settings():
     saved = db.get_settings()
     return {"data_update_interval": _refresh_interval(),
             "max_stale_hours": MAX_STALE_HOURS,
-            "news_feeds_configured": bool(__import__("app.config", fromlist=["NEWS_RSS_URLS"]).NEWS_RSS_URLS),
             "theme": saved.get("theme", "dark"),
             "language": "fa-IR", "settings": saved}
 

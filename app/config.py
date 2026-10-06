@@ -43,6 +43,16 @@ NEWS_RSS_URLS = (
     else DEFAULT_NEWS_RSS_URLS
 )
 RAHAVARD_API_BASE_URL = os.getenv("RAHAVARD_API_BASE_URL", "https://rahavard365.com/api/v2").rstrip("/")
+RAHAVARD_GOLD_PAGE_URL = os.getenv(
+    "RAHAVARD_GOLD_PAGE_URL",
+    "https://rahavard365.com/asset/2016/%D8%A7%D9%86%D8%B3-%D8%B7%D9%84%D8%A7-%D8%AF%D9%84%D8%A7%D8%B1-%D8%A7%D9%86%D8%B3",
+)
+RAHAVARD_USDT_PAGE_URL = os.getenv(
+    "RAHAVARD_USDT_PAGE_URL",
+    "https://rahavard365.com/asset/33659/USDTIRR",
+)
+RAHAVARD_GOLD_ASSET_ID = os.getenv("RAHAVARD_GOLD_ASSET_ID", "2016")
+RAHAVARD_USDT_ASSET_ID = os.getenv("RAHAVARD_USDT_ASSET_ID", "33659")
 RAHAVARD_PUBLIC_BARS_URL = os.getenv(
     "RAHAVARD_PUBLIC_BARS_URL", f"{RAHAVARD_API_BASE_URL}/chart/public-bars"
 )
