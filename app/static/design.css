@@ -835,6 +835,27 @@ body.light-mode #view-funds #fund-table-grid tbody td::before { color: #6d8980; 
   background: #0f1b2d;
   box-shadow: 0 12px 26px rgba(3, 13, 20, .22);
 }
+.brand-wordmark {
+  padding: 9px 12px 10px;
+  border: 1px solid #31515a;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(36, 76, 82, .58), rgba(15, 27, 45, .78));
+}
+.brand-wordmark strong {
+  display: block;
+  color: #edf7f3;
+  font: 700 22px Tahoma, sans-serif;
+  letter-spacing: .2px;
+  direction: ltr;
+}
+.brand-wordmark small {
+  display: block;
+  margin-top: 1px;
+  color: #8fc9bb;
+  font: 11px Tahoma, sans-serif;
+  letter-spacing: .5px;
+  direction: ltr;
+}
 .mobile-brand { display: none; }
 
 @media (max-width: 600px) {
@@ -854,20 +875,15 @@ body.light-mode #view-funds #fund-table-grid tbody td::before { color: #6d8980; 
     direction: ltr;
     color: #eaf6f2;
   }
-  .mobile-brand img {
-    width: 31px;
-    height: 31px;
-    object-fit: cover;
-    border: 1px solid #31515a;
-    border-radius: 9px;
-    background: #0f1b2d;
-  }
   .mobile-brand strong {
     font: 700 16px Tahoma, sans-serif;
     letter-spacing: .2px;
   }
   body.light-mode .mobile-brand { color: #20443b; }
-  body.light-mode .mobile-brand img { border-color: #c6ddd3; }
+}
+
+@media (max-width: 850px) {
+  .brand-lockup { display: none !important; }
 }
 
 /* Personal watchlist: clickable symbols and a compact six-column layout. */
