@@ -1,0 +1,19 @@
+services:
+  app:
+    build: .
+    container_name: iran-market-lens
+    ports:
+      - "8000:8000"
+    environment:
+      DATA_DIR: /app/data
+      DATABASE_PATH: /app/data/market.db
+      DATA_UPDATE_INTERVAL: ${DATA_UPDATE_INTERVAL:-900}
+      MAX_STALE_HOURS: ${MAX_STALE_HOURS:-36}
+      HTTP_TIMEOUT_SECONDS: ${HTTP_TIMEOUT_SECONDS:-15}
+      NEWS_RSS_URLS: ${NEWS_RSS_URLS:-}
+    volumes:
+      - market-data:/app/data
+    restart: unless-stopped
+
+volumes:
+  market-data:

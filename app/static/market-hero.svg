@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 240" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="area" x1="22" y1="45" x2="540" y2="225" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#67DDB7" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#67DDB7" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="line" x1="82" y1="162" x2="550" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F3C46C"/>
+      <stop offset="1" stop-color="#61E0BA"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="matrix(125 0 0 125 455 93)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#74A9FF" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#74A9FF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <circle cx="455" cy="95" r="125" fill="url(#glow)"/>
+  <g stroke="#9BAFCE" stroke-opacity=".12">
+    <path d="M60 48h520M60 94h520M60 140h520M60 186h520"/>
+    <path d="M130 34v164M230 34v164M330 34v164M430 34v164M530 34v164"/>
+  </g>
+  <path d="M62 167 108 154l36 12 45-37 35 9 44-45 39 22 46-13 40-40 33 16 35-30 38 8 42-29 34 8v163H62V167Z" fill="url(#area)"/>
+  <path d="m62 167 46-13 36 12 45-37 35 9 44-45 39 22 46-13 40-40 33 16 35-30 38 8 42-29 34 8" stroke="url(#line)" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+  <circle cx="535" cy="56" r="7" fill="#61E0BA" stroke="#D6FFF1" stroke-width="3"/>
+  <g opacity=".78">
+    <rect x="87" y="82" width="18" height="35" rx="6" fill="#6C9EFF" fill-opacity=".55"/>
+    <rect x="116" y="64" width="18" height="53" rx="6" fill="#6C9EFF" fill-opacity=".72"/>
+    <rect x="145" y="97" width="18" height="20" rx="6" fill="#6C9EFF" fill-opacity=".4"/>
+  </g>
+</svg>

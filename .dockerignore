@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+tests
+data
+.env
+.env.*
+README.md
+launch_dashboard.ps1
+start.bat
+start.sh

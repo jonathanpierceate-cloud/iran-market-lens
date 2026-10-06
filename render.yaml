@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: iran-market-lens
+    runtime: docker
+    plan: free
+    region: frankfurt
+    branch: main
+    autoDeploy: true
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: DATA_DIR
+        value: /app/data
+      - key: DATABASE_PATH
+        value: /app/data/market.db
+      - key: DATA_UPDATE_INTERVAL
+        value: "900"
+      - key: HTTP_TIMEOUT_SECONDS
+        value: "15"
+      - key: MAX_STALE_HOURS
+        value: "36"
