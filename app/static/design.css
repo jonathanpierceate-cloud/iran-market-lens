@@ -752,3 +752,72 @@ body.light-mode #view-funds .table-footer span:last-child { color: #7a918a; }
   #view-funds .table-footer { align-items: flex-start; flex-direction: column; gap: 3px; }
   #view-funds .table-footer span:last-child { text-align: right; }
 }
+
+/* Personal watchlist: clickable symbols and a compact six-column layout. */
+#view-watchlist .watchlist-table { min-width: 980px; border-collapse: separate; border-spacing: 0; direction: rtl; }
+#view-watchlist .watchlist-table th { background: linear-gradient(180deg, #233d46, #1d343d); color: #c8d9d5; border-bottom: 1px solid #3b5a63; font-size: 13px; font-weight: 700; }
+#view-watchlist .watchlist-table td { border-bottom: 1px solid rgba(87, 122, 125, .18); color: #c6d4d1; font-size: 13px; }
+#view-watchlist .watchlist-table tbody tr { background: rgba(25, 47, 56, .42); transition: background .18s ease; }
+#view-watchlist .watchlist-table tbody tr:nth-child(even) { background: rgba(18, 37, 46, .62); }
+#view-watchlist .watchlist-table tbody tr:hover { background: rgba(53, 129, 112, .18); }
+#view-watchlist .watchlist-table th:first-child, #view-watchlist .watchlist-table td:first-child { min-width: 260px; }
+#view-watchlist .watchlist-table th:nth-child(2), #view-watchlist .watchlist-table td:nth-child(2) { min-width: 150px; }
+#view-watchlist .watchlist-table th:nth-child(3), #view-watchlist .watchlist-table td:nth-child(3), #view-watchlist .watchlist-table th:nth-child(4), #view-watchlist .watchlist-table td:nth-child(4) { min-width: 155px; }
+#view-watchlist .watchlist-table th:nth-child(5), #view-watchlist .watchlist-table td:nth-child(5) { min-width: 235px; max-width: 290px; }
+#view-watchlist .watchlist-table th:last-child, #view-watchlist .watchlist-table td:last-child { min-width: 100px; }
+#view-watchlist .watch-fund-open { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid #34545c; border-radius: 12px; background: linear-gradient(135deg, rgba(36, 76, 82, .65), rgba(21, 46, 55, .72)); color: inherit; text-align: right; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+#view-watchlist .watch-fund-open:hover, #view-watchlist .watch-fund-open:focus-visible { border-color: #68c8b0; background: linear-gradient(135deg, rgba(42, 111, 105, .76), rgba(23, 56, 61, .82)); transform: translateX(-2px); outline: none; }
+#view-watchlist .watch-fund-mark { width: 32px; height: 32px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid rgba(85, 199, 165, .34); border-radius: 9px; background: rgba(47, 145, 119, .17); color: #82d7c1; font: 700 10px Tahoma, sans-serif; direction: ltr; }
+#view-watchlist .watch-fund-open > span:nth-child(2) { min-width: 0; display: block; }
+#view-watchlist .watch-fund-open strong, #view-watchlist .watch-fund-open small { display: block; }
+#view-watchlist .watch-fund-open strong { color: #edf7f3; font-size: 14px; font-weight: 700; }
+#view-watchlist .watch-fund-open small { margin-top: 2px; color: #9eb8b3; font-size: 11px; }
+#view-watchlist .watch-open-arrow { margin-right: auto; color: #7bcfb8; font-size: 17px; }
+#view-watchlist .watchlist-table td:first-child { background: #1a3038; }
+#view-watchlist .watchlist-table tbody tr:nth-child(even) td:first-child { background: #172c34; }
+#view-watchlist .watchlist-table tbody tr:hover td:first-child { background: #1e3b41; }
+#view-watchlist .watch-input { background: rgba(10, 25, 32, .58); border-color: #36545c; }
+#view-watchlist .watch-input:focus { border-color: #68c8b0; }
+
+/* Medium-term trade plan shown beneath every technical analysis. */
+.trade-plan { margin: 18px 0 20px; padding: 20px; border: 1px solid #365863; border-right: 4px solid #d3a653; border-radius: 16px; background: linear-gradient(145deg, rgba(28, 59, 67, .82), rgba(16, 31, 40, .96)); }
+.trade-plan.bullish { border-right-color: #55c7a5; }
+.trade-plan.bearish { border-right-color: #e57e87; }
+.trade-plan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+.trade-plan-head h3 { margin-top: 3px; color: #edf7f3; font-size: 20px; }
+.trade-plan-badge { padding: 6px 10px; border: 1px solid #4b686c; border-radius: 999px; color: #b6cbc7; background: rgba(8, 22, 29, .42); font-size: 12px; white-space: nowrap; }
+.trade-plan-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 9px; }
+.trade-level { min-width: 0; padding: 12px 11px; border: 1px solid #34515b; border-radius: 12px; background: rgba(9, 23, 30, .48); }
+.trade-level span { display: block; color: #a7bdb9; font-size: 12px; line-height: 1.55; }
+.trade-level b { display: block; margin-top: 4px; color: #f2faf7; font: 700 17px "DM Mono", Tahoma, sans-serif; direction: ltr; text-align: right; overflow-wrap: anywhere; }
+.trade-level small { display: block; margin-top: 5px; color: #829d99; font-size: 11px; line-height: 1.65; }
+.trade-level.entry { border-top: 3px solid #55c7a5; }
+.trade-level.target { border-top: 3px solid #75b9c5; }
+.trade-level.stop { border-top: 3px solid #e57e87; }
+.trade-plan-note { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(115, 151, 151, .2); color: #b2c5c1; font-size: 13px; line-height: 1.9; }
+body.light-mode #view-watchlist .watchlist-table th { background: linear-gradient(180deg, #edf6f1, #e3f0e9); border-color: #cfdfd8; color: #41665c; }
+body.light-mode #view-watchlist .watchlist-table tbody tr { background: #fbfdfc; }
+body.light-mode #view-watchlist .watchlist-table tbody tr:nth-child(even) { background: #f4f9f6; }
+body.light-mode #view-watchlist .watchlist-table tbody tr:hover { background: #eaf6f0; }
+body.light-mode #view-watchlist .watchlist-table td { border-color: #e1ebe6; color: #46645d; }
+body.light-mode #view-watchlist .watchlist-table td:first-child { background: #f7fbf9; }
+body.light-mode #view-watchlist .watchlist-table tbody tr:nth-child(even) td:first-child { background: #f1f8f4; }
+body.light-mode #view-watchlist .watchlist-table tbody tr:hover td:first-child { background: #e4f3eb; }
+body.light-mode #view-watchlist .watch-fund-open { border-color: #c9dfd4; background: linear-gradient(135deg, #edf8f2, #e4f2eb); }
+body.light-mode #view-watchlist .watch-fund-open strong { color: #294d43; }
+body.light-mode #view-watchlist .watch-fund-open small { color: #6c877e; }
+body.light-mode #view-watchlist .watch-input { background: #fff; border-color: #cbded5; color: #35534b; }
+body.light-mode .trade-plan { background: linear-gradient(145deg, #f3f9f6, #eaf4ef); border-color: #c9ded5; }
+body.light-mode .trade-plan-head h3, body.light-mode .trade-level b { color: #29453e; }
+body.light-mode .trade-plan-badge, body.light-mode .trade-level span { color: #637b74; }
+body.light-mode .trade-level { background: #f7fbf9; border-color: #d4e4dc; }
+body.light-mode .trade-level small, body.light-mode .trade-plan-note { color: #6c837a; }
+@media (max-width: 1000px) { .trade-plan-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 720px) {
+  #view-watchlist .watchlist-table { min-width: 0; }
+  #view-watchlist .watchlist-table th, #view-watchlist .watchlist-table td { min-width: 0 !important; }
+  #view-watchlist .watchlist-table td:first-child, #view-watchlist .watchlist-table td:nth-child(5), #view-watchlist .watchlist-table td:last-child { grid-column: 1 / -1; }
+  .trade-plan { padding: 15px; }
+  .trade-plan-head { flex-direction: column; }
+  .trade-plan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

@@ -3,20 +3,49 @@
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const state = { summary: null, gold: null, dollar: null, tepix: null, funds: [], watchlist: [], currentView: "overview" };
   const fundSortState = { key: "data_timestamp", direction: -1 };
-  const nf = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 2 });
+  const nf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const en = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
-  const dates = new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium", timeStyle: "short" });
+  const dates = new Intl.DateTimeFormat("fa-IR-u-nu-latn", { dateStyle: "medium", timeStyle: "short" });
   const text = (value, fallback = "—") => value === null || value === undefined || value === "" ? fallback : String(value);
-  const num = (value, digits = 2) => value === null || value === undefined || !Number.isFinite(Number(value)) ? "—" : new Intl.NumberFormat("fa-IR", { maximumFractionDigits: digits, minimumFractionDigits: 0 }).format(Number(value));
+  const num = (value, digits = 2) => value === null || value === undefined || !Number.isFinite(Number(value)) ? "—" : new Intl.NumberFormat("en-US", { maximumFractionDigits: digits, minimumFractionDigits: 0 }).format(Number(value));
   const money = (value) => value === null || value === undefined || !Number.isFinite(Number(value)) ? "—" : en.format(Number(value));
-  const pct = (value) => value === null || value === undefined ? "—" : `${Number(value) > 0 ? "+" : ""}${num(value)}٪`;
-  const formatDate = (value) => {
-    if (!value) return "—";
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return value;
-    return dates.format(d);
-  };
-  const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const pct = (value) => value === null || value === undefined ? "—" : `${Number(value) > 0 ? "+" : ""}${num(value)}%`;
+  const toEnglishDigits = (value) => String(value ?? "")
+    .replace(/[۰-۹]/g, (digit) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(digit)))
+    .replace(/[٠-٩]/g, (digit) => String("٠١٢٣٤٥٦٧٨٩".indexOf(digit)))
+    .replace(/٫/g, ".")
+    .replace(/٬/g, ",");
+ const formatDate = (value) => {
+   if (!value) return "—";
+   const d = new Date(value);
+   if (Number.isNaN(d.getTime())) return value;
+   return dates.format(d);
+ };
+  function installEnglishDigits() {
+    const root = document.body;
+    if (!root) return;
+    const normalizeNode = (node) => {
+      if (node.nodeType === Node.TEXT_NODE) {
+        const next = toEnglishDigits(node.nodeValue);
+        if (next !== node.nodeValue) node.nodeValue = next;
+        return;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE) return;
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      let current;
+      while ((current = walker.nextNode())) {
+        const next = toEnglishDigits(current.nodeValue);
+        if (next !== current.nodeValue) current.nodeValue = next;
+      }
+      ["aria-label", "title", "placeholder"].forEach((attribute) => {
+        if (node.hasAttribute(attribute)) node.setAttribute(attribute, toEnglishDigits(node.getAttribute(attribute)));
+      });
+    };
+    normalizeNode(root);
+    const observer = new MutationObserver((mutations) => mutations.forEach((mutation) => mutation.addedNodes.forEach(normalizeNode)));
+    observer.observe(root, { childList: true, subtree: true });
+  }
+ const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const trendText = (value) => ({ bullish: "صعودی", bearish: "نزولی", neutral: "خنثی", unavailable: "داده ناکافی" }[value] || "داده ناکافی");
   const statusText = (status) => ({ available: "تازه", connected: "متصل", stale: "کهنه", cached_after_source_error: "آخرین داده", failed: "خطا", not_tested: "بررسی‌نشده", unavailable: "در دسترس نیست", disabled: "غیرفعال" }[status] || status || "نامشخص");
 
@@ -38,7 +67,7 @@
 
   function localDateClock() {
     const now = new Date();
-    $("#clock").textContent = new Intl.DateTimeFormat("fa-IR", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tehran" }).format(now);
+    $("#clock").textContent = new Intl.DateTimeFormat("fa-IR-u-nu-latn", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Tehran" }).format(now);
   }
 
   function freshness(node, status, timestamp) {
@@ -127,7 +156,7 @@
       ctx.beginPath(); valid.forEach((bar, i) => { const x = i * slot + slot / 2; i ? ctx.lineTo(x, y(bar.close)) : ctx.moveTo(x, y(bar.close)); });
       ctx.strokeStyle = color; ctx.lineWidth = 1.7; ctx.stroke();
     }
-    const dateLabel = new Intl.DateTimeFormat("fa-IR", { month: "short", day: "numeric" });
+    const dateLabel = new Intl.DateTimeFormat("fa-IR-u-nu-latn", { month: "short", day: "numeric" });
     const dateTicks = [...new Set([0, Math.floor((valid.length - 1) / 2), valid.length - 1])];
     ctx.fillStyle = "#8192a8"; ctx.font = "11px Tahoma, sans-serif";
     dateTicks.forEach((i, tick) => {
@@ -484,6 +513,47 @@
     return `<section class="scenario-section"><div class="indicator-section-title"><div><h3>سناریوهای احتمالی</h3><p>احتمال‌ها از شمارنده‌های رسمی و جهت روند همین نماد برآورد شده‌اند.</p></div></div><div class="scenario-grid">${cards}</div><div class="scenario-note">${esc(a.scenario_note || "این احتمال‌ها برآورد تحلیلی هستند و پیش‌بینی قطعی نیستند.")}</div></section>`;
   }
 
+  function tradePlanHtml(a) {
+    const price = Number(a?.price ?? a?.indicators?.latest);
+    if (!Number.isFinite(price) || price <= 0) return "";
+    const levelValue = (raw) => {
+      if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+      if (!raw || typeof raw !== "object") return null;
+      const direct = [raw.midpoint, raw.price, raw.value, raw.level].map(Number).find(Number.isFinite);
+      if (direct != null) return direct;
+      const low = Number(raw.low), high = Number(raw.high);
+      return Number.isFinite(low) && Number.isFinite(high) ? (low + high) / 2 : null;
+    };
+    const collectLevels = (kind) => {
+      const directKey = kind === "support" ? "support_levels" : "resistance_levels";
+      const direct = Array.isArray(a?.[directKey]) ? a[directKey] : [];
+      const generic = Array.isArray(a?.support_resistance) ? a.support_resistance.filter((item) => item?.kind === kind) : [];
+      return [...new Set([...direct, ...generic].map(levelValue).filter((value) => Number.isFinite(value) && value > 0))];
+    };
+    const supports = collectLevels("support");
+    const resistances = collectLevels("resistance");
+    const below = supports.filter((value) => value < price).sort((left, right) => right - left);
+    const above = resistances.filter((value) => value > price).sort((left, right) => left - right);
+    const genericAtr = a?.indicators?.indicators?.["ATR(14)"];
+    const rahavardItems = Object.values(a?.indicators || {}).flatMap((items) => Array.isArray(items) ? items : []);
+    const rahavardAtr = rahavardItems.find((item) => String(item?.short_name_en || item?.name_en || "").toUpperCase().startsWith("ATR"));
+    const rahavardAtrValue = rahavardAtr?.value?.find?.((part) => String(part?.name || "").toLowerCase() === "value")?.value ?? rahavardAtr?.value?.[0]?.value;
+    const atr = Number(genericAtr?.value ?? rahavardAtrValue);
+    const step = Number.isFinite(atr) && atr > 0 ? Math.min(.1, Math.max(.01, atr / price)) : .02;
+    const entry1 = below[0] ?? price * (1 - step * .45);
+    const entry2 = below[1] ?? Math.min(entry1 * (1 - step * .45), price * (1 - step * .9));
+    const entry3 = below[2] ?? Math.min(entry2 * (1 - step * .45), price * (1 - step * 1.35));
+    const target1 = above[0] ?? price * (1 + step * 1.4);
+    const target2 = above[1] ?? Math.max(target1 * (1 + step * .35), price * (1 + step * 2.4));
+    const stopBase = below[0] ?? price * (1 - step * 1.25);
+    const stop = Math.max(0, stopBase - Math.max(price * .005, Number.isFinite(atr) ? atr * .35 : price * step * .35));
+    const signal = String(a?.signal || "").toLowerCase();
+    const tone = signal.includes("sell") || a?.trend === "bearish" ? "bearish" : signal.includes("buy") || a?.trend === "bullish" ? "bullish" : "neutral";
+    const advice = tone === "bullish" ? "ورود فقط به‌صورت پله‌ای و نزدیک حمایت‌ها بررسی شود؛ خرید یک‌جا ریسک زمان‌بندی دارد." : tone === "bearish" ? "تا تثبیت بالای مقاومت یا برگشت روند، خرید تازه با احتیاط و حجم کم بررسی شود." : "سطوح برای سناریوی میان‌مدت هستند؛ ابتدا واکنش قیمت در پله اول را بررسی کن.";
+    const card = (className, label, value, note) => `<article class="trade-level ${className}"><span>${label}</span><b>${money(value)}</b><small>${note}</small></article>`;
+    return `<section class="trade-plan ${tone}"><div class="trade-plan-head"><div><span class="panel-kicker">برنامه معاملاتی میان‌مدت</span><h3>پله‌های خرید، حد سود و حد ضرر</h3></div><span class="trade-plan-badge">سطوح محاسباتی</span></div><div class="trade-plan-grid">${card("entry", "پله خرید 1", entry1, below[0] ? "نزدیک‌ترین حمایت معتبر" : "حدود 0.45 ATR پایین‌تر از قیمت")} ${card("entry", "پله خرید 2", entry2, below[1] ? "حمایت بعدی" : "در صورت اصلاح بیشتر")} ${card("entry", "پله خرید 3", entry3, below[2] ? "حمایت عمیق‌تر" : "پله ریسک بالاتر")} ${card("target", "حد سود میان‌مدت 1", target1, above[0] ? "نزدیک‌ترین مقاومت" : "هدف نوسانی اول")} ${card("target", "حد سود میان‌مدت 2", target2, above[1] ? "مقاومت بعدی" : "هدف نوسانی دوم")} ${card("stop", "حد ضرر میان‌مدتی", stop, "پایین‌تر از حمایت و با فاصله نوسان")}</div><p class="trade-plan-note">${advice} این اعداد توصیه قطعی نیستند و با تغییر قیمت و داده‌های ره‌آورد به‌روزرسانی می‌شوند.</p></section>`;
+  }
+
   function rahavardAnalysisHtml(a) {
     const signalFa = { buy: "خرید · مثبت", sell: "فروش · منفی", hold: "خنثی", strong_buy: "خرید قوی", strong_sell: "فروش قوی" };
     const siteSignals = {
@@ -535,7 +605,7 @@
     const score = a.technical_score == null ? "—" : num(a.technical_score, 0);
     const cls = a.signal === "buy" ? "bullish" : a.signal === "sell" ? "bearish" : "";
     const missing = (a.missing_indicators || []).map((name) => `<article class="indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>در پاسخ نماد منتشر نشده</small></div><span class="indicator-status unknown">موجود نیست</span></div><p>برای این مقدار عدد جایگزین ساخته نشده است.</p><div class="indicator-range-guide"><b>راهنمای محدوده</b><span>${esc(indicatorRangeGuide(name))}</span></div></article>`).join("");
-    return `<div class="score-card"><div class="score-ring" style="--score:${Number(a.technical_score) || 0}%"><b>${score}</b></div><div class="score-copy"><strong>امتیاز تجمیعی ره‌آورد</strong><small>سیگنال‌های اندیکاتور همان‌هایی هستند که در صفحهٔ نماد ره‌آورد نمایش داده می‌شوند.</small></div><span class="signal-pill ${cls}">${signalFa[a.signal] || "خنثی"}</span></div><div class="factor-foot">${esc(a.explanation || "")} · داده تا ${esc(formatDate(a.data_timestamp))}</div><section class="indicator-workbench"><div class="indicator-section-title"><div><h3>جمع‌بندی ره‌آورد</h3><p>عدد هر اندیکاتور و فاصله‌اش از محدوده مرجع در کارت همان شاخص توضیح داده شده است.</p></div></div><div class="indicator-readouts">${gaugeCards}</div><div class="indicator-section-title all-indicators-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div><div class="indicator-card-grid">${cards.join("")}${missing}</div>${rahavardRecommendationHtml(a)}${scenarioHtml(a)}<div class="indicator-key-note"><b>روش خواندن:</b> هر عدد با محدوده رایج همان شاخص مقایسه شده است؛ خریدزدگی و فروش‌زدگی هشدار افراط‌اند و به‌تنهایی سیگنال قطعی خرید یا فروش نیستند.</div></section>`;
+    return `<div class="score-card"><div class="score-ring" style="--score:${Number(a.technical_score) || 0}%"><b>${score}</b></div><div class="score-copy"><strong>امتیاز تجمیعی ره‌آورد</strong><small>سیگنال‌های اندیکاتور همان‌هایی هستند که در صفحهٔ نماد ره‌آورد نمایش داده می‌شوند.</small></div><span class="signal-pill ${cls}">${signalFa[a.signal] || "خنثی"}</span></div><div class="factor-foot">${esc(a.explanation || "")} · داده تا ${esc(formatDate(a.data_timestamp))}</div>${tradePlanHtml(a)}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>جمع‌بندی ره‌آورد</h3><p>عدد هر اندیکاتور و فاصله‌اش از محدوده مرجع در کارت همان شاخص توضیح داده شده است.</p></div></div><div class="indicator-readouts">${gaugeCards}</div><div class="indicator-section-title all-indicators-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div><div class="indicator-card-grid">${cards.join("")}${missing}</div>${rahavardRecommendationHtml(a)}${scenarioHtml(a)}<div class="indicator-key-note"><b>روش خواندن:</b> هر عدد با محدوده رایج همان شاخص مقایسه شده است؛ خریدزدگی و فروش‌زدگی هشدار افراط‌اند و به‌تنهایی سیگنال قطعی خرید یا فروش نیستند.</div></section>`;
   }
 
   function analysisHtml(a) {
@@ -582,7 +652,7 @@
       summary("ADX · قدرت و جهت روند", adx?.value == null ? "—" : num(adx.value, 1), adx ? indicatorAssessment("ADX(14)", adx).state : "unknown", adx ? `${indicatorAssessment("ADX(14)", adx).label} · ADX جهت را به‌تنهایی نمی‌گوید` : "داده ناکافی"),
       summary("میانگین‌های EMA", maAlignment.length ? `${maAlignment.filter(Boolean).length} از ${maAlignment.length}` : "—", maState, `${maLabel} · نسبت قیمت به EMA20/50/200`)
     ].join("");
-    return `<div class="score-card"><div class="score-ring" style="--score:${score}%"><b>${num(score, 0)}</b></div><div class="score-copy"><strong>امتیاز فنی · پوشش عوامل ${num(a.confidence, 0)}٪</strong><small>روند کوتاه ${trendText(a.short_term_trend)} · میان‌مدت ${trendText(a.medium_term_trend)} · بلندمدت ${trendText(a.long_term_trend)}</small></div><span class="signal-pill ${signalClass}">${signalFa[a.signal] || a.signal}</span></div><div class="factor-list">${factors}</div><div class="factor-foot">${esc(a.decision_support)}. ریسک نوسان: ${esc(a.risk)}. پوشش عوامل مدل معیار موفقیت نیست (${esc(a.confidence_basis || "")} ). داده تا ${esc(formatDate(a.data_timestamp))}. خروجی توصیه قطعی نیست.</div><section class="indicator-workbench"><div class="indicator-section-title"><div><h3>خوانش سریع شاخص‌ها</h3><p>سبز = همسو با حرکت صعودی · کهربایی = هشدار یا فشار نزولی · خاکستری = خنثی یا سنجش ریسک</p></div></div><div class="indicator-readouts">${summaryCards}</div><div class="indicator-section-title all-indicators-title"><div><h3>همه اندیکاتورها</h3><p>${nf.format(entries.length)} شاخص با مقدار فعلی، مقدار قبلی، معنی و وضعیت</p></div></div><div class="indicator-card-grid">${cards}</div><div class="indicator-key-note"><b>راهنمای خواندن:</b> خریدزدگی یا فروش‌زدگی به‌تنهایی «خوب» یا «بد» نیست؛ یعنی حرکت به محدوده افراطی رسیده و باید همراه روند و حجم بررسی شود. نوسان بیشتر هم فقط ریسک حرکت بزرگ‌تر را نشان می‌دهد.</div>${scenarioHtml(a)}</section><div class="levels-block"><h4>حمایت و مقاومت · محدوده‌های نزدیک</h4><div class="levels-grid">${levelHtml}</div></div><section class="pivot-section"><h4>پیوت‌ها و سطوح روز قبل</h4><p>PP نقطه تعادل است؛ R سطح مقاومت و S سطح حمایت است. بالای PP تمایل صعودی و زیر PP فشار نزولی را نشان می‌دهد، اما این سطح‌ها تضمین برگشت قیمت نیستند.</p><div class="pivot-list">${pivotHtml || "داده کافی نیست"}</div></section>`;
+    return `<div class="score-card"><div class="score-ring" style="--score:${score}%"><b>${num(score, 0)}</b></div><div class="score-copy"><strong>امتیاز فنی · پوشش عوامل ${num(a.confidence, 0)}٪</strong><small>روند کوتاه ${trendText(a.short_term_trend)} · میان‌مدت ${trendText(a.medium_term_trend)} · بلندمدت ${trendText(a.long_term_trend)}</small></div><span class="signal-pill ${signalClass}">${signalFa[a.signal] || a.signal}</span></div><div class="factor-list">${factors}</div><div class="factor-foot">${esc(a.decision_support)}. ریسک نوسان: ${esc(a.risk)}. پوشش عوامل مدل معیار موفقیت نیست (${esc(a.confidence_basis || "")} ). داده تا ${esc(formatDate(a.data_timestamp))}. خروجی توصیه قطعی نیست.</div>${tradePlanHtml(a)}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>خوانش سریع شاخص‌ها</h3><p>سبز = همسو با حرکت صعودی · کهربایی = هشدار یا فشار نزولی · خاکستری = خنثی یا سنجش ریسک</p></div></div><div class="indicator-readouts">${summaryCards}</div><div class="indicator-section-title all-indicators-title"><div><h3>همه اندیکاتورها</h3><p>${nf.format(entries.length)} شاخص با مقدار فعلی، مقدار قبلی، معنی و وضعیت</p></div></div><div class="indicator-card-grid">${cards}</div><div class="indicator-key-note"><b>راهنمای خواندن:</b> خریدزدگی یا فروش‌زدگی به‌تنهایی «خوب» یا «بد» نیست؛ یعنی حرکت به محدوده افراطی رسیده و باید همراه روند و حجم بررسی شود. نوسان بیشتر هم فقط ریسک حرکت بزرگ‌تر را نشان می‌دهد.</div>${scenarioHtml(a)}</section><div class="levels-block"><h4>حمایت و مقاومت · محدوده‌های نزدیک</h4><div class="levels-grid">${levelHtml}</div></div><section class="pivot-section"><h4>پیوت‌ها و سطوح روز قبل</h4><p>PP نقطه تعادل است؛ R سطح مقاومت و S سطح حمایت است. بالای PP تمایل صعودی و زیر PP فشار نزولی را نشان می‌دهد، اما این سطح‌ها تضمین برگشت قیمت نیستند.</p><div class="pivot-list">${pivotHtml || "داده کافی نیست"}</div></section>`;
   }
 
   function sourceCard(status) {
@@ -770,26 +840,24 @@
       ].map(([label, value, cls]) => `<div class="watch-total-card ${cls}"><span>${label}</span><b>${value}</b></div>`).join("");
     }
     if (!items.length) {
-      body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b><small>از کادر بالا یک صندوق ره‌آورد را با نام یا شناسه‌اش اضافه کن.</small></div></td></tr>`;
+      body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b><small>از کادر بالا یک صندوق ره‌آورد را با نام یا شناسه‌اش اضافه کن.</small></div></td></tr>`;
       return;
     }
     body.innerHTML = items.map((item) => {
       const tone = item.outlook_tone || "unknown";
       return `<tr data-watch-row="${esc(item.fund_key)}">
-        <td class="watch-fund-cell" data-label="صندوق / نماد"><strong>${esc(item.name)}</strong><small>${esc(item.symbol || `شناسه ${item.rahavard_asset_id || "—"}`)} · ره‌آورد۳۶۵</small></td>
+        <td class="watch-fund-cell" data-label="صندوق / نماد"><button class="watch-fund-open" type="button" data-watch-open="${esc(item.fund_key)}" aria-label="مشاهده تحلیل ${esc(item.name)}"><span class="watch-fund-mark">ETF</span><span><strong>${esc(item.name)}</strong><small>${esc(item.symbol || `شناسه ${item.rahavard_asset_id || "—"}`)} · ره‌آورد۳۶۵</small></span><span class="watch-open-arrow">←</span></button></td>
         <td class="watch-price" data-label="قیمت فعلی (ریال)"><b>${money(item.price)}</b>${item.daily_return == null ? "" : `<small class="${Number(item.daily_return) >= 0 ? "positive" : "negative"}">${pct(item.daily_return)}</small>`}</td>
         <td data-label="قیمت سر به سر (ریال)"><input class="watch-input" type="number" min="0" step="any" inputmode="decimal" aria-label="قیمت سر به سر ${esc(item.name)} به ریال" placeholder="قیمت خرید" data-watch-field="break_even_price" value="${numericInputValue(item.break_even_price)}"></td>
         <td data-label="تعداد واحد من"><input class="watch-input watch-units" type="number" min="0" step="any" inputmode="decimal" aria-label="تعداد واحد ${esc(item.name)}" placeholder="تعداد" data-watch-field="units" value="${numericInputValue(item.units)}"></td>
-        <td data-label="برداشت میان‌مدت"><span class="watch-outlook ${tone}">${esc(item.midterm_outlook || "داده کافی نیست")}</span><small class="watch-source-note">خلاصه سیگنال تکنیکال ره‌آورد</small></td>
-        <td data-label="حمایت‌های نزدیک (ریال)">${watchlistLevelsHtml(item.supports)}</td><td data-label="مقاومت‌های نزدیک (ریال)">${watchlistLevelsHtml(item.resistances)}</td>
-        <td class="watch-condition" data-label="اوضاع کلی"><b class="${tone}">${esc(item.signal_fa || "نامشخص")}${item.technical_score == null ? "" : ` · ${num(item.technical_score, 0)}`}</b><small title="${esc(item.overall_status || "")}">${esc(item.overall_status || "داده تکنیکال در دسترس نیست")}</small></td>
+        <td data-label="برداشت میان‌مدت"><span class="watch-outlook ${tone}">${esc(item.midterm_outlook || "داده کافی نیست")}</span><small class="watch-source-note">برای تحلیل کامل روی نام نماد کلیک کن</small></td>
         <td data-label="مدیریت"><button class="watch-remove" type="button" data-watch-remove="${esc(item.fund_key)}" aria-label="حذف ${esc(item.name)} از دیده‌بان">حذف</button></td>
       </tr>`;
     }).join("");
   }
   async function loadWatchlist() {
     const body = $("#watchlist-table-body");
-    body.innerHTML = `<tr><td colspan="9"><div class="empty-state compact"><b>در حال دریافت قیمت و تحلیل ره‌آورد…</b></div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="6"><div class="empty-state compact"><b>در حال دریافت قیمت و تحلیل ره‌آورد…</b></div></td></tr>`;
     try {
       const [data, fundsData] = await Promise.all([
         api("/api/watchlist"),
@@ -808,7 +876,7 @@
       }).join("");
       renderPersonalWatchlist(state.watchlist, data.totals || {});
     } catch (err) {
-      body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><b>دیده‌بان بارگیری نشد</b><small>${esc(err.message)}</small></div></td></tr>`;
+      body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><b>دیده‌بان بارگیری نشد</b><small>${esc(err.message)}</small></div></td></tr>`;
       toast(`دیده‌بان بارگیری نشد: ${err.message}`, true);
     }
   }
@@ -972,9 +1040,15 @@
       toast("اطلاعات دیده‌بان ذخیره شد");
     } catch (err) { toast(`ذخیره مقدار انجام نشد: ${err.message}`, true); }
   });
-  $("#watchlist-table-body").addEventListener("click", async (event) => {
-    const button = event.target.closest("[data-watch-remove]");
-    if (!button) return;
+ $("#watchlist-table-body").addEventListener("click", async (event) => {
+    const open = event.target.closest("[data-watch-open]");
+    if (open) {
+      await openView("funds");
+      await showFund(open.dataset.watchOpen);
+      return;
+    }
+   const button = event.target.closest("[data-watch-remove]");
+   if (!button) return;
     try {
       await api(`/api/watchlist/${encodeURIComponent(button.dataset.watchRemove)}`, { method: "DELETE" });
       toast("صندوق از دیده‌بان حذف شد");
@@ -1020,7 +1094,8 @@
     if (event.key === "Escape") { $("#global-search").value = ""; }
   });
   $("#global-search").addEventListener("search", () => { if (!$("#global-search").value) openView("overview"); });
-  localDateClock(); setInterval(localDateClock, 30_000);
-  api("/api/settings").then((s) => document.body.classList.toggle("light-mode", s.theme === "light")).catch(() => {});
+ localDateClock(); setInterval(localDateClock, 30_000);
+  installEnglishDigits();
+ api("/api/settings").then((s) => document.body.classList.toggle("light-mode", s.theme === "light")).catch(() => {});
   loadOverview();
 })();
