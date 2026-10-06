@@ -2,7 +2,9 @@
 
 داشبورد فارسی برای پایش طلا، دلار تتر، صندوق‌های قابل معامله و تحلیل تکنیکال بر پایه داده‌های ره‌آورد۳۶۵ و تبدیل دلار از تتر/تبدیل.
 
-**نسخهٔ آنلاین:** https://iran-market-lens.onrender.com
+**نسخهٔ آنلاین چابکان:** https://docker-92phyf.chbkn.dev
+
+**نسخهٔ پشتیبان Render:** https://iran-market-lens.onrender.com
 
 **مخزن GitHub:** https://github.com/jonathanpierceate-cloud/iran-market-lens
 
@@ -46,9 +48,11 @@ docker compose up --build
 
 Dockerfile به‌صورت خودکار از متغیر `PORT` استفاده می‌کند؛ بنابراین برای میزبان‌هایی مثل Render مناسب است.
 
-## انتشار عمومی با GitHub و Render
+## انتشار عمومی با GitHub، Docker و چابکان
 
-این مخزن شامل `Dockerfile`، `render.yaml` و workflow ساخت Docker است. Render از فایل `render.yaml` سرویس را از شاخهٔ `main` می‌سازد و با هر push جدید به‌صورت خودکار deploy می‌کند.
+این مخزن شامل `Dockerfile`، `render.yaml` و workflow ساخت Docker است. سرویس چابکان با Dockerfile ریشه، مخزن عمومی GitHub را clone می‌کند و با Uvicorn روی پورت 8000 اجرا می‌شود.
+
+برای به‌روزرسانی نسخهٔ چابکان، ابتدا تغییرات را به شاخهٔ `main` push کنید و سپس از پنل چابکان گزینهٔ «استقرار مجدد» را بزنید تا Dockerfile دوباره ساخته شود.
 
 1. مخزن را در GitHub روی شاخه `main` قرار دهید.
 2. در Render گزینه New > Blueprint را بزنید.
