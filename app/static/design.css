@@ -817,7 +817,57 @@ body.light-mode #view-funds .table-footer span:last-child { color: #7a918a; }
   body.light-mode #view-funds #fund-table-grid tbody tr { border-color: #c9dfd4; background: linear-gradient(145deg, #f5fbf8, #eaf5ef); box-shadow: 0 8px 20px rgba(31, 78, 61, .08); }
   body.light-mode #view-funds #fund-table-grid tbody td,
   body.light-mode #view-funds #fund-table-grid tbody td:first-child { border-color: #dce8e2; background: rgba(255, 255, 255, .72) !important; color: #46645d; }
-  body.light-mode #view-funds #fund-table-grid tbody td::before { color: #6d8980; }
+body.light-mode #view-funds #fund-table-grid tbody td::before { color: #6d8980; }
+}
+
+/* AliVest identity: use the supplied investment-analysis artwork everywhere the app identifies itself. */
+.brand-lockup {
+  display: block;
+  padding: 0 2px 30px;
+}
+.brand-logo {
+  display: block;
+  width: 196px;
+  height: 110px;
+  object-fit: cover;
+  border: 1px solid #31515a;
+  border-radius: 16px;
+  background: #0f1b2d;
+  box-shadow: 0 12px 26px rgba(3, 13, 20, .22);
+}
+.mobile-brand { display: none; }
+
+@media (max-width: 600px) {
+  .topbar {
+    position: relative;
+    height: auto;
+    min-height: 60px;
+    padding-top: 40px;
+  }
+  .mobile-brand {
+    position: absolute;
+    inset-inline-start: 0;
+    top: 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    direction: ltr;
+    color: #eaf6f2;
+  }
+  .mobile-brand img {
+    width: 31px;
+    height: 31px;
+    object-fit: cover;
+    border: 1px solid #31515a;
+    border-radius: 9px;
+    background: #0f1b2d;
+  }
+  .mobile-brand strong {
+    font: 700 16px Tahoma, sans-serif;
+    letter-spacing: .2px;
+  }
+  body.light-mode .mobile-brand { color: #20443b; }
+  body.light-mode .mobile-brand img { border-color: #c6ddd3; }
 }
 
 /* Personal watchlist: clickable symbols and a compact six-column layout. */

@@ -1,0 +1,25 @@
+{
+  "name": "AliVest | تحلیل سرمایه‌گذاری",
+  "short_name": "AliVest",
+  "description": "پایانه تحلیل بازار و صندوق‌های سرمایه‌گذاری",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "/?source=homescreen",
+  "display": "standalone",
+  "background_color": "#0f1b2d",
+  "theme_color": "#0f1b2d",
+  "icons": [
+    {
+      "src": "/static/assets/alivest-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/assets/alivest-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

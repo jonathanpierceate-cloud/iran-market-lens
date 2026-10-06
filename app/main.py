@@ -282,7 +282,7 @@ async def lifespan(_: FastAPI):
         pass
 
 
-app = FastAPI(title="نگاه بازار | تحلیل بازار سرمایه ایران", version="1.0.0", lifespan=lifespan,
+app = FastAPI(title="AliVest | تحلیل بازار سرمایه ایران", version="1.0.0", lifespan=lifespan,
               description="داشبورد محلی با ثبت منبع، زمان داده و وضعیت تازگی.")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 

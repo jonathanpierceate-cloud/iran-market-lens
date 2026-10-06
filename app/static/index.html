@@ -3,8 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#090f1d">
-  <title>نگاه بازار | پایانه تحلیل بازارهای ایران</title>
+  <meta name="theme-color" content="#0f1b2d">
+  <meta name="application-name" content="AliVest">
+  <meta name="apple-mobile-web-app-title" content="AliVest">
+  <link rel="icon" type="image/png" sizes="192x192" href="/static/assets/alivest-icon-192.png">
+  <link rel="apple-touch-icon" href="/static/assets/alivest-icon-192.png">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <title>AliVest | تحلیل سرمایه‌گذاری</title>
   <link rel="stylesheet" href="/static/app.css">
   <link rel="stylesheet" href="/static/analysis.css">
   <link rel="stylesheet" href="/static/design.css?v=36c4967">
@@ -13,8 +18,7 @@
   <div class="app-shell">
     <aside class="sidebar">
       <div class="brand-lockup">
-        <div class="brand-mark"><span></span><span></span><span></span></div>
-        <div><strong>نگاه بازار</strong><small>پایانه تحلیل بازار</small></div>
+        <img class="brand-logo" src="/static/assets/alivest-logo.png" alt="AliVest - Investment Analysis">
       </div>
       <div class="workspace-label">نمای کلی</div>
       <nav class="nav-list" aria-label="ناوبری اصلی">
@@ -37,6 +41,7 @@
     <main class="main-area">
       <header class="topbar">
         <div class="breadcrumbs"><span>بازار ایران</span><b>/</b><strong id="crumb-current">داشبورد</strong></div>
+        <div class="mobile-brand"><img src="/static/assets/alivest-icon-192.png" alt=""><strong>AliVest</strong></div>
         <div class="top-actions">
           <label class="global-search"><span>⌕</span><input id="global-search" type="search" placeholder="جستجوی صندوق یا نماد…" autocomplete="off"><kbd>⌘ K</kbd></label>
           <button class="icon-button" id="theme-toggle" title="تغییر تم" aria-label="تغییر تم">◐</button>
@@ -90,7 +95,7 @@
         <div class="content-grid lower-grid">
           <article class="panel source-panel"><div class="panel-heading"><div><span class="panel-kicker">پایش اتصال</span><h3>وضعیت منابع داده</h3></div><button class="text-button" data-open-view="admin">جزئیات <span>←</span></button></div><div id="source-summary" class="source-list"><div class="source-row"><i class="status-dot unknown"></i><span>در حال اتصال به منابع</span><b>—</b></div></div><div class="source-note"><span>◇</span><p>اگر منبعی در دسترس نباشد، آخرین داده معتبر با برچسب کهنگی نمایش داده می‌شود.</p></div></article>
         </div>
-        <footer class="page-footer"><span>نگاه بازار</span><span>پشتیبان تصمیم‌گیری با داده‌های قابل ردیابی</span><span>نسخه محلی ۱٫۰</span></footer>
+        <footer class="page-footer"><span>AliVest</span><span>پشتیبان تصمیم‌گیری با داده‌های قابل ردیابی</span><span>نسخه 1.0</span></footer>
       </section>
 
       <section class="view" id="view-markets">
