@@ -4,6 +4,8 @@
 
 **نسخهٔ آنلاین چابکان:** https://docker-92phyf.chbkn.dev
 
+**نسخهٔ آنلاین Vercel:** https://iran-market-lens.vercel.app
+
 **نسخهٔ پشتیبان Render:** https://iran-market-lens.onrender.com
 
 **مخزن GitHub:** https://github.com/jonathanpierceate-cloud/iran-market-lens
@@ -60,6 +62,10 @@ Dockerfile به‌صورت خودکار از متغیر `PORT` استفاده م
 4. Render از `render.yaml` سرویس Docker را می‌سازد و یک آدرس `onrender.com` می‌دهد.
 
 نسخه رایگان Render برای آزمایش مناسب است، اما فایل SQLite در آن پایدار نیست و ممکن است با restart یا deploy دوباره ساخته شود. برای نگهداری دائمی دیده‌بان و تاریخچه باید از دیسک پایدار پولی یا پایگاه‌داده بیرونی استفاده شود.
+
+## انتشار روی Vercel
+
+Vercel از entrypoint موجود در `api/index.py` استفاده می‌کند و هر push شاخهٔ `main` را خودکار منتشر می‌کند. روی Vercel، اولین نمونهٔ سرد قبل از پاسخ یک واکشی زنده انجام می‌دهد؛ سپس workflow گیت‌هاب در `.github/workflows/refresh-vercel.yml` هر ۱۵ دقیقه endpoint تازه‌سازی را صدا می‌زند. چون فایل‌سیستم توابع Vercel موقت است، دیده‌بان و تاریخچهٔ ماندگار باید روی نسخهٔ چابکان یا یک پایگاه‌دادهٔ بیرونی نگهداری شوند.
 
 ## تنظیمات محیطی
 
