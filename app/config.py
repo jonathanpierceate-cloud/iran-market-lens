@@ -20,11 +20,17 @@ def _read_env_file() -> None:
 
 _read_env_file()
 
-DATA_DIR = Path(os.getenv("DATA_DIR", str(ROOT / "data"))).resolve()
+# Vercel functions run with a read-only project directory.  Keep the same
+# SQLite-backed code, but place the temporary per-instance database in /tmp
+# when the app is running as a Vercel Function.  Persistent deployments keep
+# using the normal data/ directory (or an explicitly configured DATA_DIR).
+_default_data_dir = "/tmp/iran-market-lens-data" if os.getenv("VERCEL") else str(ROOT / "data")
+DATA_DIR = Path(os.getenv("DATA_DIR", _default_data_dir)).resolve()
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DATABASE_PATH = Path(os.getenv("DATABASE_PATH", str(DATA_DIR / "market.db"))).resolve()
 REFRESH_INTERVAL_SECONDS = max(60, int(os.getenv("DATA_UPDATE_INTERVAL", "900")))
-HTTP_TIMEOUT_SECONDS = max(3, int(os.getenv("HTTP_TIMEOUT_SECONDS", "15")))
+_default_http_timeout = "8" if os.getenv("VERCEL") else "15"
+HTTP_TIMEOUT_SECONDS = max(3, int(os.getenv("HTTP_TIMEOUT_SECONDS", _default_http_timeout)))
 MAX_STALE_HOURS = max(1, int(os.getenv("MAX_STALE_HOURS", "36")))
 DEFAULT_NEWS_RSS_URLS = [
     "https://www.tasnimnews.ir/fa/rss/feeds/84/0/0/0",  # بازار سهام

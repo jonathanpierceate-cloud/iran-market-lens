@@ -5,6 +5,7 @@ import csv
 import io
 import json
 import math
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -246,6 +247,13 @@ async def lifespan(_: FastAPI):
             db.save_source(key, label, "not_tested", previous.get("source_url"),
                            previous.get("last_data_timestamp"),
                            "این منبع برای داده‌های جدید استفاده نمی‌شود؛ تاریخچه قبلی نگهداری شده است.", None)
+    # Vercel may freeze a function immediately after a response.  A forever
+    # running task is therefore not a reliable scheduler there; refreshes are
+    # triggered explicitly through /api/refresh (and can be called by a cron).
+    if os.getenv("VERCEL"):
+        yield
+        return
+
     task = asyncio.create_task(_periodic_refresh())
     yield
     task.cancel()
@@ -274,7 +282,8 @@ def health():
                       for table in ["prices", "funds", "news", "alerts"]}
         counts["funds"] = len(db.funds(source="Rahavard365"))
         return {"status": "ok", "database": "connected", "counts": counts,
-                "scheduler": "running", "checked_at": utc_now()}
+                "scheduler": "disabled_on_vercel" if os.getenv("VERCEL") else "running",
+                "checked_at": utc_now()}
     except Exception as exc:
         return JSONResponse(status_code=503, content={"status": "error", "database": str(exc)})
 
@@ -329,7 +338,7 @@ def data_sources():
     return {"sources": db.source_status(), "checked_at": utc_now()}
 
 
-@app.post("/api/refresh")
+@app.api_route("/api/refresh", methods=["GET", "POST"])
 async def manual_refresh():
     if REFRESH_STATE["running"]:
         return {"status": "already_running", "last_result": REFRESH_STATE["last_result"]}
