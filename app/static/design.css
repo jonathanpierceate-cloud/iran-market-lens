@@ -194,6 +194,10 @@ button, a, .market-card, .panel, input, select { transition: background-color .1
 .table-search input { font-size: 14px; }
 .fund-toolbar select { padding: 7px 11px; }
 th { background: #1c2c33; color: #b7c8c4; font-size: 14px; padding: 14px; }
+th[data-fund-sort] { cursor: pointer; user-select: none; white-space: nowrap; transition: background .18s ease, color .18s ease; }
+th[data-fund-sort]:hover, th[data-fund-sort].is-sorted { background: #254149; color: #e1f2ed; }
+.sort-indicator { display: inline-block; margin-right: 5px; color: #7fa69e; font-size: 12px; }
+th[data-fund-sort].is-sorted .sort-indicator { color: #78d2bd; }
 td { color: #bfccca; font-size: 14px; padding: 13px 14px; }
 tbody tr:hover { background: rgba(81, 158, 143, .08); }
 .fund-table-name strong { color: #e0e9e6; font-size: 14px; }

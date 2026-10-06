@@ -2,6 +2,7 @@
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const state = { summary: null, gold: null, dollar: null, tepix: null, funds: [], watchlist: [], currentView: "overview" };
+  const fundSortState = { key: "data_timestamp", direction: -1 };
   const nf = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 2 });
   const en = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const dates = new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium", timeStyle: "short" });
@@ -636,18 +637,18 @@
       const sort = options.sort ?? $("#fund-sort")?.value ?? "data_timestamp";
       url.searchParams.set("search", search); url.searchParams.set("category", category); url.searchParams.set("sort", sort);
       const data = await api(url.pathname + url.search);
-      state.funds = data.items;
+      state.funds = sortedFundItems(data.items);
       $("#fund-result-count").textContent = `${nf.format(data.count)} صندوق`;
-      renderFundTable(data.items);
-      renderMarketWatchlist(options.existing?.length ? options.existing : data.items.slice(0, 5));
+      renderFundTable(state.funds);
+      renderMarketWatchlist(options.existing?.length ? options.existing : state.funds.slice(0, 5));
       $("#fund-count").textContent = nf.format(data.count);
       const fs = _sourceByName("rahavard_funds"); freshness($("#funds-freshness"), fs?.status || "unavailable", fs?.last_data_timestamp);
-      const categories = Object.groupBy ? Object.groupBy(data.items, (x) => x.category || "نامشخص") : data.items.reduce((a, x) => ((a[x.category || "نامشخص"] ||= []).push(x), a), {});
+      const categories = Object.groupBy ? Object.groupBy(state.funds, (x) => x.category || "نامشخص") : state.funds.reduce((a, x) => ((a[x.category || "نامشخص"] ||= []).push(x), a), {});
       const cats = Object.entries(categories).sort((a, b) => b[1].length - a[1].length).slice(0, 3);
       const maximum = Math.max(1, ...cats.map((x) => x[1].length));
       $("#category-bars").innerHTML = cats.length ? cats.map(([name, rows]) => `<div class="cat-row"><span>${esc(name)}</span><div><i style="width:${rows.length / maximum * 100}%"></i></div><b>${nf.format(rows.length)}</b></div>`).join("") : `<div class="empty-state compact"><b>دسته صندوق در دسترس نیست</b></div>`;
-      const best = data.items.find((f) => f.technical_score != null);
-      $("#best-fund").textContent = best ? (best.display_symbol || `شناسه ${best.rahavard_asset_id}`) : data.items.length ? "برای امتیاز، نمایهٔ نماد را باز کنید" : "هنوز داده‌ای نیست";
+      const best = state.funds.find((f) => f.technical_score != null);
+      $("#best-fund").textContent = best ? (best.display_symbol || `شناسه ${best.rahavard_asset_id}`) : state.funds.length ? "برای امتیاز، نمایهٔ نماد را باز کنید" : "هنوز داده‌ای نیست";
     } catch (err) {
       if (!options.quiet) toast(`فهرست صندوق‌ها در دسترس نیست: ${err.message}`, true);
       $("#funds-freshness") && freshness($("#funds-freshness"), "unavailable", null);
@@ -656,22 +657,59 @@
 
   function _sourceByName(name) { return (state.summary?.sources || []).find((s) => s.name === name) || null; }
 
+  const fundSortTextKeys = new Set(["name", "rahavard_state"]);
+  function sortedFundItems(items) {
+    const rows = [...(items || [])];
+    const key = fundSortState.key;
+    rows.sort((a, b) => {
+      const left = a?.[key], right = b?.[key];
+      if (fundSortTextKeys.has(key)) {
+        return String(left ?? "").localeCompare(String(right ?? ""), "fa") * fundSortState.direction;
+      }
+      const leftNumber = Number(left), rightNumber = Number(right);
+      const leftMissing = left == null || !Number.isFinite(leftNumber);
+      const rightMissing = right == null || !Number.isFinite(rightNumber);
+      if (leftMissing || rightMissing) return leftMissing === rightMissing ? 0 : leftMissing ? 1 : -1;
+      return (leftNumber - rightNumber) * fundSortState.direction;
+    });
+    return rows;
+  }
+
+  function updateFundSortIndicators() {
+    $$('[data-fund-sort]').forEach((header) => {
+      const active = header.dataset.fundSort === fundSortState.key;
+      header.classList.toggle("is-sorted", active);
+      header.setAttribute("aria-sort", active ? (fundSortState.direction === 1 ? "ascending" : "descending") : "none");
+      const indicator = $(".sort-indicator", header);
+      if (indicator) indicator.textContent = active ? (fundSortState.direction === 1 ? "▲" : "▼") : "⇅";
+    });
+  }
+
+  function sortFundTable(key) {
+    if (!key) return;
+    if (fundSortState.key === key) fundSortState.direction *= -1;
+    else {
+      fundSortState.key = key;
+      fundSortState.direction = fundSortTextKeys.has(key) ? 1 : -1;
+    }
+    state.funds = sortedFundItems(state.funds);
+    renderFundTable(state.funds);
+  }
+
   // ETF directory rows expose a Rahavard asset ID, not necessarily an exchange ticker.
   function renderFundTable(items) {
     const target = $("#fund-table");
     if (!items.length) {
-      target.innerHTML = `<tr><td colspan="16"><div class="empty-state"><span>▤</span><b>صندوقی از ره‌آورد۳۶۵ دریافت نشده</b><small>وضعیت اتصال ره‌آورد را در صفحهٔ سلامت سامانه ببینید.</small></div></td></tr>`;
+      target.innerHTML = `<tr><td colspan="10"><div class="empty-state"><span>&#9632;</span><b>صندوقی از ره‌آورد۳۶۵ دریافت نشده</b><small>وضعیت اتصال ره‌آورد را در صفحه وضعیت سامانه ببینید.</small></div></td></tr>`;
       return;
     }
     const amount = (value) => value == null ? "—" : money(value);
     target.innerHTML = items.map((f) => {
       const id = f.rahavard_asset_id || f.symbol;
       const price = f.market_price ?? f.real_close_price;
-      const score = f.technical_score == null
-        ? `<span class="fund-score-pending">با بازکردن نمایه</span>`
-        : `<span class="score-label">${num(f.technical_score, 0)}</span>`;
-      return `<tr><td><button class="row-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><strong>${esc(f.name)}</strong><small class="fund-symbol">شناسه ره‌آورد: ${esc(id)}</small></span></button></td><td>${esc(f.rahavard_state || "—")}</td><td>${amount(price)}</td><td><span class="${changeClass(f.daily_return)}">${pct(f.daily_return)}</span></td><td>${amount(f.open_price)}</td><td>${amount(f.high_price)}</td><td>${amount(f.low_price)}</td><td>${pct(f.monthly_return)}</td><td>${pct(f.three_month_return)}</td><td>${pct(f.six_month_return)}</td><td>${pct(f.one_year_return)}</td><td>${amount(f.volume)}</td><td>${amount(f.value)}</td><td>${amount(f.bid_price)}</td><td>${amount(f.ask_price)}</td><td>${score}</td></tr>`;
+      return `<tr><td><button class="row-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><strong>${esc(f.name)}</strong><small class="fund-symbol">شناسه ره‌آورد: ${esc(id)}</small></span></button></td><td>${esc(f.rahavard_state || "—")}</td><td>${amount(price)}</td><td><span class="${changeClass(f.daily_return)}">${pct(f.daily_return)}</span></td><td>${pct(f.monthly_return)}</td><td>${pct(f.three_month_return)}</td><td>${pct(f.six_month_return)}</td><td>${pct(f.one_year_return)}</td><td>${amount(f.volume)}</td><td>${amount(f.value)}</td></tr>`;
     }).join("");
+    updateFundSortIndicators();
   }
 
   function renderMarketWatchlist(items) {
@@ -947,6 +985,16 @@
     finally { button.disabled = false; button.classList.remove("spinning"); }
   });
   $("#fund-table").addEventListener("click", (event) => { const button = event.target.closest("[data-fund]"); if (button) showFund(button.dataset.fund); });
+  $("#fund-table-grid").addEventListener("click", (event) => {
+    const header = event.target.closest("th[data-fund-sort]");
+    if (header) sortFundTable(header.dataset.fundSort);
+  });
+  $("#fund-table-grid").addEventListener("keydown", (event) => {
+    const header = event.target.closest("th[data-fund-sort]");
+    if (!header || (event.key !== "Enter" && event.key !== " ")) return;
+    event.preventDefault();
+    sortFundTable(header.dataset.fundSort);
+  });
   $("#fund-detail").addEventListener("click", (event) => { if (event.target.closest("[data-close-fund]")) $("#fund-detail").classList.add("hidden"); });
   $(".market-detail-grid").addEventListener("click", (event) => {
     const trigger = event.target.closest("[data-analysis-toggle]");
