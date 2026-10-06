@@ -657,7 +657,7 @@
 
   function _sourceByName(name) { return (state.summary?.sources || []).find((s) => s.name === name) || null; }
 
-  const fundSortTextKeys = new Set(["name", "rahavard_state"]);
+  const fundSortTextKeys = new Set(["name"]);
   function sortedFundItems(items) {
     const rows = [...(items || [])];
     const key = fundSortState.key;
@@ -700,14 +700,14 @@
   function renderFundTable(items) {
     const target = $("#fund-table");
     if (!items.length) {
-      target.innerHTML = `<tr><td colspan="10"><div class="empty-state"><span>&#9632;</span><b>صندوقی از ره‌آورد۳۶۵ دریافت نشده</b><small>وضعیت اتصال ره‌آورد را در صفحه وضعیت سامانه ببینید.</small></div></td></tr>`;
+      target.innerHTML = `<tr><td colspan="9"><div class="empty-state"><span>&#9632;</span><b>صندوقی از ره‌آورد۳۶۵ دریافت نشده</b><small>وضعیت اتصال ره‌آورد را در صفحه وضعیت سامانه ببینید.</small></div></td></tr>`;
       return;
     }
     const amount = (value) => value == null ? "—" : money(value);
     target.innerHTML = items.map((f) => {
       const id = f.rahavard_asset_id || f.symbol;
       const price = f.market_price ?? f.real_close_price;
-      return `<tr><td><button class="row-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><strong>${esc(f.name)}</strong><small class="fund-symbol">شناسه ره‌آورد: ${esc(id)}</small></span></button></td><td>${esc(f.rahavard_state || "—")}</td><td>${amount(price)}</td><td><span class="${changeClass(f.daily_return)}">${pct(f.daily_return)}</span></td><td>${pct(f.monthly_return)}</td><td>${pct(f.three_month_return)}</td><td>${pct(f.six_month_return)}</td><td>${pct(f.one_year_return)}</td><td>${amount(f.volume)}</td><td>${amount(f.value)}</td></tr>`;
+      return `<tr><td><button class="row-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><strong>${esc(f.name)}</strong><small class="fund-symbol">شناسه ره‌آورد: ${esc(id)}</small></span></button></td><td>${amount(price)}</td><td><span class="${changeClass(f.daily_return)}">${pct(f.daily_return)}</span></td><td>${pct(f.monthly_return)}</td><td>${pct(f.three_month_return)}</td><td>${pct(f.six_month_return)}</td><td>${pct(f.one_year_return)}</td><td>${amount(f.volume)}</td><td>${amount(f.value)}</td></tr>`;
     }).join("");
     updateFundSortIndicators();
   }

@@ -614,3 +614,141 @@ body.light-mode #view-settings .alert-form { background: #f5f9f6; border-color: 
   #view-funds .fund-properties { grid-template-columns: 1fr; }
   #view-settings .settings-card { padding: 18px; }
 }
+
+/* ETF table: compact, scannable rows with a highlighted symbol column. */
+#view-funds .table-panel {
+  padding: 0;
+  overflow: hidden;
+  border-color: #355661;
+  background: linear-gradient(145deg, #182b34, #13232c);
+}
+#view-funds .table-scroll { overflow: auto; scrollbar-color: #527f7c #14242c; }
+#view-funds #fund-table-grid {
+  width: 100%;
+  min-width: 1060px;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;
+  direction: rtl;
+}
+#view-funds #fund-table-grid thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  padding: 15px 16px;
+  border-bottom: 1px solid #3b5a63;
+  background: linear-gradient(180deg, #233d46, #1d343d);
+  color: #c8d9d5;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -.1px;
+  box-shadow: 0 5px 12px rgba(0, 0, 0, .12);
+}
+#view-funds #fund-table-grid thead th:first-child {
+  right: 0;
+  z-index: 5;
+  min-width: 220px;
+  text-align: right;
+  border-radius: 0 14px 0 0;
+}
+#view-funds #fund-table-grid thead th:last-child { border-radius: 14px 0 0 0; }
+#view-funds #fund-table-grid thead th[data-fund-sort]:hover,
+#view-funds #fund-table-grid thead th[data-fund-sort].is-sorted {
+  background: linear-gradient(180deg, #2b5159, #24434b);
+  color: #f0fbf7;
+}
+#view-funds #fund-table-grid .sort-indicator { margin-right: 5px; color: #83bdb2; font-size: 11px; }
+#view-funds #fund-table-grid tbody tr { background: rgba(25, 47, 56, .42); transition: background .18s ease, transform .18s ease; }
+#view-funds #fund-table-grid tbody tr:nth-child(even) { background: rgba(18, 37, 46, .62); }
+#view-funds #fund-table-grid tbody tr:hover { background: rgba(53, 129, 112, .18); }
+#view-funds #fund-table-grid tbody td {
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(87, 122, 125, .18);
+  color: #c6d4d1;
+  font: 500 13px "DM Mono", Tahoma, sans-serif;
+  direction: ltr;
+  text-align: right;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+#view-funds #fund-table-grid tbody tr:last-child td { border-bottom: 0; }
+#view-funds #fund-table-grid tbody td:first-child {
+  position: sticky;
+  right: 0;
+  z-index: 2;
+  min-width: 220px;
+  direction: rtl;
+  text-align: right;
+  background: #1a3038;
+  box-shadow: -10px 0 18px rgba(9, 19, 25, .16);
+}
+#view-funds #fund-table-grid tbody tr:nth-child(even) td:first-child { background: #172c34; }
+#view-funds #fund-table-grid tbody tr:hover td:first-child { background: #1e3b41; }
+#view-funds .row-open {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: right;
+}
+#view-funds .fund-table-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 190px;
+  padding: 8px 10px;
+  border: 1px solid #34545c;
+  border-radius: 11px;
+  background: linear-gradient(135deg, rgba(36, 76, 82, .65), rgba(21, 46, 55, .72));
+  transition: border-color .18s ease, background .18s ease, transform .18s ease;
+}
+#view-funds .fund-table-name::before {
+  content: "ETF";
+  display: grid;
+  place-items: center;
+  width: 31px;
+  height: 31px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(85, 199, 165, .34);
+  border-radius: 9px;
+  background: rgba(47, 145, 119, .17);
+  color: #82d7c1;
+  font: 700 10px Tahoma, sans-serif;
+  direction: ltr;
+}
+#view-funds .row-open:hover .fund-table-name,
+#view-funds .row-open:focus-visible .fund-table-name { border-color: #68c8b0; background: linear-gradient(135deg, rgba(42, 111, 105, .76), rgba(23, 56, 61, .82)); transform: translateX(-2px); }
+#view-funds .fund-table-name strong { display: block; color: #edf7f3; font-size: 14px; font-weight: 700; line-height: 1.5; }
+#view-funds .fund-table-name small { display: block; margin-top: 1px; color: #9eb8b3; font: 11px Tahoma, sans-serif; line-height: 1.5; }
+#view-funds #fund-table-grid tbody td:nth-child(2) { color: #e5eee9; font-weight: 650; }
+#view-funds #fund-table-grid tbody td:nth-child(3) .positive,
+#view-funds #fund-table-grid tbody td:nth-child(4) .positive { color: #71d6af; }
+#view-funds #fund-table-grid tbody td:nth-child(3) .negative,
+#view-funds #fund-table-grid tbody td:nth-child(4) .negative { color: #ef9aa2; }
+#view-funds .table-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 17px; border-top: 1px solid rgba(87, 122, 125, .22); background: rgba(11, 25, 32, .28); color: #91aaa6; font-size: 12px; line-height: 1.8; }
+#view-funds .table-footer span:last-child { color: #718c88; text-align: left; }
+
+body.light-mode #view-funds .table-panel { background: linear-gradient(145deg, #ffffff, #f3f8f5); border-color: #cfdfd8; }
+body.light-mode #view-funds #fund-table-grid thead th { background: linear-gradient(180deg, #edf6f1, #e3f0e9); border-color: #cfdfd8; color: #41665c; }
+body.light-mode #view-funds #fund-table-grid thead th[data-fund-sort]:hover,
+body.light-mode #view-funds #fund-table-grid thead th[data-fund-sort].is-sorted { background: #d9eee4; color: #1d6453; }
+body.light-mode #view-funds #fund-table-grid tbody tr { background: #fbfdfc; }
+body.light-mode #view-funds #fund-table-grid tbody tr:nth-child(even) { background: #f4f9f6; }
+body.light-mode #view-funds #fund-table-grid tbody tr:hover { background: #eaf6f0; }
+body.light-mode #view-funds #fund-table-grid tbody td { border-color: #e1ebe6; color: #46645d; }
+body.light-mode #view-funds #fund-table-grid tbody td:first-child { background: #f7fbf9; box-shadow: -10px 0 18px rgba(31, 78, 61, .06); }
+body.light-mode #view-funds #fund-table-grid tbody tr:nth-child(even) td:first-child { background: #f1f8f4; }
+body.light-mode #view-funds #fund-table-grid tbody tr:hover td:first-child { background: #e4f3eb; }
+body.light-mode #view-funds .fund-table-name { border-color: #c9dfd4; background: linear-gradient(135deg, #edf8f2, #e4f2eb); }
+body.light-mode #view-funds .fund-table-name strong { color: #294d43; }
+body.light-mode #view-funds .fund-table-name small { color: #6c877e; }
+body.light-mode #view-funds .table-footer { border-color: #dce8e2; background: #f6faf8; color: #668078; }
+body.light-mode #view-funds .table-footer span:last-child { color: #7a918a; }
+
+@media (max-width: 700px) {
+  #view-funds #fund-table-grid { min-width: 980px; }
+  #view-funds #fund-table-grid thead th, #view-funds #fund-table-grid tbody td { padding-left: 11px; padding-right: 11px; }
+  #view-funds .table-footer { align-items: flex-start; flex-direction: column; gap: 3px; }
+  #view-funds .table-footer span:last-child { text-align: right; }
+}
