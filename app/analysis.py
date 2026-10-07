@@ -184,13 +184,14 @@ def analyze(symbol: str, bars: list[dict[str, Any]]) -> dict[str, Any]:
         risk = "medium"
     else:
         risk = "low"
-    medium_term_exit_price = round(nearest_support["midpoint"] * 0.997) if nearest_support else None
+    exit_support = min((x["midpoint"] for x in supports if current is not None and x["midpoint"] < current), default=None)
+    medium_term_exit_price = round(exit_support * 0.993) if exit_support is not None else None
     return {
         "symbol": symbol, "data_timestamp": bars[-1].get("timestamp"), "price": current,
         "medium_term_exit_price": medium_term_exit_price,
         "medium_term_exit": {
             "price": medium_term_exit_price,
-            "trigger": "تثبیت قیمت زیر حمایت نزدیک میان‌مدت",
+            "trigger": "تثبیت قیمت زیر آخرین حمایت معتبر میان‌مدت",
             "action": "تثبیت زیر این سطح یعنی حمایت میان‌مدت شکسته شده و سناریوی نزولی فعال است؛ خروج از موقعیت را اجرا کن.",
         },
         "trend": medium, "short_term_trend": short, "medium_term_trend": medium,
@@ -364,7 +365,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
                           if key.casefold().startswith("r")})
     nearest_support = nearest_level(supports, below=True)
     nearest_resistance = nearest_level(resistances, below=False)
-    exit_support = max((value for value in supports if price is not None and value < price), default=None)
+    exit_support = min((value for value in supports if price is not None and value < price), default=None)
     resistance_above_price = price is None or any(value > price for value in resistances)
     rsi = find_values("RSI").get("rsi")
     mfi = find_values("MFI").get("mfi")
@@ -451,10 +452,10 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     return {
         "source": "Rahavard365", "symbol": symbol, "data_timestamp": data_timestamp,
         "price": price, "support_levels": supports, "resistance_levels": resistances,
-        "medium_term_exit_price": round(exit_support * 0.997) if exit_support is not None else None,
+        "medium_term_exit_price": round(exit_support * 0.993) if exit_support is not None else None,
         "medium_term_exit": {
-            "price": round(exit_support * 0.997) if exit_support is not None else None,
-            "trigger": "تثبیت قیمت زیر نزدیک‌ترین حمایت ره‌آورد",
+            "price": round(exit_support * 0.993) if exit_support is not None else None,
+            "trigger": "تثبیت قیمت زیر آخرین حمایت معتبر ره‌آورد",
             "action": "تثبیت زیر این سطح یعنی حمایت میان‌مدت شکسته شده و سناریوی نزولی فعال است؛ خروج از موقعیت را اجرا کن.",
         },
         "technical_score": round(score, 1) if score is not None else None,

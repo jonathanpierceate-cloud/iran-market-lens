@@ -617,13 +617,17 @@
     const pullbackStop = Math.max(0, (below[3] ?? pullback3) - buffer);
     const measuredResistance = above.length > 0;
     const measuredSupport = below.length > 0;
-    const mediumTermExitPrice = Number(a?.medium_term_exit_price) > 0
-      ? Number(a.medium_term_exit_price)
-      : measuredSupport ? Math.round(support1 * .997) : null;
+    const lastSupport = below.length ? below[below.length - 1] : null;
+    const calculatedExitPrice = lastSupport != null ? Math.round(lastSupport * .993) : null;
+    const apiExitPrice = Number(a?.medium_term_exit_price) > 0 ? Number(a.medium_term_exit_price) : null;
+    const mediumTermExitPrice = calculatedExitPrice != null
+      ? (apiExitPrice != null && apiExitPrice < lastSupport ? apiExitPrice : calculatedExitPrice)
+      : apiExitPrice;
+    const exitSupportText = lastSupport != null ? ` زیر آخرین حمایت معتبر ${money(lastSupport)}` : "";
     const priceUnit = ({ GOLD: "دلار / اونس", GOLD_18K: "ریال / گرم", USD_IR_FREE: "تومان", TEPIX: "واحد" })[String(a?.symbol || "").toUpperCase()] || "ریال";
     const mediumTermExitHtml = mediumTermExitPrice == null
       ? `<div class="medium-exit-card unavailable"><span class="medium-exit-icon">!</span><div><b>حد خروج میان‌مدتی محاسبه نشد</b><small>حمایت معتبر برای این دارایی در داده فعلی پیدا نشد.</small></div></div>`
-      : `<div class="medium-exit-card"><span class="medium-exit-icon">↓</span><div><span class="medium-exit-kicker">سطح تصمیم میان‌مدت</span><b>حد خروج میان‌مدت: ${money(mediumTermExitPrice)} ${priceUnit}</b><small>تثبیت قیمت زیر این سطح یعنی حمایت شکسته و سناریوی نزولی فعال شده است؛ از موقعیت خارج شو.</small></div></div>`;
+      : `<div class="medium-exit-card"><span class="medium-exit-icon">↓</span><div><span class="medium-exit-kicker">سطح تصمیم میان‌مدت · حد خرید نیست</span><b>حد خروج میان‌مدت: ${money(mediumTermExitPrice)} ${priceUnit}</b><small>این سطح ${exitSupportText} است؛ اگر قیمت زیر آن تثبیت شد، حمایت ساختاری شکسته و خرید جدید ممنوع است؛ موقعیت را خارج کن.</small></div></div>`;
     const priceCard = (kind, label, value, note) => `<article class="trade-level ${kind}"><span>${label}</span><b>${money(value)}</b><small>${note}</small></article>`;
     const pathCard = ({ direction, title, subtitle, condition, entries, targets, stop, invalidation }) => `<article class="trade-path ${direction}">
       <header class="trade-path-head"><div><span>${subtitle}</span><h4>${title}</h4></div><span class="trade-path-mark">${direction === "bullish" ? "↗" : "↘"}</span></header>
@@ -651,7 +655,7 @@
     });
     const pullbackPath = pathCard({
       direction: "pullback", subtitle: "مسیر دوم · ورود در اصلاح با تأیید برگشت", title: "خرید در صورت نزول و پولبک",
-      condition: "قیمت به حمایت‌ها اصلاح کند؛ هر پله فقط پس از مشاهده حفظ سطح و نشانه برگشت بررسی شود.",
+      condition: `قیمت به حمایت‌ها اصلاح کند؛ هر پله فقط با حفظ سطح و نشانه برگشت بررسی شود و تا وقتی قیمت بالای حد خروج ${money(mediumTermExitPrice)} است اجرا شود.`,
       entries: [
         { label: "حمایت نزدیک", value: pullback1, note: measuredSupport ? "حمایت اول؛ منتظر واکنش مثبت بمان" : "سطح تخمینی؛ حمایت در داده نیست" },
         { label: "اصلاح عمیق‌تر", value: pullback2, note: below.length > 1 ? "حمایت بعدی؛ ورود مشروط به حفظ سطح" : "سطح تخمینی با دامنه نوسان" },
