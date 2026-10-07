@@ -128,7 +128,16 @@ def _market_quote(symbol: str) -> dict[str, Any]:
               "source": latest.get("source"), "source_url": data.get("source_url"),
               "data_timestamp": observed_timestamp, "fetched_at": latest.get("fetched_at"),
               "stale": bool(is_stale), "status": status}
+    iran_tz = timezone(timedelta(hours=3, minutes=30))
+    try:
+        observed_day = datetime.fromisoformat(str(observed_timestamp).replace("Z", "+00:00"))
+        if observed_day.tzinfo is None:
+            observed_day = observed_day.replace(tzinfo=iran_tz)
+        output["price_is_cached"] = observed_day.astimezone(iran_tz).date() != datetime.now(iran_tz).date()
+    except (TypeError, ValueError, OverflowError):
+        output["price_is_cached"] = bool(is_stale)
     output["analysis"] = analyze(symbol, bars)
+    output["analysis"]["price_is_cached"] = output["price_is_cached"]
     return output
 
 
@@ -509,16 +518,57 @@ _WATCHLIST_DISPLAY_BY_ASSET_ID = {
     "820": "آگاس",
     "25249": "متال",
 }
+_DEFAULT_WATCHLIST_ASSET_ID_BY_SYMBOL = {
+    symbol: asset_id for asset_id, symbol in _WATCHLIST_DISPLAY_BY_ASSET_ID.items()
+}
+
+
+def _ensure_default_watchlist_fund(symbol: str) -> dict[str, Any] | None:
+    """Keep known default symbols resolvable when Rahavard omits them intraday."""
+    asset_id = _DEFAULT_WATCHLIST_ASSET_ID_BY_SYMBOL.get(symbol)
+    if not asset_id:
+        return None
+    fund_key = f"rahavard:{asset_id}"
+    db.save_funds([{
+        "fund_key": fund_key, "symbol": asset_id, "registration_no": asset_id,
+        "name": symbol, "category": "قابل معامله", "category_id": "rahavard-etf",
+        "market_price": None, "raw": {"rahavard_asset_id": asset_id, "trade_symbol": symbol},
+    }], "Rahavard365", f"https://rahavard365.com/asset/{asset_id}")
+    return db.get_fund(fund_key)
 
 
 
 def _seed_default_watchlist() -> None:
     settings = db.get_settings()
     if settings.get(_DEFAULT_WATCHLIST_SETTING):
+        # A morning refresh can temporarily omit a fund from Rahavard's live list.
+        # Repair a manual placeholder as soon as that fund appears again, while
+        # preserving the user's saved units and break-even price.
+        records = db.watchlist_items()
+        for symbol, units, break_even_price in _DEFAULT_WATCHLIST_ITEMS:
+            manual_key = f"manual:{symbol}"
+            existing = next((row for row in records if row["fund_key"] == manual_key), None)
+            if not existing:
+                continue
+            try:
+                fund = _watchlist_find_fund(symbol)
+            except HTTPException:
+                fund = None
+            if fund is None:
+                fund = _ensure_default_watchlist_fund(symbol)
+            if not fund:
+                continue
+            target_key = fund["fund_key"]
+            if any(row["fund_key"] == target_key for row in records):
+                db.remove_watchlist_item(manual_key)
+                continue
+            record = db.add_watchlist_item(target_key)
+            db.update_watchlist_item(target_key, {
+                "units": existing.get("units") if existing.get("units") is not None else units,
+                "break_even_price": existing.get("break_even_price") if existing.get("break_even_price") is not None else break_even_price,
+            })
+            db.remove_watchlist_item(manual_key)
         return
-    if not db.funds(source="Rahavard365"):
-        return
-
     records = db.watchlist_items()
     desired_keys: set[str] = set()
     for symbol, units, break_even_price in _DEFAULT_WATCHLIST_ITEMS:
@@ -526,6 +576,8 @@ def _seed_default_watchlist() -> None:
             fund = _watchlist_find_fund(symbol)
         except HTTPException:
             fund = None
+        if fund is None:
+            fund = _ensure_default_watchlist_fund(symbol)
         target_key = fund["fund_key"] if fund else f"manual:{symbol}"
         target_asset_id = _watchlist_asset_id(fund) if fund else None
         desired_keys.add(target_key)
@@ -614,42 +666,6 @@ def _watchlist_levels(indicator_data: dict[str, Any] | None,
     return {"supports": nearest(supports, True), "resistances": nearest(resistances, False)}
 
 
-def _watchlist_downside_exit(price: float | None,
-                             supports: list[dict[str, Any]],
-                             break_even_price: Any,
-                             units: Any,
-                             trend: str | None) -> dict[str, Any]:
-    """Suggest a downside exit trigger just below the nearest Rahavard support."""
-    if price is None or not supports:
-        return {"price": None, "support_price": None, "support_label": None,
-                "pnl_per_unit": None, "pnl_pct": None, "position_pnl": None,
-                "trend_label": trend or "unknown"}
-
-    support = supports[0]
-    support_price = _watchlist_number(support.get("price"))
-    if support_price is None or support_price <= 0:
-        return {"price": None, "support_price": None, "support_label": None,
-                "pnl_per_unit": None, "pnl_pct": None, "position_pnl": None,
-                "trend_label": trend or "unknown"}
-
-    # The buffer filters a brief touch of support; it is a trigger estimate, not a guaranteed fill.
-    exit_price = round(support_price * 0.997)
-    entry = _watchlist_number(break_even_price)
-    quantity = _watchlist_number(units)
-    pnl_per_unit = exit_price - entry if entry is not None and entry > 0 else None
-    pnl_pct = pnl_per_unit / entry * 100 if pnl_per_unit is not None else None
-    position_pnl = pnl_per_unit * quantity if pnl_per_unit is not None and quantity is not None and quantity > 0 else None
-    return {
-        "price": exit_price,
-        "support_price": support_price,
-        "support_label": support.get("label"),
-        "pnl_per_unit": pnl_per_unit,
-        "pnl_pct": pnl_pct,
-        "position_pnl": position_pnl,
-        "trend_label": trend or "unknown",
-    }
-
-
 @app.get("/api/watchlist")
 async def get_watchlist():
     _seed_default_watchlist()
@@ -679,19 +695,54 @@ async def get_watchlist():
         asset = profile.get("asset") if isinstance(profile.get("asset"), dict) else {}
         trade = profile.get("last_trade") if isinstance(profile.get("last_trade"), dict) else {}
         raw = fund.get("raw") if isinstance(fund.get("raw"), dict) else {}
-        price = _watchlist_number(trade.get("real_close_price")) or _watchlist_number(fund.get("market_price"))
+        live_price = _watchlist_number(trade.get("real_close_price"))
+        if live_price is not None and live_price <= 0:
+            live_price = None
+        live_timestamp = trade.get("end_date_time")
+        live_price_is_today = False
+        if live_price is not None and live_timestamp:
+            try:
+                iran_tz = timezone(timedelta(hours=3, minutes=30))
+                observed = datetime.fromisoformat(str(live_timestamp).replace("Z", "+00:00"))
+                if observed.tzinfo is None:
+                    observed = observed.replace(tzinfo=iran_tz)
+                live_price_is_today = observed.astimezone(iran_tz).date() == datetime.now(iran_tz).date()
+            except (TypeError, ValueError, OverflowError):
+                live_price_is_today = False
+        cached_history = db.history(record["fund_key"], 1, source="Rahavard365")
+        cached_price = _watchlist_number(fund.get("market_price"))
+        if cached_price is None and not cached_history:
+            try:
+                cached_history = await fetch_fund_price_history(record["fund_key"])
+            except Exception:
+                cached_history = db.history(record["fund_key"], 1, source="Rahavard365")
+        if cached_price is None and cached_history:
+            cached_price = _watchlist_number(cached_history[-1].get("close"))
+        price = live_price or cached_price
+        price_is_cached = price is not None and not live_price_is_today
+        price_note = ("قیمت پایانی آخرین روز معاملاتی؛ با ثبت معامله جدید به‌روز می‌شود"
+                      if live_price is not None and not live_price_is_today
+                      else "آخرین قیمت ذخیره‌شده قبل از شروع معاملات"
+                      if live_price is None and cached_price is not None
+                      else "قیمت جاری ره‌آورد۳۶۵")
         change_ratio = _watchlist_number(trade.get("real_close_price_change_percent"))
+        daily_return = change_ratio * 100 if change_ratio is not None else fund.get("daily_return")
         indicator_data = indicator_result if isinstance(indicator_result, dict) else None
         cached = snapshots.get(record["fund_key"])
         if indicator_data is None and cached:
             indicator_data = cached.get("data")
-        stamp = trade.get("end_date_time") or (cached or {}).get("data_timestamp") or fund.get("data_timestamp")
+        stamp = (trade.get("end_date_time") if live_price is not None else None) \
+            or ((cached_history[-1].get("timestamp") if cached_history else None)) \
+            or (cached or {}).get("data_timestamp") or fund.get("data_timestamp")
         analysis_result = analyze_rahavard(asset.get("trade_symbol") or fund["symbol"], indicator_data, stamp, price) if indicator_data else None
         levels = _watchlist_levels(indicator_data, price)
         signal = analysis_result.get("signal") if analysis_result else None
         trend = analysis_result.get("trend") if analysis_result else None
-        downside_exit = _watchlist_downside_exit(
-            price, levels["supports"], record.get("break_even_price"), record.get("units"), trend)
+        break_even = _watchlist_number(record.get("break_even_price"))
+        units = _watchlist_number(record.get("units"))
+        profit_per_unit = price - break_even if price is not None and break_even is not None else None
+        profit_pct = profit_per_unit / break_even * 100 if profit_per_unit is not None and break_even else None
+        profit_total = profit_per_unit * units if profit_per_unit is not None and units is not None else None
         if signal == "buy":
             outlook, tone = "تمایل مثبت · نگهداری تحت نظر", "positive"
         elif signal == "sell":
@@ -710,11 +761,13 @@ async def get_watchlist():
             "fund_name": asset.get("name") or fund["name"],
             "rahavard_asset_id": asset_id,
             "price": price,
-            "daily_return": change_ratio * 100 if change_ratio is not None else fund.get("daily_return"),
+            "price_is_cached": price_is_cached,
+            "price_note": price_note,
+            "daily_return": daily_return,
             "data_timestamp": stamp,
             "supports": levels["supports"],
             "resistances": levels["resistances"],
-            "downside_exit": downside_exit,
+            "profit": {"per_unit": profit_per_unit, "pct": profit_pct, "total": profit_total},
             "signal": signal,
             "signal_fa": signal_fa,
             "trend": trend,
@@ -845,8 +898,26 @@ async def fund_detail(symbol: str):
         fund["aum"] = number(aum_row.get("nav")) or fund.get("aum")
         if fund.get("market_price") and fund.get("nav"):
             fund["nav_premium_pct"] = (fund["market_price"] / fund["nav"] - 1) * 100
+    fund["price_is_cached"] = False
+    if fund.get("market_price") is not None and fund.get("data_timestamp"):
+        try:
+            iran_tz = timezone(timedelta(hours=3, minutes=30))
+            observed = datetime.fromisoformat(str(fund["data_timestamp"]).replace("Z", "+00:00"))
+            if observed.tzinfo is None:
+                observed = observed.replace(tzinfo=iran_tz)
+            fund["price_is_cached"] = observed.astimezone(iran_tz).date() != datetime.now(iran_tz).date()
+        except (TypeError, ValueError, OverflowError):
+            fund["price_is_cached"] = False
+    if not fund.get("market_price") and bars:
+        fund["market_price"] = bars[-1].get("close")
+        fund["data_timestamp"] = bars[-1].get("timestamp") or fund.get("data_timestamp")
+        fund["price_is_cached"] = fund["market_price"] is not None
+    if fund.get("price_is_cached"):
+        fund["price_note"] = "آخرین قیمت پایانی ذخیره‌شده؛ با ثبت معامله جدید به‌روز می‌شود"
     analysis_result = analyze_rahavard(fund.get("display_symbol") or fund["symbol"], indicator_data,
                                        fund.get("data_timestamp"), fund.get("market_price")) if indicator_data else None
+    if analysis_result:
+        analysis_result["price_is_cached"] = fund.get("price_is_cached", False)
     return {"fund": fund, "history": bars, "nav_history": nav, "portfolio": [],
             "analysis": analysis_result, "market_data_available": bool(bars),
             "fundamentals_source": "Rahavard365", "market_price_source": "Rahavard365" if fund.get("market_price") is not None else None,

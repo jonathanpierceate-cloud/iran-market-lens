@@ -11,8 +11,8 @@
   <link rel="manifest" href="/static/manifest.webmanifest">
   <title>AliVest | تحلیل سرمایه‌گذاری</title>
   <link rel="stylesheet" href="/static/app.css?v=market-summary-20261007">
-  <link rel="stylesheet" href="/static/analysis.css?v=watchlist-downside-exit-20261007">
-  <link rel="stylesheet" href="/static/design.css?v=watchlist-downside-exit-20261007">
+  <link rel="stylesheet" href="/static/analysis.css?v=watchlist-profit-exit-20261007">
+  <link rel="stylesheet" href="/static/design.css?v=watchlist-profit-exit-20261007">
 </head>
 <body>
   <div class="app-shell">
@@ -127,11 +127,11 @@
               <datalist id="watchlist-symbol-options"></datalist>
               <button class="button button-primary" type="submit">＋ افزودن به دیده‌بان</button>
             </form>
-            <p>قیمت سر‌به‌سر و تعداد واحدها برای هر نماد ذخیره می‌شوند. قیمت خروج با حاشیه 0.3% زیر نزدیک‌ترین حمایت ره‌آورد برآورد می‌شود و با تثبیت زیر سطح فعال است؛ این سطح تضمین قطعی نیست.</p>
+            <p>قیمت سر‌به‌سر و تعداد واحدها برای هر نماد ذخیره می‌شوند. سود و زیان با آخرین قیمت جاری یا آخرین قیمت ذخیره‌شده قبل از شروع معاملات محاسبه می‌شود.</p>
           </div>
           <div class="table-scroll watchlist-scroll">
                         <table class="watchlist-table">
-              <thead><tr><th>صندوق / نماد</th><th>قیمت فعلی (ریال)</th><th>قیمت سر‌به‌سر (ریال)</th><th>واحدهای من</th><th>قیمت خروج پیشنهادی در نزول (ریال)</th><th>برداشت میان‌مدت ره‌آورد</th><th>مدیریت</th></tr></thead>
+              <thead><tr><th>صندوق / نماد</th><th>قیمت فعلی (ریال)</th><th>قیمت سر‌به‌سر (ریال)</th><th>واحدهای من</th><th>سود / زیان</th><th>برداشت میان‌مدت ره‌آورد</th><th>مدیریت</th></tr></thead>
               <tbody id="watchlist-table-body"><tr><td colspan="7"><div class="empty-state"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b><small>از کادر بالا یک صندوق ره‌آورد را با نام یا شناسه‌اش اضافه کن.</small></div></td></tr></tbody>
             </table>
           </div>
@@ -152,6 +152,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=watchlist-downside-exit-20261007"></script>
+  <script src="/static/app.js?v=watchlist-profit-exit-20261007"></script>
 </body>
 </html>

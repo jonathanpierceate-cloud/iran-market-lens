@@ -1023,6 +1023,11 @@ body.light-mode #view-funds #fund-table-grid tbody td::before { color: #6d8980; 
 .trade-plan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
 .trade-plan-head h3 { margin-top: 3px; color: #edf7f3; font-size: 20px; }
 .trade-plan-head p { margin-top: 5px; color: #9eb5b1; font-size: 12px; line-height: 1.8; }
+.medium-exit-card{display:flex;align-items:center;gap:12px;margin:0 0 15px;padding:13px 15px;border:1px solid rgba(229,126,135,.34);border-right:4px solid #d67882;border-radius:13px;background:linear-gradient(135deg,rgba(104,40,50,.18),rgba(10,26,35,.62))}
+.medium-exit-card.unavailable{border-color:#3a5360;border-right-color:#8399a5;background:rgba(11,28,38,.5)}
+.medium-exit-icon{display:grid;place-items:center;width:34px;height:34px;flex:0 0 auto;border-radius:11px;background:rgba(213,106,119,.16);color:#f49ba5;font-size:19px;font-weight:800}
+.medium-exit-card.unavailable .medium-exit-icon{background:rgba(129,153,165,.15);color:#aabcc4}
+.medium-exit-card div{display:grid;gap:3px;min-width:0}.medium-exit-kicker{font-size:11px;color:#dba8ac}.medium-exit-card b{color:#ffe1e3;font-size:15px}.medium-exit-card small{color:#b9c5c9;font-size:12px;line-height:1.7}
 .trade-plan-badge { padding: 6px 10px; border: 1px solid #4b686c; border-radius: 999px; color: #b6cbc7; background: rgba(8, 22, 29, .42); font-size: 12px; white-space: nowrap; }
 .trade-plan-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 9px; }
 .trade-level { min-width: 0; padding: 12px 11px; border: 1px solid #34515b; border-radius: 12px; background: rgba(9, 23, 30, .48); }
@@ -1071,6 +1076,10 @@ body.light-mode #view-watchlist .watch-fund-open strong { color: #294d43; }
 body.light-mode #view-watchlist .watch-fund-open small { color: #6c877e; }
 body.light-mode #view-watchlist .watch-input { background: #fff; border-color: #cbded5; color: #35534b; }
 body.light-mode .trade-plan { background: linear-gradient(145deg, #f3f9f6, #eaf4ef); border-color: #c9ded5; }
+body.light-mode .medium-exit-card{background:linear-gradient(135deg,#fff4f4,#f8fbfc);border-color:#ecd0d3;border-right-color:#c75d68}
+body.light-mode .medium-exit-card b{color:#963d49}
+body.light-mode .medium-exit-card small{color:#687d82}
+body.light-mode .medium-exit-icon{background:#fbe2e4;color:#b34654}
 body.light-mode .trade-plan-head h3, body.light-mode .trade-level b { color: #29453e; }
 body.light-mode .trade-plan-head p, body.light-mode .trade-plan-badge, body.light-mode .trade-level span { color: #637b74; }
 body.light-mode .trade-level { background: #f7fbf9; border-color: #d4e4dc; }

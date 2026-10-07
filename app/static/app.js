@@ -1,7 +1,7 @@
 (() => {
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-  const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], watchlist: [], currentView: "overview" };
+  const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], watchlist: [], currentView: "overview", watchlistRefreshTimer: null, watchlistRefreshSeconds: 900 };
   const fundSortState = { key: "data_timestamp", direction: -1 };
   const nf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const en = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
@@ -542,6 +542,7 @@
     };
     const parsedPrice = a?.price == null ? NaN : Number(a.price);
     const price = Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : null;
+    const priceBadge = a?.price_is_cached ? "آخرین قیمت پایانی" : "قیمت فعلی";
     const cards = scenarios.map((scenario) => {
       const direction = scenario.direction === "bullish" ? "bullish" : "bearish";
       const probability = Math.max(0, Math.min(100, Number(scenario.probability) || 0));
@@ -616,6 +617,13 @@
     const pullbackStop = Math.max(0, (below[3] ?? pullback3) - buffer);
     const measuredResistance = above.length > 0;
     const measuredSupport = below.length > 0;
+    const mediumTermExitPrice = Number(a?.medium_term_exit_price) > 0
+      ? Number(a.medium_term_exit_price)
+      : measuredSupport ? Math.round(support1 * .997) : null;
+    const priceUnit = ({ GOLD: "دلار / اونس", GOLD_18K: "ریال / گرم", USD_IR_FREE: "تومان", TEPIX: "واحد" })[String(a?.symbol || "").toUpperCase()] || "ریال";
+    const mediumTermExitHtml = mediumTermExitPrice == null
+      ? `<div class="medium-exit-card unavailable"><span class="medium-exit-icon">!</span><div><b>حد خروج میان‌مدتی محاسبه نشد</b><small>حمایت معتبر برای این دارایی در داده فعلی پیدا نشد.</small></div></div>`
+      : `<div class="medium-exit-card"><span class="medium-exit-icon">↓</span><div><span class="medium-exit-kicker">سطح تصمیم میان‌مدت</span><b>حد خروج میان‌مدت: ${money(mediumTermExitPrice)} ${priceUnit}</b><small>تثبیت قیمت زیر این سطح یعنی حمایت شکسته و سناریوی نزولی فعال شده است؛ از موقعیت خارج شو.</small></div></div>`;
     const priceCard = (kind, label, value, note) => `<article class="trade-level ${kind}"><span>${label}</span><b>${money(value)}</b><small>${note}</small></article>`;
     const pathCard = ({ direction, title, subtitle, condition, entries, targets, stop, invalidation }) => `<article class="trade-path ${direction}">
       <header class="trade-path-head"><div><span>${subtitle}</span><h4>${title}</h4></div><span class="trade-path-mark">${direction === "bullish" ? "↗" : "↘"}</span></header>
@@ -657,7 +665,7 @@
       invalidation: `اگر حمایت ${money(pullback3)} با فشار فروش شکسته شد، پله‌های بعدی را اجرا نکن و حد ضرر را رعایت کن.`,
     });
     const fallbackNote = (!measuredResistance || !measuredSupport) ? " هرجا سطح رسمی حمایت یا مقاومت موجود نبوده، سطح جایگزین با دامنه نوسان قیمت برآورد شده است." : "";
-    return `<section class="trade-plan"><div class="trade-plan-head"><div><span class="panel-kicker">برنامه معاملاتی میان‌مدت</span><h3>دو مدل پله خرید</h3><p>این دو مسیر جایگزین یکدیگرند؛ فقط پس از برقرارشدن شرط همان مسیر بررسی شوند.</p></div><span class="trade-plan-badge">قیمت فعلی: ${money(price)}</span></div><div class="trade-path-grid">${bullishPath}${pullbackPath}</div><p class="trade-plan-note">سطوح با داده‌های قیمت، حمایت/مقاومت و ATR ره‌آورد محاسبه می‌شوند؛ قطعی نیستند و با تازه‌شدن قیمت تغییر می‌کنند.${fallbackNote}</p></section>`;
+    return `<section class="trade-plan"><div class="trade-plan-head"><div><span class="panel-kicker">برنامه معاملاتی میان‌مدت</span><h3>دو مدل پله خرید</h3><p>این دو مسیر جایگزین یکدیگرند؛ فقط پس از برقرارشدن شرط همان مسیر بررسی شوند.</p></div><span class="trade-plan-badge">${priceBadge}: ${money(price)}</span></div>${mediumTermExitHtml}<div class="trade-path-grid">${bullishPath}${pullbackPath}</div><p class="trade-plan-note">سطوح با داده‌های قیمت، حمایت/مقاومت و ATR ره‌آورد محاسبه می‌شوند و با تازه‌شدن قیمت تغییر می‌کنند.${fallbackNote}</p></section>`;
   }
 
   function pivotTableHtml(pivots) {
@@ -1006,21 +1014,18 @@
       const isCustomSymbol = Boolean(item.is_custom_symbol);
       const watchOpenAttrs = isCustomSymbol ? "disabled aria-disabled=\"true\"" : `data-watch-open="${esc(item.fund_key)}"`;
       const symbolMeta = isCustomSymbol ? "قیمت و تحلیل ره‌آورد در دسترس نیست" : `${esc(item.symbol || `شناسه ${item.rahavard_asset_id || "—"}`)} · ره‌آورد۳۶۵`;
-      const exit = item.downside_exit || {};
-      const exitTone = Number(exit.pnl_per_unit) > 0 ? "positive" : Number(exit.pnl_per_unit) < 0 ? "negative" : "";
-      const exitPnl = exit.pnl_per_unit == null
-        ? "قیمت سر‌به‌سر را وارد کنید تا سود/زیان برآورد شود"
-        : `هر واحد: ${Number(exit.pnl_per_unit) > 0 ? "+" : ""}${money(exit.pnl_per_unit)} ریال · ${pct(exit.pnl_pct)}`;
-      const positionPnl = exit.position_pnl == null ? "" : `<small class="${exitTone}">کل موقعیت: ${Number(exit.position_pnl) > 0 ? "+" : ""}${money(exit.position_pnl)} ریال</small>`;
-      const exitHtml = exit.price == null
-        ? `<div class="watch-exit"><b class="watch-muted">سطح خروج محاسبه نشد</b><small>حمایت معتبر یا قیمت به‌روز در دسترس نیست</small></div>`
-        : `<div class="watch-exit"><b class="watch-exit-price">${money(exit.price)}</b><small>فعال‌شدن پس از تثبیت زیر حمایت ${money(exit.support_price)}</small><small class="${exitTone}">${exitPnl}</small>${positionPnl}<small class="watch-exit-trend">دید میان‌مدت: ${esc(exit.trend_label === "bullish" ? "صعودی" : exit.trend_label === "bearish" ? "نزولی" : exit.trend_label === "neutral" ? "خنثی" : "نامشخص")}</small></div>`;
+      const profit = item.profit || {};
+      const profitTone = Number(profit.total) > 0 ? "positive" : Number(profit.total) < 0 ? "negative" : "";
+      const profitHtml = profit.total == null
+        ? `<div class="watch-profit"><b class="watch-muted">قابل محاسبه نیست</b><small>قیمت سر‌به‌سر و تعداد واحد را وارد کنید</small></div>`
+        : `<div class="watch-profit ${profitTone}"><b>${Number(profit.total) > 0 ? "+" : ""}${money(profit.total)} ریال</b><small>هر واحد: ${Number(profit.per_unit) > 0 ? "+" : ""}${money(profit.per_unit)} ریال</small><small>${pct(profit.pct)} نسبت به سر‌به‌سر</small></div>`;
+      const cachedPriceNote = item.price_is_cached ? `<small class="watch-price-note">${esc(item.price_note || "آخرین قیمت ذخیره‌شده")}</small>` : "";
       return `<tr data-watch-row="${esc(item.fund_key)}">
         <td class="watch-fund-cell" data-label="صندوق / نماد"><button class="watch-fund-open${isCustomSymbol ? " watch-fund-open-unavailable" : ""}" type="button" ${watchOpenAttrs} aria-label="${isCustomSymbol ? "دادهٔ تحلیلی موجود نیست" : "مشاهده تحلیل"} ${esc(item.name)}"><span class="watch-fund-mark">${isCustomSymbol ? "نماد" : "ETF"}</span><span><strong>${esc(item.name)}</strong><small>${symbolMeta}</small></span>${isCustomSymbol ? "" : `<span class="watch-open-arrow">←</span>`}</button></td>
-        <td class="watch-price" data-label="قیمت فعلی (ریال)"><b>${money(item.price)}</b>${item.daily_return == null ? "" : `<small class="${Number(item.daily_return) >= 0 ? "positive" : "negative"}">${pct(item.daily_return)}</small>`}</td>
+        <td class="watch-price" data-label="قیمت فعلی (ریال)"><b>${money(item.price)}</b>${item.daily_return == null ? "" : `<small class="${Number(item.daily_return) >= 0 ? "positive" : "negative"}">${pct(item.daily_return)}</small>`}${cachedPriceNote}</td>
         <td data-label="قیمت سر به سر (ریال)"><input class="watch-input" type="number" min="0" step="any" inputmode="decimal" aria-label="قیمت سر به سر ${esc(item.name)} به ریال" placeholder="قیمت خرید" data-watch-field="break_even_price" value="${numericInputValue(item.break_even_price)}"></td>
         <td data-label="تعداد واحد من"><input class="watch-input watch-units" type="number" min="0" step="any" inputmode="decimal" aria-label="تعداد واحد ${esc(item.name)}" placeholder="تعداد" data-watch-field="units" value="${numericInputValue(item.units)}"></td>
-        <td data-label="قیمت خروج پیشنهادی در نزول (ریال)">${exitHtml}</td>
+        <td data-label="سود / زیان">${profitHtml}</td>
         <td data-label="برداشت میان‌مدت"><span class="watch-outlook ${tone}">${esc(item.midterm_outlook || "داده کافی نیست")}</span><small class="watch-source-note">برای تحلیل کامل روی نام نماد کلیک کن</small></td>
         <td data-label="مدیریت"><button class="watch-remove" type="button" data-watch-remove="${esc(item.fund_key)}" aria-label="حذف ${esc(item.name)} از دیده‌بان">حذف</button></td>
       </tr>`;
@@ -1105,6 +1110,7 @@
       $("#settings-theme").value = s.theme || "dark";
       const intervalSelect = $("#settings-refresh-interval");
       const intervalValue = String(s.data_update_interval);
+      scheduleWatchlistRefresh(s.data_update_interval);
       if (![...intervalSelect.options].some((option) => option.value === intervalValue)) intervalSelect.add(new Option(`${nf.format(s.data_update_interval)} سانیه`, intervalValue));
       intervalSelect.value = intervalValue;
       $("#refresh-interval-label").textContent = `${nf.format(s.data_update_interval / 60)} دقیقه`;
@@ -1119,6 +1125,15 @@
     const data = await api("/api/alerts");
     const target = $("#alerts-list");
     target.innerHTML = data.items.length ? data.items.map((a) => `<div class="alert-row"><div><strong>${esc(a.symbol)} · ${esc(a.condition)}</strong><small>${a.fund_name ? `${esc(a.fund_name)} ? ` : ""}${a.threshold == null ? "بدون آستانه قیمتی" : `آستانه ${money(a.threshold)}`}</small></div><span class="news-state">${a.triggered_at ? `فعال شد · ${esc(formatDate(a.triggered_at))}` : "در انتظار شرط"}</span><span>${esc(a.message || "فعال")}</span></div>`).join("") : `<div class="empty-state compact"><b>هشداری ثبت نشده</b><small>نماد و شرط دلخواه را اضافه کن.</small></div>`;
+  }
+
+  function scheduleWatchlistRefresh(intervalSeconds = state.watchlistRefreshSeconds) {
+    const seconds = Math.max(60, Number(intervalSeconds) || 900);
+    state.watchlistRefreshSeconds = seconds;
+    if (state.watchlistRefreshTimer) clearInterval(state.watchlistRefreshTimer);
+    state.watchlistRefreshTimer = setInterval(() => {
+      if (state.currentView === "watchlist" && document.visibilityState === "visible") loadWatchlist();
+    }, seconds * 1000);
   }
 
   async function openView(name) {
@@ -1169,6 +1184,7 @@
     try {
       await api("/api/settings", { method: "PUT", body: JSON.stringify({ key: "refresh_interval_seconds", value }) });
       $("#refresh-interval-label").textContent = `${nf.format(Number(value) / 60)} دقیقه`;
+      scheduleWatchlistRefresh(Number(value));
       toast("فاصله تازه‌سازی ذخیره شد");
     } catch (err) { toast(`ذخیره فاصله انجام نشد: ${err.message}`, true); }
   });
@@ -1293,6 +1309,10 @@
     if (event.key === "Escape") { $("#global-search").value = ""; }
   });
   $("#global-search").addEventListener("search", () => { if (!$("#global-search").value) openView("overview"); });
+ scheduleWatchlistRefresh();
+ document.addEventListener("visibilitychange", () => {
+   if (!document.hidden && state.currentView === "watchlist") loadWatchlist();
+ });
  localDateClock(); setInterval(localDateClock, 30_000);
   installEnglishDigits();
  api("/api/settings").then((s) => document.body.classList.toggle("light-mode", s.theme === "light")).catch(() => {});
