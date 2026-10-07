@@ -536,6 +536,42 @@ body.light-mode .index-analysis-panel > .panel-heading { background: linear-grad
 .factor-item b { color: #e6f1ee; font-size: 14px; line-height: 1.6; text-align: left; }
 .factor-foot { margin: 14px 0; padding: 12px 14px; border: 1px solid rgba(224, 179, 78, .22); border-right: 3px solid var(--gold); border-radius: 12px; background: rgba(103, 77, 26, .14); color: #c4c9bb; font-size: 13px; line-height: 2; }
 
+/* Unified analysis summary and scenario surface. */
+.analysis-overview {
+  margin: 0 0 18px;
+  padding: 16px;
+  border: 1px solid #385a65;
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(27, 52, 61, .96), rgba(13, 27, 38, .98));
+  box-shadow: 0 14px 30px rgba(0, 0, 0, .14);
+}
+.analysis-overview > .score-card { border: 0; box-shadow: none; background: rgba(10, 27, 36, .34); }
+.compact-factor-list { margin-top: 12px; }
+.analysis-reason { margin: 12px 0 0; padding: 10px 12px; border-right: 3px solid var(--gold); border-radius: 10px; background: rgba(108, 81, 29, .14); color: #c4d0cf; font-size: 13px; line-height: 1.8; }
+.analysis-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.analysis-meta span { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 9px; border: 1px solid #2c4755; border-radius: 9px; background: rgba(8, 21, 31, .48); color: #8fa8ab; font-size: 12px; }
+.analysis-meta b { color: #dce9e6; font-size: 13px; }
+.rahavard-overview .fund-recommendation { margin-top: 0; box-shadow: none; }
+.analysis-overview .scenario-section { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(112, 157, 157, .22); }
+.scenario-section-head { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+.scenario-section-head h3 { margin-top: 2px; color: #e4efec; font-size: 18px; }
+.scenario-section-head .scenario-note { margin: 0; color: #91a9aa; font-size: 12px; }
+.analysis-overview .scenario-card { padding: 14px; box-shadow: none; }
+.analysis-overview .scenario-card p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+.analysis-overview .scenario-condition { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.analysis-overview .scenario-card small { display: none; }
+body.light-mode .analysis-overview { background: linear-gradient(145deg, #f7fbf9, #edf5f1); border-color: #c9ded5; box-shadow: 0 12px 28px rgba(30, 64, 53, .07); }
+body.light-mode .analysis-overview > .score-card { background: rgba(232, 244, 238, .72); }
+body.light-mode .analysis-reason { background: #fbf7ed; color: #6d6248; }
+body.light-mode .analysis-meta span { background: #fff; border-color: #d5e3dd; color: #647b75; }
+body.light-mode .analysis-meta b, body.light-mode .scenario-section-head h3 { color: #29453e; }
+body.light-mode .scenario-section-head .scenario-note { color: #6d857c; }
+@media (max-width: 720px) {
+  .analysis-overview { padding: 12px; border-radius: 14px; }
+  .scenario-section-head { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .analysis-meta span { flex: 1 1 calc(50% - 8px); justify-content: center; }
+}
+
 /* Fund profile: structured properties instead of an unstyled text column. */
 #view-funds .fund-detail { padding: 0; overflow: hidden; background: linear-gradient(145deg, #1a2d35, #14242c); border-color: #385660; }
 #view-funds .fund-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 24px 26px 18px; background: linear-gradient(120deg, rgba(42, 88, 83, .26), transparent 55%); border-bottom: 1px solid rgba(102, 150, 148, .2); }

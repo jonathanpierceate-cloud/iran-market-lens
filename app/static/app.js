@@ -46,7 +46,14 @@
     const observer = new MutationObserver((mutations) => mutations.forEach((mutation) => mutation.addedNodes.forEach(normalizeNode)));
     observer.observe(root, { childList: true, subtree: true });
   }
- const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const compactText = (value, max = 150) => {
+    const clean = String(value ?? "").replace(/\s+/g, " ").trim();
+    if (!clean || clean.length <= max) return clean;
+    const slice = clean.slice(0, max);
+    const boundary = Math.max(slice.lastIndexOf("؛"), slice.lastIndexOf("،"), slice.lastIndexOf(". "));
+    return `${(boundary > max * .55 ? slice.slice(0, boundary) : slice).trim()}…`;
+  };
   const trendText = (value) => ({ bullish: "صعودی", bearish: "نزولی", neutral: "خنثی", unavailable: "داده ناکافی" }[value] || "داده ناکافی");
   const statusText = (status) => ({ available: "تازه", connected: "متصل", stale: "کهنه", cached_after_source_error: "آخرین داده", failed: "خطا", not_tested: "بررسی‌نشده", unavailable: "در دسترس نیست", disabled: "غیرفعال" }[status] || status || "نامشخص");
 
@@ -500,7 +507,7 @@
     if (a.technical_score != null && Number.isFinite(Number(a.technical_score))) {
       stats.push(`<span class="recommendation-count score">امتیاز تکنیکال <b>${num(a.technical_score, 0)} از ۱۰۰</b></span>`);
     }
-    return `<section class="fund-recommendation ${tone}"><div class="fund-recommendation-main"><div><span class="recommendation-kicker">جمع‌بندی تکنیکال ره‌آورد · ${esc(a.symbol || "این صندوق")}</span><h3>سیگنال کلی: <strong>${verdict}</strong></h3></div><div class="recommendation-context"><p>${rationale}</p><div class="recommendation-trend ${trendTone}"><span>روند طبق شاخص ره‌آورد</span><b>${trendLabel}</b></div><small>${trendContext}</small></div></div><div class="entry-outlook ${entryTone}"><div class="entry-outlook-verdict"><span>اگر الان بخری</span><b>${entryAction}</b></div><div class="entry-outlook-risk"><span>ریسک اصلاح / افت</span><b>${correctionRisk}</b></div><p>${entryReason}</p></div>${stats.length ? `<div class="recommendation-stats">${stats.join("")}</div>` : ""}<small>این جمع‌بندی فقط بر پایهٔ سیگنال‌های تکنیکال منتشرشده است؛ نتیجهٔ قطعی یا شخصی‌سازی‌شده نیست. آن را با قیمت سر‌به‌سر، افق نگهداری و ریسک خودت بسنج.</small></section>`;
+    return `<section class="fund-recommendation ${tone}"><div class="fund-recommendation-main"><div><span class="recommendation-kicker">جمع‌بندی تکنیکال ره‌آورد · ${esc(a.symbol || "این صندوق")}</span><h3>سیگنال کلی: <strong>${verdict}</strong></h3></div><div class="recommendation-context"><p>${esc(compactText(rationale, 145))}</p><div class="recommendation-trend ${trendTone}"><span>روند ره‌آورد</span><b>${trendLabel}</b></div></div></div><div class="entry-outlook ${entryTone}"><div class="entry-outlook-verdict"><span>اگر الان بخری</span><b>${entryAction}</b></div><div class="entry-outlook-risk"><span>ریسک اصلاح / افت</span><b>${correctionRisk}</b></div><p>${esc(compactText(entryReason, 145))}</p></div>${stats.length ? `<div class="recommendation-stats">${stats.join("")}</div>` : ""}</section>`;
   }
 
   function scenarioHtml(a) {
@@ -509,9 +516,12 @@
     const cards = scenarios.map((scenario) => {
       const direction = scenario.direction === "bullish" ? "bullish" : "bearish";
       const probability = Math.max(0, Math.min(100, Number(scenario.probability) || 0));
-      return `<article class="scenario-card ${direction}"><div class="scenario-card-head"><div><span class="scenario-kicker">سناریوی محتمل</span><h4>${esc(scenario.name)}</h4></div><strong>${num(probability, 0)}٪</strong></div><div class="scenario-bar"><i style="width:${probability}%"></i></div><p>${esc(scenario.reason || "دلیل مشخصی ثبت نشده است.")}</p><div class="scenario-condition"><b>شرط تأیید:</b> ${esc(scenario.condition || "—")}</div><small>${esc(scenario.risk || "")}</small></article>`;
+      const reason = compactText(scenario.reason || "دلیل مشخصی ثبت نشده است.", 150);
+      const condition = compactText(scenario.condition || "—", 92);
+      const risk = compactText(scenario.risk || "", 100);
+      return `<article class="scenario-card ${direction}"><div class="scenario-card-head"><div><span class="scenario-kicker">سناریوی محتمل</span><h4>${esc(scenario.name)}</h4></div><strong>${num(probability, 0)}٪</strong></div><div class="scenario-bar"><i style="width:${probability}%"></i></div><p>${esc(reason)}</p><div class="scenario-condition"><b>شرط:</b> ${esc(condition)}</div>${risk ? `<small>${esc(risk)}</small>` : ""}</article>`;
     }).join("");
-    return `<section class="scenario-section"><div class="indicator-section-title"><div><h3>سناریوهای احتمالی</h3><p>احتمال‌ها از شمارنده‌های رسمی و جهت روند همین نماد برآورد شده‌اند.</p></div></div><div class="scenario-grid">${cards}</div><div class="scenario-note">${esc(a.scenario_note || "این احتمال‌ها برآورد تحلیلی هستند و پیش‌بینی قطعی نیستند.")}</div></section>`;
+    return `<section class="scenario-section"><div class="scenario-section-head"><div><span class="panel-kicker">برآورد احتمالات</span><h3>سناریوهای پیش‌رو</h3></div><span class="scenario-note">بر پایه روند، امتیاز و مومنتوم</span></div><div class="scenario-grid">${cards}</div></section>`;
   }
 
   function tradePlanHtml(a) {
@@ -606,7 +616,8 @@
     const score = a.technical_score == null ? "—" : num(a.technical_score, 0);
     const cls = a.signal === "buy" ? "bullish" : a.signal === "sell" ? "bearish" : "";
     const missing = (a.missing_indicators || []).map((name) => `<article class="indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>در پاسخ نماد منتشر نشده</small></div><span class="indicator-status unknown">موجود نیست</span></div><p>برای این مقدار عدد جایگزین ساخته نشده است.</p><div class="indicator-range-guide"><b>راهنمای محدوده</b><span>${esc(indicatorRangeGuide(name))}</span></div></article>`).join("");
-    return `<div class="score-card"><div class="score-ring" style="--score:${Number(a.technical_score) || 0}%"><b>${score}</b></div><div class="score-copy"><strong>امتیاز تجمیعی ره‌آورد</strong><small>سیگنال‌های اندیکاتور همان‌هایی هستند که در صفحهٔ نماد ره‌آورد نمایش داده می‌شوند.</small></div><span class="signal-pill ${cls}">${signalFa[a.signal] || "خنثی"}</span></div><div class="factor-foot">${esc(a.explanation || "")} · داده تا ${esc(formatDate(a.data_timestamp))}</div>${tradePlanHtml(a)}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>جمع‌بندی ره‌آورد</h3><p>عدد هر اندیکاتور و فاصله‌اش از محدوده مرجع در کارت همان شاخص توضیح داده شده است.</p></div></div><div class="indicator-readouts">${gaugeCards}</div><div class="indicator-section-title all-indicators-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div><div class="indicator-card-grid">${cards.join("")}${missing}</div>${rahavardRecommendationHtml(a)}${scenarioHtml(a)}<div class="indicator-key-note"><b>روش خواندن:</b> هر عدد با محدوده رایج همان شاخص مقایسه شده است؛ خریدزدگی و فروش‌زدگی هشدار افراط‌اند و به‌تنهایی سیگنال قطعی خرید یا فروش نیستند.</div></section>`;
+    const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}${scenarioHtml(a)}</section>`;
+    return `${overview}${tradePlanHtml(a)}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div><div class="indicator-readouts">${gaugeCards}</div><div class="indicator-card-grid">${cards.join("")}${missing}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
 
   function analysisHtml(a) {
@@ -653,7 +664,11 @@
       summary("ADX · قدرت و جهت روند", adx?.value == null ? "—" : num(adx.value, 1), adx ? indicatorAssessment("ADX(14)", adx).state : "unknown", adx ? `${indicatorAssessment("ADX(14)", adx).label} · ADX جهت را به‌تنهایی نمی‌گوید` : "داده ناکافی"),
       summary("میانگین‌های EMA", maAlignment.length ? `${maAlignment.filter(Boolean).length} از ${maAlignment.length}` : "—", maState, `${maLabel} · نسبت قیمت به EMA20/50/200`)
     ].join("");
-    return `<div class="score-card"><div class="score-ring" style="--score:${score}%"><b>${num(score, 0)}</b></div><div class="score-copy"><strong>امتیاز فنی · پوشش عوامل ${num(a.confidence, 0)}٪</strong><small>روند کوتاه ${trendText(a.short_term_trend)} · میان‌مدت ${trendText(a.medium_term_trend)} · بلندمدت ${trendText(a.long_term_trend)}</small></div><span class="signal-pill ${signalClass}">${signalFa[a.signal] || a.signal}</span></div><div class="factor-list">${factors}</div><div class="factor-foot">${esc(a.decision_support)}. ریسک نوسان: ${esc(a.risk)}. پوشش عوامل مدل معیار موفقیت نیست (${esc(a.confidence_basis || "")} ). داده تا ${esc(formatDate(a.data_timestamp))}. خروجی توصیه قطعی نیست.</div>${tradePlanHtml(a)}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>خوانش سریع شاخص‌ها</h3><p>سبز = همسو با حرکت صعودی · کهربایی = هشدار یا فشار نزولی · خاکستری = خنثی یا سنجش ریسک</p></div></div><div class="indicator-readouts">${summaryCards}</div><div class="indicator-section-title all-indicators-title"><div><h3>همه اندیکاتورها</h3><p>${nf.format(entries.length)} شاخص با مقدار فعلی، مقدار قبلی، معنی و وضعیت</p></div></div><div class="indicator-card-grid">${cards}</div><div class="indicator-key-note"><b>راهنمای خواندن:</b> خریدزدگی یا فروش‌زدگی به‌تنهایی «خوب» یا «بد» نیست؛ یعنی حرکت به محدوده افراطی رسیده و باید همراه روند و حجم بررسی شود. نوسان بیشتر هم فقط ریسک حرکت بزرگ‌تر را نشان می‌دهد.</div>${scenarioHtml(a)}</section><div class="levels-block"><h4>حمایت و مقاومت · محدوده‌های نزدیک</h4><div class="levels-grid">${levelHtml}</div></div><section class="pivot-section"><h4>پیوت‌ها و سطوح روز قبل</h4><p>PP نقطه تعادل است؛ R سطح مقاومت و S سطح حمایت است. بالای PP تمایل صعودی و زیر PP فشار نزولی را نشان می‌دهد، اما این سطح‌ها تضمین برگشت قیمت نیستند.</p><div class="pivot-list">${pivotHtml || "داده کافی نیست"}</div></section>`;
+    const scoreCard = `<div class="score-card compact-score-card"><div class="score-ring" style="--score:${score}%"><b>${num(score, 0)}</b></div><div class="score-copy"><strong>امتیاز فنی · پوشش عوامل ${num(a.confidence, 0)}٪</strong><small>کوتاه‌مدت ${trendText(a.short_term_trend)} · میان‌مدت ${trendText(a.medium_term_trend)}</small></div><span class="signal-pill ${signalClass}">${signalFa[a.signal] || a.signal}</span></div>`;
+    const meta = `<div class="analysis-meta"><span><b>${esc(trendText(a.medium_term_trend))}</b> روند میان‌مدت</span><span><b>${esc(a.risk || "نامشخص")}</b> ریسک نوسان</span><span><b>${esc(formatDate(a.data_timestamp))}</b> آخرین داده</span></div>`;
+    const reason = compactText(a.decision_support || a.explanation || "", 150);
+    const overview = `<section class="analysis-overview">${scoreCard}${factors ? `<div class="factor-list compact-factor-list">${factors}</div>` : ""}${reason ? `<p class="analysis-reason">${esc(reason)}</p>` : ""}${meta}${scenarioHtml(a)}</section>`;
+    return `${overview}${tradePlanHtml(a)}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>خوانش سریع شاخص‌ها</h3><p>مهم‌ترین اعداد و وضعیت فعلی در کارت‌های زیر خلاصه شده‌اند.</p></div></div><div class="indicator-readouts">${summaryCards}</div><div class="indicator-section-title all-indicators-title"><div><h3>همه اندیکاتورها</h3><p>${nf.format(entries.length)} شاخص با مقدار، تفسیر و وضعیت</p></div></div><div class="indicator-card-grid">${cards}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section><div class="levels-block"><h4>حمایت و مقاومت · محدوده‌های نزدیک</h4><div class="levels-grid">${levelHtml}</div></div><section class="pivot-section"><h4>پیوت‌ها و سطوح روز قبل</h4><p>بالای PP تمایل صعودی و زیر PP فشار نزولی را نشان می‌دهد.</p><div class="pivot-list">${pivotHtml || "داده کافی نیست"}</div></section>`;
   }
 
   function sourceCard(status) {
