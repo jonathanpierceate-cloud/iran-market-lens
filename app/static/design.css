@@ -1005,6 +1005,7 @@ body.light-mode #view-funds #fund-table-grid tbody td::before { color: #6d8980; 
 #view-watchlist .watchlist-table th:last-child, #view-watchlist .watchlist-table td:last-child { min-width: 100px; }
 #view-watchlist .watch-fund-open { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid #34545c; border-radius: 12px; background: linear-gradient(135deg, rgba(36, 76, 82, .65), rgba(21, 46, 55, .72)); color: inherit; text-align: right; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
 #view-watchlist .watch-fund-open:hover, #view-watchlist .watch-fund-open:focus-visible { border-color: #68c8b0; background: linear-gradient(135deg, rgba(42, 111, 105, .76), rgba(23, 56, 61, .82)); transform: translateX(-2px); outline: none; }
+#view-watchlist .watch-fund-open-unavailable, #view-watchlist .watch-fund-open-unavailable:hover { opacity: .82; cursor: default; transform: none; }
 #view-watchlist .watch-fund-mark { width: 32px; height: 32px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid rgba(85, 199, 165, .34); border-radius: 9px; background: rgba(47, 145, 119, .17); color: #82d7c1; font: 700 10px Tahoma, sans-serif; direction: ltr; }
 #view-watchlist .watch-fund-open > span:nth-child(2) { min-width: 0; display: block; }
 #view-watchlist .watch-fund-open strong, #view-watchlist .watch-fund-open small { display: block; }

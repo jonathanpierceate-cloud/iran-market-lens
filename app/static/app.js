@@ -978,8 +978,11 @@
     }
     body.innerHTML = items.map((item) => {
       const tone = item.outlook_tone || "unknown";
+      const isCustomSymbol = Boolean(item.is_custom_symbol);
+      const watchOpenAttrs = isCustomSymbol ? "disabled aria-disabled=\"true\"" : `data-watch-open="${esc(item.fund_key)}"`;
+      const symbolMeta = isCustomSymbol ? "قیمت و تحلیل ره‌آورد در دسترس نیست" : `${esc(item.symbol || `شناسه ${item.rahavard_asset_id || "—"}`)} · ره‌آورد۳۶۵`;
       return `<tr data-watch-row="${esc(item.fund_key)}">
-        <td class="watch-fund-cell" data-label="صندوق / نماد"><button class="watch-fund-open" type="button" data-watch-open="${esc(item.fund_key)}" aria-label="مشاهده تحلیل ${esc(item.name)}"><span class="watch-fund-mark">ETF</span><span><strong>${esc(item.name)}</strong><small>${esc(item.symbol || `شناسه ${item.rahavard_asset_id || "—"}`)} · ره‌آورد۳۶۵</small></span><span class="watch-open-arrow">←</span></button></td>
+        <td class="watch-fund-cell" data-label="صندوق / نماد"><button class="watch-fund-open${isCustomSymbol ? " watch-fund-open-unavailable" : ""}" type="button" ${watchOpenAttrs} aria-label="${isCustomSymbol ? "دادهٔ تحلیلی موجود نیست" : "مشاهده تحلیل"} ${esc(item.name)}"><span class="watch-fund-mark">${isCustomSymbol ? "نماد" : "ETF"}</span><span><strong>${esc(item.name)}</strong><small>${symbolMeta}</small></span>${isCustomSymbol ? "" : `<span class="watch-open-arrow">←</span>`}</button></td>
         <td class="watch-price" data-label="قیمت فعلی (ریال)"><b>${money(item.price)}</b>${item.daily_return == null ? "" : `<small class="${Number(item.daily_return) >= 0 ? "positive" : "negative"}">${pct(item.daily_return)}</small>`}</td>
         <td data-label="قیمت سر به سر (ریال)"><input class="watch-input" type="number" min="0" step="any" inputmode="decimal" aria-label="قیمت سر به سر ${esc(item.name)} به ریال" placeholder="قیمت خرید" data-watch-field="break_even_price" value="${numericInputValue(item.break_even_price)}"></td>
         <td data-label="تعداد واحد من"><input class="watch-input watch-units" type="number" min="0" step="any" inputmode="decimal" aria-label="تعداد واحد ${esc(item.name)}" placeholder="تعداد" data-watch-field="units" value="${numericInputValue(item.units)}"></td>

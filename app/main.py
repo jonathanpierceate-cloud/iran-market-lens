@@ -493,6 +493,58 @@ def _watchlist_find_fund(identifier: str) -> dict[str, Any] | None:
     return next(iter(unique.values()), None)
 
 
+_DEFAULT_WATCHLIST_SETTING = "watchlist_default_portfolio_v1"
+_DEFAULT_WATCHLIST_ITEMS = [
+    ("آلتون", 6000, 73837),
+    ("دارونو", 3500, 34822),
+    ("سبزآبنوس", 1000, 63651),
+    ("تکپاد", 100, 460104),
+    ("متال", 1000, 30639),
+]
+
+
+def _seed_default_watchlist() -> None:
+    if db.get_settings().get(_DEFAULT_WATCHLIST_SETTING):
+        return
+    if not db.funds(source="Rahavard365"):
+        return
+
+    records = db.watchlist_items()
+    for symbol, units, break_even_price in _DEFAULT_WATCHLIST_ITEMS:
+        try:
+            fund = _watchlist_find_fund(symbol)
+        except HTTPException:
+            fund = None
+        target_key = fund["fund_key"] if fund else f"manual:{symbol}"
+        target_asset_id = _watchlist_asset_id(fund) if fund else None
+        existing = None
+        for record in records:
+            if record["fund_key"] == target_key:
+                existing = record
+                break
+            if target_asset_id:
+                saved_fund = db.get_fund(record["fund_key"])
+                if saved_fund and _watchlist_asset_id(saved_fund) == target_asset_id:
+                    existing = record
+                    break
+
+        if existing:
+            fields = {}
+            if existing.get("units") is None:
+                fields["units"] = units
+            if existing.get("break_even_price") is None:
+                fields["break_even_price"] = break_even_price
+            if fields:
+                db.update_watchlist_item(existing["fund_key"], fields)
+            continue
+
+        record = db.add_watchlist_item(target_key)
+        db.update_watchlist_item(target_key, {"units": units, "break_even_price": break_even_price})
+        records.append({**record, "units": units, "break_even_price": break_even_price})
+
+    db.save_setting(_DEFAULT_WATCHLIST_SETTING, "1")
+
+
 def _watchlist_levels(indicator_data: dict[str, Any] | None,
                       price: float | None) -> dict[str, list[dict[str, Any]]]:
     if not indicator_data or price is None:
@@ -533,6 +585,7 @@ def _watchlist_levels(indicator_data: dict[str, Any] | None,
 
 @app.get("/api/watchlist")
 async def get_watchlist():
+    _seed_default_watchlist()
     records = db.watchlist_items()
     snapshots = db.fund_indicator_snapshots()
     semaphore = asyncio.Semaphore(5)
@@ -540,10 +593,14 @@ async def get_watchlist():
     async def load_item(record: dict[str, Any]) -> dict[str, Any]:
         fund = db.get_fund(record["fund_key"])
         if not fund or fund.get("source") != "Rahavard365":
-            return {**record, "name": record["fund_key"], "symbol": "", "price": None,
-                    "supports": [], "resistances": [], "midterm_outlook": "صندوق در فهرست ره‌آورد پیدا نشد",
+            is_custom_symbol = str(record["fund_key"]).startswith("manual:")
+            custom_symbol = str(record["fund_key"])[len("manual:"):] if is_custom_symbol else ""
+            return {**record, "name": custom_symbol or record["fund_key"], "symbol": custom_symbol,
+                    "is_custom_symbol": is_custom_symbol, "price": None,
+                    "supports": [], "resistances": [],
+                    "midterm_outlook": "نماد سفارشی · دادهٔ قیمت موجود نیست" if is_custom_symbol else "صندوق در فهرست ره‌آورد پیدا نشد",
                     "overall_status": "داده در دسترس نیست", "technical_score": None,
-                    "explanation": "این نماد دیگر در فهرست صندوق‌های ره‌آورد ذخیره‌شده نیست."}
+                    "explanation": "برای این نماد، نمایه و دادهٔ تحلیلی در فهرست فعلی صندوق‌های ره‌آورد موجود نیست."}
         async with semaphore:
             profile_result, indicator_result = await asyncio.gather(
                 fetch_rahavard_fund_profile(record["fund_key"]),
@@ -596,17 +653,18 @@ async def get_watchlist():
 
     items = await asyncio.gather(*(load_item(record) for record in records))
     total_units = sum(_watchlist_number(item.get("units")) or 0 for item in items)
-    cost_basis = sum((_watchlist_number(item.get("units")) or 0) * (_watchlist_number(item.get("break_even_price")) or 0)
-                     for item in items)
-    market_value = sum((_watchlist_number(item.get("units")) or 0) * (_watchlist_number(item.get("price")) or 0)
-                       for item in items)
-    has_cost = any(_watchlist_number(item.get("units")) is not None and _watchlist_number(item.get("break_even_price")) is not None
-                   for item in items)
-    pnl = market_value - cost_basis if has_cost else None
+    positions = [item for item in items if (_watchlist_number(item.get("units")) or 0) > 0]
+    has_cost = bool(positions) and all(_watchlist_number(item.get("break_even_price")) is not None for item in positions)
+    has_market_value = bool(positions) and all(_watchlist_number(item.get("price")) is not None for item in positions)
+    cost_basis = (sum(_watchlist_number(item.get("units")) * _watchlist_number(item.get("break_even_price"))
+                       for item in positions) if has_cost else None)
+    market_value = (sum(_watchlist_number(item.get("units")) * _watchlist_number(item.get("price"))
+                        for item in positions) if has_market_value else None)
+    pnl = market_value - cost_basis if has_cost and has_market_value else None
     totals = {
         "units": total_units,
-        "cost_basis": cost_basis if has_cost else None,
-        "market_value": market_value if any(_watchlist_number(item.get("units")) is not None and _watchlist_number(item.get("price")) is not None for item in items) else None,
+        "cost_basis": cost_basis,
+        "market_value": market_value,
         "pnl": pnl,
         "pnl_pct": (pnl / cost_basis * 100) if pnl is not None and cost_basis else None,
     }
