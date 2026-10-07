@@ -493,23 +493,34 @@ def _watchlist_find_fund(identifier: str) -> dict[str, Any] | None:
     return next(iter(unique.values()), None)
 
 
-_DEFAULT_WATCHLIST_SETTING = "watchlist_default_portfolio_v1"
+_DEFAULT_WATCHLIST_SETTING = "watchlist_default_portfolio_v2"
 _DEFAULT_WATCHLIST_ITEMS = [
     ("آلتون", 6000, 73837),
     ("دارونو", 3500, 34822),
-    ("سبزآبنوس", 1000, 63651),
-    ("تکپاد", 100, 460104),
+    ("سینرژی", 1000, 63651),
+    ("آگاس", 100, 460104),
     ("متال", 1000, 30639),
 ]
+_LEGACY_WATCHLIST_SYMBOLS = {"سبزآبنوس", "تکپاد"}
+_WATCHLIST_DISPLAY_BY_ASSET_ID = {
+    "22820": "آلتون",
+    "35665": "دارونو",
+    "35129": "سینرژی",
+    "820": "آگاس",
+    "25249": "متال",
+}
+
 
 
 def _seed_default_watchlist() -> None:
-    if db.get_settings().get(_DEFAULT_WATCHLIST_SETTING):
+    settings = db.get_settings()
+    if settings.get(_DEFAULT_WATCHLIST_SETTING):
         return
     if not db.funds(source="Rahavard365"):
         return
 
     records = db.watchlist_items()
+    desired_keys: set[str] = set()
     for symbol, units, break_even_price in _DEFAULT_WATCHLIST_ITEMS:
         try:
             fund = _watchlist_find_fund(symbol)
@@ -517,9 +528,11 @@ def _seed_default_watchlist() -> None:
             fund = None
         target_key = fund["fund_key"] if fund else f"manual:{symbol}"
         target_asset_id = _watchlist_asset_id(fund) if fund else None
+        desired_keys.add(target_key)
+
         existing = None
         for record in records:
-            if record["fund_key"] == target_key:
+            if record["fund_key"] in {target_key, f"manual:{symbol}"}:
                 existing = record
                 break
             if target_asset_id:
@@ -527,20 +540,38 @@ def _seed_default_watchlist() -> None:
                 if saved_fund and _watchlist_asset_id(saved_fund) == target_asset_id:
                     existing = record
                     break
+        if existing and existing["fund_key"] != target_key:
+            old_key = existing["fund_key"]
+            record = db.add_watchlist_item(target_key)
+            db.update_watchlist_item(target_key, {
+                "units": units if existing.get("units") is None else existing.get("units"),
+                "break_even_price": break_even_price if existing.get("break_even_price") is None else existing.get("break_even_price"),
+            })
+            db.remove_watchlist_item(old_key)
+            existing = {**record, "fund_key": target_key}
+            records = [row for row in records if row["fund_key"] != old_key]
+            records.append(existing)
+        elif existing:
+            db.update_watchlist_item(existing["fund_key"], {"units": units, "break_even_price": break_even_price})
+        else:
+            record = db.add_watchlist_item(target_key)
+            db.update_watchlist_item(target_key, {"units": units, "break_even_price": break_even_price})
+            records.append({**record, "units": units, "break_even_price": break_even_price})
 
-        if existing:
-            fields = {}
-            if existing.get("units") is None:
-                fields["units"] = units
-            if existing.get("break_even_price") is None:
-                fields["break_even_price"] = break_even_price
-            if fields:
-                db.update_watchlist_item(existing["fund_key"], fields)
+    # Remove the two rows that were seeded by the previous default portfolio.
+    for record in list(records):
+        if record["fund_key"] in desired_keys:
             continue
-
-        record = db.add_watchlist_item(target_key)
-        db.update_watchlist_item(target_key, {"units": units, "break_even_price": break_even_price})
-        records.append({**record, "units": units, "break_even_price": break_even_price})
+        saved_fund = db.get_fund(record["fund_key"])
+        raw = saved_fund.get("raw") if isinstance(saved_fund, dict) else {}
+        saved_symbols = {
+            record["fund_key"].removeprefix("manual:"),
+            saved_fund.get("symbol") if saved_fund else None,
+            saved_fund.get("name") if saved_fund else None,
+            raw.get("trade_symbol"),
+        }
+        if _LEGACY_WATCHLIST_SYMBOLS.intersection(saved_symbols):
+            db.remove_watchlist_item(record["fund_key"])
 
     db.save_setting(_DEFAULT_WATCHLIST_SETTING, "1")
 
@@ -595,7 +626,8 @@ async def get_watchlist():
         if not fund or fund.get("source") != "Rahavard365":
             is_custom_symbol = str(record["fund_key"]).startswith("manual:")
             custom_symbol = str(record["fund_key"])[len("manual:"):] if is_custom_symbol else ""
-            return {**record, "name": custom_symbol or record["fund_key"], "symbol": custom_symbol,
+            display_symbol = custom_symbol or record["fund_key"]
+            return {**record, "name": display_symbol, "symbol": display_symbol,
                     "is_custom_symbol": is_custom_symbol, "price": None,
                     "supports": [], "resistances": [],
                     "midterm_outlook": "نماد سفارشی · دادهٔ قیمت موجود نیست" if is_custom_symbol else "صندوق در فهرست ره‌آورد پیدا نشد",
@@ -631,11 +663,14 @@ async def get_watchlist():
         else:
             outlook, tone = "داده تکنیکال کافی نیست", "unknown"
         signal_fa = {"buy": "مثبت", "sell": "منفی", "hold": "خنثی"}.get(signal, "نامشخص")
+        asset_id = str(raw.get("rahavard_asset_id") or fund.get("registration_no") or fund["symbol"])
+        display_symbol = _WATCHLIST_DISPLAY_BY_ASSET_ID.get(asset_id) or asset.get("trade_symbol") or fund["symbol"]
         return {
             **record,
-            "name": asset.get("name") or fund["name"],
-            "symbol": asset.get("trade_symbol") or fund["symbol"],
-            "rahavard_asset_id": str(raw.get("rahavard_asset_id") or fund.get("registration_no") or fund["symbol"]),
+            "name": display_symbol,
+            "symbol": display_symbol,
+            "fund_name": asset.get("name") or fund["name"],
+            "rahavard_asset_id": asset_id,
             "price": price,
             "daily_return": change_ratio * 100 if change_ratio is not None else fund.get("daily_return"),
             "data_timestamp": stamp,
