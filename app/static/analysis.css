@@ -249,8 +249,8 @@
 .watchlist-table th:first-child,.watchlist-table td:first-child{min-width:180px}
 .watchlist-table th:nth-child(2),.watchlist-table td:nth-child(2){min-width:145px}
 .watchlist-table th:nth-child(3),.watchlist-table td:nth-child(3),.watchlist-table th:nth-child(4),.watchlist-table td:nth-child(4){min-width:150px}
-.watchlist-table th:nth-child(5),.watchlist-table td:nth-child(5),.watchlist-table th:nth-child(8),.watchlist-table td:nth-child(8){min-width:215px;max-width:275px}
-.watchlist-table th:nth-child(6),.watchlist-table td:nth-child(6),.watchlist-table th:nth-child(7),.watchlist-table td:nth-child(7){min-width:180px}
+.watchlist-table th:nth-child(5),.watchlist-table td:nth-child(5),.watchlist-table th:nth-child(6),.watchlist-table td:nth-child(6){min-width:215px;max-width:290px}
+.watchlist-table th:nth-child(7),.watchlist-table td:nth-child(7){min-width:100px}
 .watch-fund-cell strong,.watch-fund-cell small,.watch-price b,.watch-price small,.watch-condition b,.watch-condition small,.watch-source-note{display:block}
 .watch-fund-cell strong{font-size:14px;color:#d8e4f2;font-weight:600}
 .watch-fund-cell small,.watch-price small,.watch-source-note{font-size:12px;color:#8294ab;margin-top:3px}
@@ -264,6 +264,11 @@
 .watch-level b{font:600 13px 'DM Mono',monospace;direction:ltr;color:#cbd9e9}
 .watch-level small{font-size:11px;color:#8194ad}
 .watch-muted{font-size:12px;color:#75869c}
+.watch-exit{display:grid;gap:4px;min-width:180px;padding:9px 10px;border:1px solid rgba(229,126,135,.22);border-right:3px solid #d67882;border-radius:10px;background:linear-gradient(135deg,rgba(104,40,50,.16),rgba(15,28,43,.58))}
+.watch-exit-price{font:700 15px 'DM Mono',monospace;direction:ltr;text-align:right;color:#ffdadd}
+.watch-exit small{font-size:11px;line-height:1.55;color:#9babbc;overflow-wrap:anywhere}
+.watch-exit small.positive{color:var(--green)}.watch-exit small.negative{color:var(--red)}
+.watch-exit .watch-exit-trend{color:#8294ab}
 .watch-outlook{display:inline-block;border:1px solid #33465f;background:#17263a;border-radius:8px;padding:5px 8px;font-size:12px;line-height:1.6;color:#bac8d9}
 .watch-outlook.positive,.watch-condition b.positive{color:var(--green)}
 .watch-outlook.negative,.watch-condition b.negative{color:var(--red)}
@@ -300,6 +305,10 @@
 .light-mode .scenario-card{background:#f7fafd;border-color:#d8e2ee}.light-mode .scenario-card h4{color:#233953}.light-mode .scenario-card p{color:#516982}.light-mode .scenario-condition{background:#eef3f8;color:#5b718a}.light-mode .scenario-condition b{color:#304963}.light-mode .scenario-card small,.light-mode .scenario-note{color:#6d8298}.light-mode .watchlist-totals{background:#f7f9fc}.light-mode .watch-total-card{background:#fff;border-color:#d8e2ee}.light-mode .watch-total-card span{color:#657b92}.light-mode .watch-total-card b{color:#2c435e}
 .light-mode .watchlist-add-form label,.light-mode .watch-fund-cell strong,.light-mode .watch-price b{color:#263951}
 .light-mode .watchlist-add-form input,.light-mode .watch-input{background:#f7f9fc;color:#263951;border-color:#ced9e7}
+.light-mode .watch-exit{background:linear-gradient(135deg,#fff4f4,#f8fbfc);border-color:#e8c8cc;border-right-color:#c75d68}
+.light-mode .watch-exit-price{color:#963d49}
+.light-mode .watch-exit small{color:#687d82}
+.light-mode .watch-exit small.positive{color:#18815c}.light-mode .watch-exit small.negative{color:#b34654}
 .light-mode .watch-level{background:#f4f7fb;border-color:#dae3ee}
 .light-mode .watch-level b{color:#344861}
 .light-mode .watch-outlook{background:#f4f7fb;border-color:#dae3ee}

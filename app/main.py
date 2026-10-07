@@ -614,6 +614,42 @@ def _watchlist_levels(indicator_data: dict[str, Any] | None,
     return {"supports": nearest(supports, True), "resistances": nearest(resistances, False)}
 
 
+def _watchlist_downside_exit(price: float | None,
+                             supports: list[dict[str, Any]],
+                             break_even_price: Any,
+                             units: Any,
+                             trend: str | None) -> dict[str, Any]:
+    """Suggest a downside exit trigger just below the nearest Rahavard support."""
+    if price is None or not supports:
+        return {"price": None, "support_price": None, "support_label": None,
+                "pnl_per_unit": None, "pnl_pct": None, "position_pnl": None,
+                "trend_label": trend or "unknown"}
+
+    support = supports[0]
+    support_price = _watchlist_number(support.get("price"))
+    if support_price is None or support_price <= 0:
+        return {"price": None, "support_price": None, "support_label": None,
+                "pnl_per_unit": None, "pnl_pct": None, "position_pnl": None,
+                "trend_label": trend or "unknown"}
+
+    # The buffer filters a brief touch of support; it is a trigger estimate, not a guaranteed fill.
+    exit_price = round(support_price * 0.997)
+    entry = _watchlist_number(break_even_price)
+    quantity = _watchlist_number(units)
+    pnl_per_unit = exit_price - entry if entry is not None and entry > 0 else None
+    pnl_pct = pnl_per_unit / entry * 100 if pnl_per_unit is not None else None
+    position_pnl = pnl_per_unit * quantity if pnl_per_unit is not None and quantity is not None and quantity > 0 else None
+    return {
+        "price": exit_price,
+        "support_price": support_price,
+        "support_label": support.get("label"),
+        "pnl_per_unit": pnl_per_unit,
+        "pnl_pct": pnl_pct,
+        "position_pnl": position_pnl,
+        "trend_label": trend or "unknown",
+    }
+
+
 @app.get("/api/watchlist")
 async def get_watchlist():
     _seed_default_watchlist()
@@ -654,6 +690,8 @@ async def get_watchlist():
         levels = _watchlist_levels(indicator_data, price)
         signal = analysis_result.get("signal") if analysis_result else None
         trend = analysis_result.get("trend") if analysis_result else None
+        downside_exit = _watchlist_downside_exit(
+            price, levels["supports"], record.get("break_even_price"), record.get("units"), trend)
         if signal == "buy":
             outlook, tone = "تمایل مثبت · نگهداری تحت نظر", "positive"
         elif signal == "sell":
@@ -676,6 +714,7 @@ async def get_watchlist():
             "data_timestamp": stamp,
             "supports": levels["supports"],
             "resistances": levels["resistances"],
+            "downside_exit": downside_exit,
             "signal": signal,
             "signal_fa": signal_fa,
             "trend": trend,

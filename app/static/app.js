@@ -998,7 +998,7 @@
       ].map(([label, value, cls]) => `<div class="watch-total-card ${cls}"><span>${label}</span><b>${value}</b></div>`).join("");
     }
     if (!items.length) {
-      body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b><small>از کادر بالا یک صندوق ره‌آورد را با نام یا شناسه‌اش اضافه کن.</small></div></td></tr>`;
+      body.innerHTML = `<tr><td colspan="7"><div class="empty-state"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b><small>از کادر بالا یک صندوق ره‌آورد را با نام یا شناسه‌اش اضافه کن.</small></div></td></tr>`;
       return;
     }
     body.innerHTML = items.map((item) => {
@@ -1006,11 +1006,21 @@
       const isCustomSymbol = Boolean(item.is_custom_symbol);
       const watchOpenAttrs = isCustomSymbol ? "disabled aria-disabled=\"true\"" : `data-watch-open="${esc(item.fund_key)}"`;
       const symbolMeta = isCustomSymbol ? "قیمت و تحلیل ره‌آورد در دسترس نیست" : `${esc(item.symbol || `شناسه ${item.rahavard_asset_id || "—"}`)} · ره‌آورد۳۶۵`;
+      const exit = item.downside_exit || {};
+      const exitTone = Number(exit.pnl_per_unit) > 0 ? "positive" : Number(exit.pnl_per_unit) < 0 ? "negative" : "";
+      const exitPnl = exit.pnl_per_unit == null
+        ? "قیمت سر‌به‌سر را وارد کنید تا سود/زیان برآورد شود"
+        : `هر واحد: ${Number(exit.pnl_per_unit) > 0 ? "+" : ""}${money(exit.pnl_per_unit)} ریال · ${pct(exit.pnl_pct)}`;
+      const positionPnl = exit.position_pnl == null ? "" : `<small class="${exitTone}">کل موقعیت: ${Number(exit.position_pnl) > 0 ? "+" : ""}${money(exit.position_pnl)} ریال</small>`;
+      const exitHtml = exit.price == null
+        ? `<div class="watch-exit"><b class="watch-muted">سطح خروج محاسبه نشد</b><small>حمایت معتبر یا قیمت به‌روز در دسترس نیست</small></div>`
+        : `<div class="watch-exit"><b class="watch-exit-price">${money(exit.price)}</b><small>فعال‌شدن پس از تثبیت زیر حمایت ${money(exit.support_price)}</small><small class="${exitTone}">${exitPnl}</small>${positionPnl}<small class="watch-exit-trend">دید میان‌مدت: ${esc(exit.trend_label === "bullish" ? "صعودی" : exit.trend_label === "bearish" ? "نزولی" : exit.trend_label === "neutral" ? "خنثی" : "نامشخص")}</small></div>`;
       return `<tr data-watch-row="${esc(item.fund_key)}">
         <td class="watch-fund-cell" data-label="صندوق / نماد"><button class="watch-fund-open${isCustomSymbol ? " watch-fund-open-unavailable" : ""}" type="button" ${watchOpenAttrs} aria-label="${isCustomSymbol ? "دادهٔ تحلیلی موجود نیست" : "مشاهده تحلیل"} ${esc(item.name)}"><span class="watch-fund-mark">${isCustomSymbol ? "نماد" : "ETF"}</span><span><strong>${esc(item.name)}</strong><small>${symbolMeta}</small></span>${isCustomSymbol ? "" : `<span class="watch-open-arrow">←</span>`}</button></td>
         <td class="watch-price" data-label="قیمت فعلی (ریال)"><b>${money(item.price)}</b>${item.daily_return == null ? "" : `<small class="${Number(item.daily_return) >= 0 ? "positive" : "negative"}">${pct(item.daily_return)}</small>`}</td>
         <td data-label="قیمت سر به سر (ریال)"><input class="watch-input" type="number" min="0" step="any" inputmode="decimal" aria-label="قیمت سر به سر ${esc(item.name)} به ریال" placeholder="قیمت خرید" data-watch-field="break_even_price" value="${numericInputValue(item.break_even_price)}"></td>
         <td data-label="تعداد واحد من"><input class="watch-input watch-units" type="number" min="0" step="any" inputmode="decimal" aria-label="تعداد واحد ${esc(item.name)}" placeholder="تعداد" data-watch-field="units" value="${numericInputValue(item.units)}"></td>
+        <td data-label="قیمت خروج پیشنهادی در نزول (ریال)">${exitHtml}</td>
         <td data-label="برداشت میان‌مدت"><span class="watch-outlook ${tone}">${esc(item.midterm_outlook || "داده کافی نیست")}</span><small class="watch-source-note">برای تحلیل کامل روی نام نماد کلیک کن</small></td>
         <td data-label="مدیریت"><button class="watch-remove" type="button" data-watch-remove="${esc(item.fund_key)}" aria-label="حذف ${esc(item.name)} از دیده‌بان">حذف</button></td>
       </tr>`;
@@ -1018,7 +1028,7 @@
   }
   async function loadWatchlist() {
     const body = $("#watchlist-table-body");
-    body.innerHTML = `<tr><td colspan="6"><div class="empty-state compact"><b>در حال دریافت قیمت و تحلیل ره‌آورد…</b></div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="7"><div class="empty-state compact"><b>در حال دریافت قیمت و تحلیل ره‌آورد…</b></div></td></tr>`;
     try {
       const [data, fundsData] = await Promise.all([
         api("/api/watchlist"),
@@ -1037,7 +1047,7 @@
       }).join("");
       renderPersonalWatchlist(state.watchlist, data.totals || {});
     } catch (err) {
-      body.innerHTML = `<tr><td colspan="6"><div class="empty-state"><b>دیده‌بان بارگیری نشد</b><small>${esc(err.message)}</small></div></td></tr>`;
+      body.innerHTML = `<tr><td colspan="7"><div class="empty-state"><b>دیده‌بان بارگیری نشد</b><small>${esc(err.message)}</small></div></td></tr>`;
       toast(`دیده‌بان بارگیری نشد: ${err.message}`, true);
     }
   }
@@ -1215,6 +1225,7 @@
         method: "PUT", body: JSON.stringify({ [input.dataset.watchField]: value })
       });
       toast("اطلاعات دیده‌بان ذخیره شد");
+      await loadWatchlist();
     } catch (err) { toast(`ذخیره مقدار انجام نشد: ${err.message}`, true); }
   });
  $("#watchlist-table-body").addEventListener("click", async (event) => {
