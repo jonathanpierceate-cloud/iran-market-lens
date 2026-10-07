@@ -513,15 +513,59 @@
   function scenarioHtml(a) {
     const scenarios = Array.isArray(a?.scenarios) ? a.scenarios : [];
     if (!scenarios.length) return "";
+    const levelNumber = (raw) => {
+      if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+      if (!raw || typeof raw !== "object") return null;
+      for (const key of ["midpoint", "price", "value", "level"]) {
+        const value = Number(raw[key]);
+        if (Number.isFinite(value)) return value;
+      }
+      const low = Number(raw.low), high = Number(raw.high);
+      return Number.isFinite(low) && Number.isFinite(high) ? (low + high) / 2 : null;
+    };
+    const levelText = (raw) => {
+      if (raw && typeof raw === "object") {
+        const low = Number(raw.low), high = Number(raw.high);
+        if (Number.isFinite(low) && Number.isFinite(high) && Math.abs(high - low) > 0.5) return `${money(low)} تا ${money(high)}`;
+      }
+      const value = levelNumber(raw);
+      return value == null ? "" : money(value);
+    };
+    const nearestLevel = (levels, kind, current) => {
+      const rows = (Array.isArray(levels) ? levels : []).filter((level) => levelNumber(level) != null);
+      const relevant = rows.filter((level) => current == null || (kind === "support" ? levelNumber(level) < current : levelNumber(level) > current));
+      const candidates = relevant.length ? relevant : rows;
+      candidates.sort((left, right) => kind === "support"
+        ? levelNumber(right) - levelNumber(left)
+        : levelNumber(left) - levelNumber(right));
+      return candidates[0] || null;
+    };
+    const parsedPrice = a?.price == null ? NaN : Number(a.price);
+    const price = Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : null;
     const cards = scenarios.map((scenario) => {
       const direction = scenario.direction === "bullish" ? "bullish" : "bearish";
       const probability = Math.max(0, Math.min(100, Number(scenario.probability) || 0));
-      const reason = compactText(scenario.reason || "دلیل مشخصی ثبت نشده است.", 150);
-      const condition = compactText(scenario.condition || "—", 92);
-      const risk = compactText(scenario.risk || "", 100);
-      return `<article class="scenario-card ${direction}"><div class="scenario-card-head"><div><span class="scenario-kicker">سناریوی محتمل</span><h4>${esc(scenario.name)}</h4></div><strong>${num(probability, 0)}٪</strong></div><div class="scenario-bar"><i style="width:${probability}%"></i></div><p>${esc(reason)}</p><div class="scenario-condition"><b>شرط:</b> ${esc(condition)}</div>${risk ? `<small>${esc(risk)}</small>` : ""}</article>`;
+      const reasons = String(scenario.reason || "دلیل مشخصی ثبت نشده است.").split(/[؛;\n]+/).map((part) => part.trim()).filter(Boolean);
+      const condition = String(scenario.condition || "شرط تأیید در داده‌ها مشخص نشده است.").trim();
+      const risk = String(scenario.risk || "ریسک و شرط ابطال مشخص نشده است.").trim();
+      const support = scenario.support ?? nearestLevel(a?.support_levels, "support", Number.isFinite(price) ? price : null);
+      const resistance = scenario.resistance ?? nearestLevel(a?.resistance_levels, "resistance", Number.isFinite(price) ? price : null);
+      const levels = [
+        ["حمایت نزدیک", levelText(support), "support"],
+        ["مقاومت نزدیک", levelText(resistance), "resistance"],
+        ["هدف سناریو", levelText(scenario.target), "target"],
+      ].filter(([, value]) => value);
+      return `<article class="scenario-card ${direction}">
+        <div class="scenario-card-head"><div><span class="scenario-kicker">برآورد تحلیلی</span><h4>${esc(scenario.name)}</h4></div><div class="scenario-probability"><strong>${num(probability, 0)}٪</strong><small>احتمال برآوردی</small></div></div>
+        <div class="scenario-bar" role="img" aria-label="احتمال برآوردی ${num(probability, 0)} درصد"><i style="width:${probability}%"></i></div>
+        <div class="scenario-trigger"><span class="scenario-detail-label">شرط تأیید این سناریو</span><p>${esc(condition)}</p></div>
+        ${levels.length ? `<div class="scenario-levels">${levels.map(([label, value, kind]) => `<div class="scenario-level ${kind}"><span>${label}</span><b>${value}</b></div>`).join("")}</div>` : ""}
+        <div class="scenario-evidence"><h5>دلایل و شواهد</h5><ul>${reasons.map((reason) => `<li>${esc(reason)}</li>`).join("")}</ul></div>
+        <div class="scenario-risk"><span class="scenario-detail-label">ریسک و شرط بی‌اعتبارشدن</span><p>${esc(risk)}</p></div>
+      </article>`;
     }).join("");
-    return `<section class="scenario-section"><div class="scenario-section-head"><div><span class="panel-kicker">برآورد احتمالات</span><h3>سناریوهای پیش‌رو</h3></div><span class="scenario-note">بر پایه روند، امتیاز و مومنتوم</span></div><div class="scenario-grid">${cards}</div></section>`;
+    const note = a?.scenario_note || "احتمال‌ها برآورد تحلیلی‌اند و قطعیت یا تضمین وقوع ندارند.";
+    return `<section class="scenario-section"><div class="scenario-section-head"><div><span class="panel-kicker">بررسی چندوجهی بازار</span><h3>سناریوهای پیش‌رو</h3></div><span class="scenario-note">احتمال، شواهد، سطوح و شرط تغییر مسیر</span></div><div class="scenario-grid">${cards}</div><p class="scenario-disclaimer"><span>i</span>${esc(note)}</p></section>`;
   }
 
   function tradePlanHtml(a) {

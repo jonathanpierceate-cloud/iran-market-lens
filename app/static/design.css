@@ -565,20 +565,57 @@ body.light-mode .index-analysis-panel > .panel-heading { background: linear-grad
 .scenario-section-head { display: flex; align-items: end; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
 .scenario-section-head h3 { margin-top: 2px; color: #e4efec; font-size: 18px; }
 .scenario-section-head .scenario-note { margin: 0; color: #91a9aa; font-size: 12px; }
-.analysis-overview .scenario-card { padding: 14px; box-shadow: none; }
-.analysis-overview .scenario-card p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
-.analysis-overview .scenario-condition { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
-.analysis-overview .scenario-card small { display: none; }
+.analysis-overview .scenario-grid { align-items: stretch; gap: 14px; }
+.analysis-overview .scenario-card { display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 18px; box-shadow: none; }
+.analysis-overview .scenario-card-head { align-items: center; }
+.analysis-overview .scenario-probability { display: flex; align-items: baseline; gap: 7px; }
+.analysis-overview .scenario-probability strong { font: 750 27px "DM Mono", Tahoma, sans-serif; direction: ltr; }
+.analysis-overview .scenario-probability small { margin: 0; color: #91a9aa; font-size: 11px; white-space: nowrap; }
+.analysis-overview .scenario-card.bullish .scenario-probability strong { color: #75dfb8; }
+.analysis-overview .scenario-card.bearish .scenario-probability strong { color: #f08e9a; }
+.analysis-overview .scenario-bar { margin: 0; height: 6px; }
+.scenario-detail-label { display: block; margin-bottom: 4px; color: #82aaa3; font-size: 11px; font-weight: 700; }
+.scenario-trigger, .scenario-risk { padding: 11px 13px; border: 1px solid rgba(105, 151, 153, .19); border-radius: 11px; background: rgba(8, 21, 31, .44); }
+.analysis-overview .scenario-trigger p, .analysis-overview .scenario-risk p { display: block; margin: 0; overflow: visible; color: #c1cfce; font-size: 13px; line-height: 1.9; }
+.scenario-levels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.scenario-level { min-width: 0; padding: 10px 11px; border: 1px solid #304952; border-radius: 11px; background: rgba(8, 21, 31, .36); }
+.scenario-level span { display: block; color: #8fa9a6; font-size: 11px; line-height: 1.6; }
+.scenario-level b { display: block; margin-top: 3px; color: #e2efeb; font: 650 13px "DM Mono", Tahoma, sans-serif; direction: ltr; text-align: right; overflow-wrap: anywhere; }
+.scenario-level.support { border-top: 2px solid #55c7a5; }
+.scenario-level.resistance { border-top: 2px solid #e3b566; }
+.scenario-level.target { border-top: 2px solid #75b9c5; }
+.scenario-evidence { padding: 3px 1px 0; }
+.scenario-evidence h5 { margin: 0 0 7px; color: #dce9e6; font-size: 13px; }
+.scenario-evidence ul { display: grid; gap: 6px; margin: 0; padding: 0 18px 0 0; list-style: none; }
+.scenario-evidence li { position: relative; color: #b7c8c7; font-size: 12px; line-height: 1.9; overflow-wrap: anywhere; }
+.scenario-evidence li::before { content: ""; position: absolute; top: .8em; right: -15px; width: 6px; height: 6px; border-radius: 50%; background: #63c9aa; box-shadow: 0 0 0 3px rgba(85, 199, 165, .1); }
+.scenario-card.bearish .scenario-evidence li::before { background: #e98793; box-shadow: 0 0 0 3px rgba(229, 126, 135, .1); }
+.scenario-risk { margin-top: auto; border-color: rgba(227, 181, 102, .2); background: rgba(92, 68, 26, .12); }
+.analysis-overview .scenario-risk p { color: #c9c7b9; }
+.scenario-disclaimer { display: flex; align-items: flex-start; gap: 9px; margin: 12px 0 0; padding: 10px 12px; border: 1px solid rgba(117, 185, 197, .18); border-radius: 10px; background: rgba(13, 29, 41, .42); color: #8fa7aa; font-size: 11px; line-height: 1.8; }
+.scenario-disclaimer span { display: grid; place-items: center; width: 17px; height: 17px; flex: 0 0 auto; border: 1px solid rgba(117, 185, 197, .35); border-radius: 50%; color: #86cbd3; font: 700 11px Georgia, serif; }
 body.light-mode .analysis-overview { background: linear-gradient(145deg, #f7fbf9, #edf5f1); border-color: #c9ded5; box-shadow: 0 12px 28px rgba(30, 64, 53, .07); }
 body.light-mode .analysis-overview > .score-card { background: rgba(232, 244, 238, .72); }
 body.light-mode .analysis-reason { background: #fbf7ed; color: #6d6248; }
 body.light-mode .analysis-meta span { background: #fff; border-color: #d5e3dd; color: #647b75; }
 body.light-mode .analysis-meta b, body.light-mode .scenario-section-head h3 { color: #29453e; }
 body.light-mode .scenario-section-head .scenario-note { color: #6d857c; }
+body.light-mode .analysis-overview .scenario-probability small, body.light-mode .scenario-detail-label { color: #557a6d; }
+body.light-mode .analysis-overview .scenario-trigger, body.light-mode .analysis-overview .scenario-risk { background: rgba(255, 255, 255, .76); border-color: #dbe8e1; }
+body.light-mode .analysis-overview .scenario-trigger p { color: #435e55; }
+body.light-mode .analysis-overview .scenario-level { background: #fff; border-color: #d5e3dd; }
+body.light-mode .analysis-overview .scenario-level span { color: #687f77; }
+body.light-mode .analysis-overview .scenario-level b, body.light-mode .scenario-evidence h5 { color: #29483e; }
+body.light-mode .analysis-overview .scenario-evidence li { color: #50695f; }
+body.light-mode .analysis-overview .scenario-risk { background: #fcf8ed; border-color: #eadfbe; }
+body.light-mode .analysis-overview .scenario-risk p { color: #6d6248; }
+body.light-mode .scenario-disclaimer { background: #f3f8fa; border-color: #d4e5e8; color: #617b80; }
 @media (max-width: 720px) {
   .analysis-overview { padding: 12px; border-radius: 14px; }
   .scenario-section-head { align-items: flex-start; flex-direction: column; gap: 3px; }
   .analysis-meta span { flex: 1 1 calc(50% - 8px); justify-content: center; }
+  .analysis-overview .scenario-card { padding: 15px; }
+  .scenario-levels { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* Fund profile: structured properties instead of an unstyled text column. */
