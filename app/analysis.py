@@ -185,14 +185,26 @@ def analyze(symbol: str, bars: list[dict[str, Any]]) -> dict[str, Any]:
     else:
         risk = "low"
     exit_support = min((x["midpoint"] for x in supports if current is not None and x["midpoint"] < current), default=None)
-    medium_term_exit_price = round(exit_support * 0.993) if exit_support is not None else None
+    sma50 = _num(indicators.get("SMA(50)"))
+    ema50 = _num(indicators.get("EMA(50)"))
+    sma100 = _num(indicators.get("SMA(100)"))
+    ema100 = _num(indicators.get("EMA(100)"))
+    immediate_exit_base = sma50 or ema50 or (nearest_support["midpoint"] if nearest_support else None)
+    structural_exit_base = sma100 or ema100 or exit_support
+    medium_term_exit_price = round(immediate_exit_base * 0.995) if immediate_exit_base is not None else None
+    structural_exit_price = round(structural_exit_base * 0.998) if structural_exit_base is not None else None
+    if structural_exit_price is not None and medium_term_exit_price is not None and structural_exit_price >= medium_term_exit_price:
+        structural_exit_price = round(medium_term_exit_price * 0.985)
     return {
         "symbol": symbol, "data_timestamp": bars[-1].get("timestamp"), "price": current,
         "medium_term_exit_price": medium_term_exit_price,
+        "structural_exit_price": structural_exit_price,
         "medium_term_exit": {
             "price": medium_term_exit_price,
-            "trigger": "تثبیت قیمت زیر آخرین حمایت معتبر میان‌مدت",
-            "action": "تثبیت زیر این سطح یعنی حمایت میان‌مدت شکسته شده و سناریوی نزولی فعال است؛ خروج از موقعیت را اجرا کن.",
+            "trigger": "تثبیت قیمت زیر SMA(50) یا حمایت میانی",
+            "action": "تثبیت زیر این سطح یعنی ریسک کوتاه‌مدت بالا رفته است؛ خرید جدید را متوقف و خروج را مرحله‌ای اجرا کن.",
+            "structural_price": structural_exit_price,
+            "structural_trigger": "شکست و تثبیت زیر SMA(100) یا حمایت ساختاری",
         },
         "trend": medium, "short_term_trend": short, "medium_term_trend": medium,
         "long_term_trend": long, "technical_score": round(score, 1) if score is not None else None,
@@ -366,6 +378,16 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     nearest_support = nearest_level(supports, below=True)
     nearest_resistance = nearest_level(resistances, below=False)
     exit_support = min((value for value in supports if price is not None and value < price), default=None)
+    sma50 = find_values("SMA(50)").get("value")
+    ema50 = find_values("EMA(50)").get("value")
+    sma100 = find_values("SMA(100)").get("value")
+    ema100 = find_values("EMA(100)").get("value")
+    immediate_exit_base = sma50 or ema50 or (nearest_support if nearest_support is not None else None)
+    structural_exit_base = sma100 or ema100 or exit_support
+    immediate_exit_price = round(immediate_exit_base * 0.995) if immediate_exit_base is not None else None
+    structural_exit_price = round(structural_exit_base * 0.998) if structural_exit_base is not None else None
+    if structural_exit_price is not None and immediate_exit_price is not None and structural_exit_price >= immediate_exit_price:
+        structural_exit_price = round(immediate_exit_price * 0.985)
     resistance_above_price = price is None or any(value > price for value in resistances)
     rsi = find_values("RSI").get("rsi")
     mfi = find_values("MFI").get("mfi")
@@ -452,11 +474,14 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     return {
         "source": "Rahavard365", "symbol": symbol, "data_timestamp": data_timestamp,
         "price": price, "support_levels": supports, "resistance_levels": resistances,
-        "medium_term_exit_price": round(exit_support * 0.993) if exit_support is not None else None,
+        "medium_term_exit_price": immediate_exit_price,
+        "structural_exit_price": structural_exit_price,
         "medium_term_exit": {
-            "price": round(exit_support * 0.993) if exit_support is not None else None,
-            "trigger": "تثبیت قیمت زیر آخرین حمایت معتبر ره‌آورد",
-            "action": "تثبیت زیر این سطح یعنی حمایت میان‌مدت شکسته شده و سناریوی نزولی فعال است؛ خروج از موقعیت را اجرا کن.",
+            "price": immediate_exit_price,
+            "trigger": "تثبیت قیمت زیر SMA(50) یا حمایت میانی ره‌آورد",
+            "action": "تثبیت زیر این سطح یعنی ریسک کوتاه‌مدت بالا رفته است؛ خرید جدید را متوقف و خروج را مرحله‌ای اجرا کن.",
+            "structural_price": structural_exit_price,
+            "structural_trigger": "شکست و تثبیت زیر SMA(100) یا حمایت ساختاری ره‌آورد",
         },
         "technical_score": round(score, 1) if score is not None else None,
         "signal": signal, "trend": trend, "risk": "unavailable",

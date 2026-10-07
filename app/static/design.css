@@ -1027,7 +1027,7 @@ body.light-mode #view-funds #fund-table-grid tbody td::before { color: #6d8980; 
 .medium-exit-card.unavailable{border-color:#3a5360;border-right-color:#8399a5;background:rgba(11,28,38,.5)}
 .medium-exit-icon{display:grid;place-items:center;width:34px;height:34px;flex:0 0 auto;border-radius:11px;background:rgba(213,106,119,.16);color:#f49ba5;font-size:19px;font-weight:800}
 .medium-exit-card.unavailable .medium-exit-icon{background:rgba(129,153,165,.15);color:#aabcc4}
-.medium-exit-card div{display:grid;gap:3px;min-width:0}.medium-exit-kicker{font-size:11px;color:#dba8ac}.medium-exit-card b{color:#ffe1e3;font-size:15px}.medium-exit-card small{color:#b9c5c9;font-size:12px;line-height:1.7}
+.medium-exit-card div{display:grid;gap:3px;min-width:0}.medium-exit-kicker{font-size:11px;color:#dba8ac}.medium-exit-card b{color:#ffe1e3;font-size:15px}.medium-exit-card small{color:#b9c5c9;font-size:12px;line-height:1.7}.medium-exit-levels{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin-top:4px}.medium-exit-levels>div{display:grid;gap:2px;min-width:0}.medium-exit-levels>div+div{border-right:1px solid rgba(216,139,145,.28);padding-right:18px}.trade-path-empty{display:grid;place-items:center;min-height:86px;padding:14px;border:1px dashed #9b7880;border-radius:11px;color:#e1b4b8;background:rgba(104,40,50,.14);font-size:12px;line-height:1.8;text-align:center}
 .trade-plan-badge { padding: 6px 10px; border: 1px solid #4b686c; border-radius: 999px; color: #b6cbc7; background: rgba(8, 22, 29, .42); font-size: 12px; white-space: nowrap; }
 .trade-plan-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 9px; }
 .trade-level { min-width: 0; padding: 12px 11px; border: 1px solid #34515b; border-radius: 12px; background: rgba(9, 23, 30, .48); }
@@ -1080,6 +1080,8 @@ body.light-mode .medium-exit-card{background:linear-gradient(135deg,#fff4f4,#f8f
 body.light-mode .medium-exit-card b{color:#963d49}
 body.light-mode .medium-exit-card small{color:#687d82}
 body.light-mode .medium-exit-icon{background:#fbe2e4;color:#b34654}
+body.light-mode .medium-exit-levels>div+div{border-color:#e3c9cc}
+body.light-mode .trade-path-empty{border-color:#d5a6ac;color:#a34a56;background:#fff4f4}
 body.light-mode .trade-plan-head h3, body.light-mode .trade-level b { color: #29453e; }
 body.light-mode .trade-plan-head p, body.light-mode .trade-plan-badge, body.light-mode .trade-level span { color: #637b74; }
 body.light-mode .trade-level { background: #f7fbf9; border-color: #d4e4dc; }
