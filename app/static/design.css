@@ -18,6 +18,9 @@
   --radius: 18px;
 }
 
+/* Shared visibility utility used by collapsible fund and asset analysis panels. */
+.hidden { display: none !important; }
+
 body {
   background:
     radial-gradient(ellipse at 78% -15%, rgba(68, 140, 135, .12), transparent 38%),
