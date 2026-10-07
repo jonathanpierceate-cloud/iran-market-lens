@@ -697,7 +697,7 @@
     const columns = ["R3", "R2", "R1", "P", "S1", "S2", "S3"];
     const price = Number(currentPrice);
     const hasPrice = Number.isFinite(price) && price > 0;
-    const nearRange = 0.01;
+    const nearRange = 0.10;
     const normalize = (key) => String(key || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const entries = Array.isArray(pivots)
       ? pivots.map((item) => ({
@@ -726,7 +726,7 @@
       ? `<div class="rahavard-pivot-scroll"><table dir="rtl"><thead><tr><th scope="col">نام</th>${columns.map((column) => `<th scope="col">${column}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`
       : `<div class="rahavard-pivot-empty">سطوح پیوت برای این دارایی در داده‌های موجود نیست.</div>`;
     const currentPriceLabel = hasPrice ? `<span class="pivot-legend-price">قیمت فعلی <b>${num(price, 0)}</b></span>` : "";
-    const legend = hasPrice ? `<div class="pivot-level-legend">${currentPriceLabel}<span class="pivot-legend-support">نزدیک حمایت</span><span class="pivot-legend-resistance">نزدیک مقاومت</span><small>فاصله تا قیمت فعلی حداکثر 1%</small></div>` : "";
+    const legend = hasPrice ? `<div class="pivot-level-legend">${currentPriceLabel}<span class="pivot-legend-support">نزدیک حمایت</span><span class="pivot-legend-resistance">نزدیک مقاومت</span><small>فاصله تا قیمت فعلی حداکثر 10%</small></div>` : "";
     return `<section class="rahavard-pivot-table"><div class="rahavard-pivot-table-head"><div><h4>حمایت و مقاومت</h4><p>سطوح پیوت به تفکیک روش محاسبه</p>${legend}</div><span>${nf.format(rows.length)} روش</span></div>${body}</section>`;
   }
 
