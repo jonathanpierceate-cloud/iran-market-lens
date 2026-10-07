@@ -881,9 +881,8 @@
       const url = new URL("/api/funds", location.origin);
       const search = options.search ?? $("#fund-search")?.value ?? "";
       const category = options.category ?? $("#fund-category")?.value ?? "";
-      const tradeDate = options.tradeDate ?? $("#fund-trade-date")?.value ?? "";
       const sort = options.sort ?? $("#fund-sort")?.value ?? "data_timestamp";
-      url.searchParams.set("search", search); url.searchParams.set("category", category); url.searchParams.set("sort", sort); url.searchParams.set("trade_date", tradeDate);
+      url.searchParams.set("search", search); url.searchParams.set("category", category); url.searchParams.set("sort", sort);
       const data = await api(url.pathname + url.search);
       state.funds = sortedFundItems(data.items);
       const resultCount = $("#fund-result-count");
@@ -954,10 +953,8 @@
     if (!items.length) {
       const search = $("#fund-search")?.value.trim() || "";
       const category = $("#fund-category")?.value.trim() || "";
-      const tradeDate = $("#fund-trade-date")?.value.trim() || "";
-      const filtered = search || category || tradeDate;
-      const tradeDateLabel = $("#fund-trade-date")?.selectedOptions?.[0]?.textContent?.trim() || "";
-      const filterLabel = search || category || tradeDateLabel;
+      const filtered = search || category;
+      const filterLabel = search || $("#fund-category")?.selectedOptions?.[0]?.textContent?.trim() || "";
       target.innerHTML = `<tr><td colspan="10"><div class="empty-state fund-empty-state"><span>&#9632;</span><b>${filtered ? "نتیجه‌ای برای فیلتر فعلی پیدا نشد" : "صندوقی از ره‌آورد۳۶۵ دریافت نشده"}</b><small>${filtered ? `فیلتر فعال: ${esc(filterLabel)} · برای نمایش همه صندوق‌ها فیلتر را پاک کنید.` : "وضعیت اتصال ره‌آورد را در صفحه وضعیت سامانه ببینید."}</small>${filtered ? `<button class="button button-quiet fund-clear-filter" type="button" data-clear-fund-filters>پاک کردن فیلترها</button>` : ""}</div></td></tr>`;
       return;
     }
@@ -1232,7 +1229,7 @@
       await loadAlerts();
     } catch (err) { toast(`هشدار ثبت نشد: ${err.message}`, true); }
   });
-  ["#fund-search", "#fund-category", "#fund-trade-date"].forEach((id) => {
+  ["#fund-search", "#fund-category"].forEach((id) => {
     const control = $(id);
     if (!control) return;
     control.addEventListener(id === "#fund-search" ? "input" : "change", () => {
@@ -1294,10 +1291,8 @@
     if (event.target.closest("[data-clear-fund-filters]")) {
       const search = $("#fund-search");
       const category = $("#fund-category");
-      const tradeDate = $("#fund-trade-date");
       if (search) search.value = "";
       if (category) category.value = "";
-      if (tradeDate) tradeDate.value = "";
       loadFunds();
       return;
     }

@@ -406,6 +406,20 @@ def rahavard_etf_funds() -> list[dict[str, Any]]:
     return funds
 
 
+def rahavard_etf_fund_asset_ids(category_id: str) -> set[str]:
+    """Return ETF asset IDs that belong to one Rahavard fund category."""
+    category_id = str(category_id).strip()
+    if not category_id.isdigit():
+        return set()
+    query = urllib.parse.urlencode({"category_id": category_id, "fund_type": "1"})
+    payload = _json(f"{RAHAVARD_ETF_FUNDS_URL}?{query}", referer=f"{RAHAVARD_URL}/fund")
+    rows = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        raise SourceError("ساختار فهرست دسته صندوق ره‌آورد۳۶۵ قابل شناسایی نیست")
+    return {str(row.get("asset_id")).strip() for row in rows
+            if str(row.get("asset_id") or "").strip().isdigit()}
+
+
 def rahavard_fund_profile(asset_id: str) -> dict[str, Any]:
     asset_id = str(asset_id).strip()
     if not asset_id.isdigit():

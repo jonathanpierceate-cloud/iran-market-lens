@@ -104,7 +104,7 @@
 
       <section class="view" id="view-funds">
         <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span>ETF Explorer</div><h1>صندوق‌های قابل معامله</h1><p>قیمت، بازده و تحلیل اندیکاتورها از ره‌آورد۳۶۵.</p></div><div class="heading-actions"><a class="button button-quiet" href="/api/export/funds.csv">↓ خروجی CSV</a><a class="button button-quiet" href="/api/export/funds.xlsx">↓ Excel</a><button class="button button-primary" data-refresh><span>⟳</span> به‌روزرسانی فهرست</button></div></div>
-        <div class="fund-toolbar"><label class="table-search"><span>⌕</span><input id="fund-search" type="search" placeholder="نام یا شناسه ره‌آورد صندوق را بنویسید…"></label><select id="fund-category"><option value="">همه صندوق‌های قابل معامله</option><option>قابل معامله</option></select><select id="fund-trade-date" aria-label="تاریخ معامله"><option value="">همه تاریخ‌ها</option><option value="latest">آخرین روز معاملاتی</option><option value="today">امروز</option><option value="3d">3 روز اخیر</option><option value="7d">7 روز اخیر</option></select><span class="fund-count-label" id="fund-result-count">۰ صندوق</span></div>
+        <div class="fund-toolbar"><label class="table-search"><span>⌕</span><input id="fund-search" type="search" placeholder="نام یا شناسه ره‌آورد صندوق را بنویسید…"></label><select id="fund-category" aria-label="نوع صندوق"><option value="">همه انواع صندوق</option><option value="604">در اوراق بهادار مبتنی بر کالا- گواهی سپرده کالایی</option><option value="544">صندوق در صندوق</option><option value="256">سرمایه‌گذاری در اوراق بهادار - مختلط</option><option value="303">سرمایه‌گذاری قابل معامله شاخصی</option><option value="547">خصوصی</option><option value="255">سرمایه‌گذاری در اوراق بهادار با درآمد ثابت</option><option value="612">سهامی اهرمی</option><option value="572">سرمایه‌گذاری در اوراق بهادار مبتنی بر کالا-کشاورزی</option><option value="568">سرمایه‌گذاری در اوراق بهادار - بخشی</option><option value="560">صندوق سرمایه‌گذاری املاک و مستغلات</option><option value="623">سرمایه‌گذاری در اوراق بهادار مبتنی بر کالا - نقره</option><option value="257">سرمایه‌گذاری در سهام</option><option value="543">زمین و ساختمان</option><option value="302">جسورانه</option><option value="542">پروژه</option><option value="301">سرمایه‌گذاری در اوراق بهادار مبتنی بر کالا - طلا</option></select><span class="fund-count-label" id="fund-result-count">۰ صندوق</span></div>
         <div class="panel table-panel"><div class="table-scroll"><table id="fund-table-grid"><thead><tr>
 <th scope="col" tabindex="0" data-fund-sort="name">صندوق / شناسه ره‌آورد <span class="sort-indicator" aria-hidden="true">⇅</span></th>
 <th scope="col" tabindex="0" data-fund-sort="market_price">قیمت پایانی (ریال) <span class="sort-indicator" aria-hidden="true">⇅</span></th>
@@ -155,6 +155,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=fund-date-filter-20261007"></script>
+  <script src="/static/app.js?v=fund-category-filter-20261007"></script>
 </body>
 </html>
