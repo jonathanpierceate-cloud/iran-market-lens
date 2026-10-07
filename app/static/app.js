@@ -952,13 +952,12 @@
     state.currentView = name;
     $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
     $$(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
-    const title = ({ overview: "داشبورد", markets: "طلا و دلار", funds: "صندوق‌ها", watchlist: "دیده‌بان", settings: "تنظیمات", admin: "وضعیت سامانه" })[name] || "داشبورد";
+    const title = ({ overview: "داشبورد", funds: "صندوق‌ها", watchlist: "دیده‌بان", settings: "تنظیمات", admin: "وضعیت سامانه" })[name] || "داشبورد";
     $("#crumb-current").textContent = title;
     if (name === "funds") await loadFunds();
     if (name === "watchlist") await loadWatchlist();
     if (name === "admin") await loadAdmin();
     if (name === "settings") await loadSettings();
-    if (name === "markets") await loadOverview();
     if (name === "overview") await loadOverview();
   }
 
