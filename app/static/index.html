@@ -78,17 +78,18 @@
             <div class="card-bottom"><span>روند شاخص</span><strong id="tepix-trend" class="trend neutral">داده ناکافی</strong><span class="card-action">تحلیل با کلیک ←</span></div>
           </article>
 
-          <article class="market-card breadth-card">
-            <div class="card-top"><span class="asset-icon fund-icon">▤</span><span class="card-kicker">صندوق‌های قابل معامله</span><span class="freshness" id="funds-freshness"><i></i> در حال بررسی</span></div>
-            <div class="funds-stat"><strong id="fund-count">—</strong><span>صندوق ثبت‌شده در منبع</span></div>
-            <div class="fund-category-bars" id="category-bars"><div class="cat-row"><span>سهامی</span><div><i style="width:0"></i></div><b>—</b></div><div class="cat-row"><span>طلا</span><div><i style="width:0"></i></div><b>—</b></div><div class="cat-row"><span>درآمد ثابت</span><div><i style="width:0"></i></div><b>—</b></div></div>
-            <div class="card-bottom"><span>بهترین امتیاز تکنیکال</span><strong id="best-fund" class="fund-best">هنوز داده‌ای نیست</strong><button class="text-button" data-open-view="funds">مشاهده همه <span>←</span></button></div>
+          <article class="market-card gold18k-card market-analysis-trigger" data-analysis-toggle="gold18k" role="button" tabindex="0" aria-controls="gold18k-analysis" aria-expanded="false">
+            <div class="card-top"><span class="asset-icon gold18k-icon">18K</span><span class="card-kicker">طلای ۱۸ عیار · ره‌آورد۳۶۵</span><span class="freshness" id="gold18k-freshness"><i></i> در حال بررسی</span></div>
+            <div class="quote-line"><strong class="quote-value" id="gold18k-price">—</strong><span class="quote-unit">تومان / گرم</span><span class="change-pill" id="gold18k-change">—</span></div>
+            <div class="quote-meta"><span>منبع: <b id="gold18k-source">—</b></span><span>زمان داده: <b id="gold18k-time">—</b></span></div>
+            <div class="card-bottom"><span>روند میان‌مدت</span><strong id="gold18k-trend" class="trend neutral">داده ناکافی</strong><span class="card-action">تحلیل با کلیک ←</span></div>
           </article>
         </div>
 
-        <section class="section-heading"><div><h2>تحلیل دارایی‌ها</h2><p>برای بازکردن تحلیل، کارت طلا، تتر یا شاخص کل را انتخاب کن.</p></div><span class="section-note"><i class="status-dot"></i> تحلیل‌ها در همین داشبورد باز می‌شوند</span></section>
+        <section class="section-heading"><div><h2>تحلیل دارایی‌ها</h2><p>برای بازکردن تحلیل، کارت هر دارایی را انتخاب کن.</p></div><span class="section-note"><i class="status-dot"></i> تحلیل‌ها در همین داشبورد باز می‌شوند</span></section>
         <div class="dashboard-analysis-stack">
           <article class="panel market-analysis-panel hidden" data-analysis-panel="gold"><div class="panel-heading"><div><span class="panel-kicker">XAU/USD · ره‌آورد۳۶۵</span><h3>تحلیل تکنیکال طلای جهانی</h3></div><span id="gold-analysis-status" class="freshness"><i></i> در حال دریافت</span></div><div id="gold-analysis" class="analysis-content"><div class="empty-state compact"><b>داده کافی برای تحلیل موجود نیست</b><small>شاخص‌ها پس از دریافت داده نمایش داده می‌شوند.</small></div></div></article>
+          <article class="panel market-analysis-panel hidden" data-analysis-panel="gold18k"><div class="panel-heading"><div><span class="panel-kicker">طلای ۱۸ عیار · ره‌آورد۳۶۵</span><h3>تحلیل تکنیکال طلای ۱۸ عیار</h3></div><span id="gold18k-analysis-status" class="freshness"><i></i> در حال دریافت</span></div><div id="gold18k-analysis" class="analysis-content"><div class="empty-state compact"><b>داده کافی برای تحلیل موجود نیست</b><small>شاخص‌ها پس از دریافت داده نمایش داده می‌شوند.</small></div></div></article>
           <article class="panel market-analysis-panel hidden" data-analysis-panel="dollar"><div class="panel-heading"><div><span class="panel-kicker">USDT/IRT · ره‌آورد۳۶۵</span><h3>تحلیل تکنیکال تتر</h3></div><span id="dollar-analysis-status" class="freshness"><i></i> در حال دریافت</span></div><div id="dollar-analysis" class="analysis-content"><div class="empty-state compact"><b>داده کافی برای تحلیل موجود نیست</b><small>شاخص‌ها از داده‌های روزانه ره‌آورد محاسبه می‌شوند.</small></div></div></article>
           <article class="panel index-analysis-panel hidden" data-analysis-panel="tepix"><div class="panel-heading"><div><span class="panel-kicker">TEPIX · ره‌آورد۳۶۵</span><h3>تحلیل تکنیکال شاخص کل</h3></div><span id="tepix-analysis-status" class="freshness"><i></i> در حال دریافت</span></div><div id="tepix-analysis" class="analysis-content"><div class="empty-state compact"><b>تحلیل شاخص کل در حال دریافت است</b><small>اندیکاتورها و سطوح از منبع رسمی ره‌آورد۳۶۵ خوانده می‌شوند.</small></div></div></article>
         </div>
@@ -151,6 +152,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=admin-ui-20261007-3"></script>
+  <script src="/static/app.js?v=admin-ui-20261007-4"></script>
 </body>
 </html>

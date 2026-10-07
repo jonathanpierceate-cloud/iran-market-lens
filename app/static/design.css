@@ -130,6 +130,7 @@ button, a, .market-card, .panel, input, select { transition: background-color .1
 .market-card:hover, .panel:hover { border-color: #3a5559; }
 .asset-icon { width: 32px; height: 32px; border-radius: 10px; }
 .gold-icon { background: #3a3324; border-color: #68552d; }
+.gold18k-icon { width: 42px; padding: 0 4px; background: linear-gradient(135deg, #5b4520, #2f281d); border-color: #9b7b37; color: #f2d17c; font: 700 11px "DM Mono", Tahoma, sans-serif; direction: ltr; }
 .dollar-icon { background: #233a42; border-color: #3a6267; color: #8dd2ca; }
 .fund-icon { background: #1e3f36; border-color: #39715d; }
 .card-kicker, .freshness, .quote-unit, .quote-meta, .chart-periods, .card-bottom { font-size: 14px; }

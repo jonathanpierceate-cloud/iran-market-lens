@@ -16,6 +16,7 @@ from typing import Any
 from .config import (HTTP_TIMEOUT_SECONDS, NEWS_RSS_URLS,
                      MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
                      RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_ASSET_ID,
+                     RAHAVARD_GOLD_18K_ASSET_ID, RAHAVARD_GOLD_18K_PAGE_URL,
                      RAHAVARD_GOLD_PAGE_URL, RAHAVARD_LIGHT_BARS_URL,
                      RAHAVARD_PUBLIC_BARS_URL, RAHAVARD_INDEX_BASE_URL,
                      RAHAVARD_TEPIX_INDEX_ID, RAHAVARD_TEPIX_PAGE_URL,
@@ -212,6 +213,58 @@ def rahavard_usdt_history() -> list[dict[str, Any]]:
     bars = [grouped[day] for day in sorted(grouped)]
     if not bars:
         raise SourceError("کندل‌های قیمت تتر از ره‌آورد۳۶۵ معتبر نیستند")
+    return bars
+
+
+def rahavard_gold_18k_history() -> list[dict[str, Any]]:
+    """Return recent daily 18-karat gold gram candles from Rahavard365."""
+    query = urllib.parse.urlencode({"symbol": f"exchange.asset:{RAHAVARD_GOLD_18K_ASSET_ID}:real_close"})
+    payload = _json(f"{RAHAVARD_LIGHT_BARS_URL}?{query}", referer=RAHAVARD_GOLD_18K_PAGE_URL)
+    rows = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(rows, list) or not rows:
+        raise SourceError("ره‌آورد۳۶۵ برای طلای ۱۸ عیار کندلی برنگرداند")
+    grouped: dict[str, dict[str, Any]] = {}
+    for item in sorted(rows, key=lambda row: _num(row.get("time")) or 0):
+        try:
+            raw_time = item.get("utc")
+            if raw_time:
+                candle_time = datetime.fromisoformat(str(raw_time).replace("Z", "+00:00"))
+            elif _num(item.get("time")) is not None:
+                candle_time = datetime.fromtimestamp(float(item["time"]) / 1000, timezone.utc)
+            else:
+                continue
+            if candle_time.tzinfo is None:
+                candle_time = candle_time.replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        day = candle_time.date().isoformat()
+        open_price, high, low, close = (_num(item.get(k)) for k in ("open", "high", "low", "close"))
+        if close is None or close <= 0:
+            continue
+        observed_at = candle_time.astimezone(timezone.utc).isoformat(timespec="seconds")
+        current = grouped.get(day)
+        if current is None:
+            grouped[day] = {
+                "timestamp": f"{day}T00:00:00+03:30",
+                "observed_at": observed_at,
+                "fetched_at": utc_now(),
+                "open": open_price if open_price is not None else close,
+                "high": high if high is not None else close,
+                "low": low if low is not None else close,
+                "close": close,
+                "volume": _num(item.get("volume")),
+            }
+            continue
+        current["high"] = max(current["high"], high if high is not None else close)
+        current["low"] = min(current["low"], low if low is not None else close)
+        current["close"] = close
+        current["observed_at"] = observed_at
+        volume = _num(item.get("volume"))
+        if volume is not None:
+            current["volume"] = volume
+    bars = [grouped[day] for day in sorted(grouped)]
+    if not bars:
+        raise SourceError("کندل‌های طلای ۱۸ عیار ره‌آورد۳۶۵ معتبر نیستند")
     return bars
 
 
@@ -511,6 +564,12 @@ async def refresh_all() -> dict[str, Any]:
                      "Rahavard365", RAHAVARD_GOLD_PAGE_URL, bars)
         return len(bars), bars[-1].get("observed_at") or bars[-1]["timestamp"]
 
+    def apply_gold_18k(result):
+        bars = result
+        db.save_bars("GOLD_18K", "طلای ۱۸ عیار", "commodity", "IRR", "تومان/گرم",
+                     "Rahavard365", RAHAVARD_GOLD_18K_PAGE_URL, bars)
+        return len(bars), bars[-1].get("observed_at") or bars[-1]["timestamp"]
+
     def apply_dxy(result):
         bars, meta = result
         db.save_bars("DXY", "شاخص دلار آمریکا", "index", "USD", "شاخص",
@@ -555,6 +614,8 @@ async def refresh_all() -> dict[str, Any]:
     tasks = [
         run_source("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL,
                    rahavard_gold_history, apply_gold),
+        run_source("rahavard_gold_18k", "طلای ۱۸ عیار / ره‌آورد۳۶۵", RAHAVARD_GOLD_18K_PAGE_URL,
+                   rahavard_gold_18k_history, apply_gold_18k),
         run_source("yahoo_dxy", "شاخص دلار آمریکا", YAHOO_CHART.format(symbol="DX-Y.NYB"),
                    lambda: yahoo_history("DX-Y.NYB"), apply_dxy),
         run_source("rahavard_usdt", "قیمت تتر / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL,

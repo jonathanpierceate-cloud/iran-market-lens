@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from .analysis import analyze, analyze_rahavard, stale_status
 from .config import (MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
                      RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_PAGE_URL,
+                     RAHAVARD_GOLD_18K_PAGE_URL,
                      RAHAVARD_LIGHT_BARS_URL, RAHAVARD_TEPIX_PAGE_URL,
                      RAHAVARD_USDT_PAGE_URL,
                      REFRESH_INTERVAL_SECONDS, ROOT)
@@ -49,7 +50,7 @@ def _market_history(symbol: str, limit: int = 1000) -> list[dict[str, Any]]:
     fund = db.get_fund(symbol)
     if fund and not fund.get("ambiguous") and fund.get("source") == "Rahavard365":
         return db.history(fund["fund_key"], limit, source="Rahavard365")
-    preferred = {"GOLD": "Rahavard365", "USD_IR_FREE": "Rahavard365", "TEPIX": "Rahavard365"}.get(symbol)
+    preferred = {"GOLD": "Rahavard365", "GOLD_18K": "Rahavard365", "USD_IR_FREE": "Rahavard365", "TEPIX": "Rahavard365"}.get(symbol)
     if preferred:
         bars = db.history(symbol, limit, source=preferred)
         if bars:
@@ -108,10 +109,10 @@ def _market_quote(symbol: str) -> dict[str, Any]:
             returns[label] = round((latest["close"] / bars[-periods-1]["close"] - 1) * 100, 3)
         else:
             returns[label] = None
-    source_key = {"GOLD": "rahavard_gold", "DXY": "yahoo_dxy", "USD_IR_FREE": "rahavard_usdt",
+    source_key = {"GOLD": "rahavard_gold", "GOLD_18K": "rahavard_gold_18k", "DXY": "yahoo_dxy", "USD_IR_FREE": "rahavard_usdt",
                   "TEPIX": "rahavard_tepix"}.get(symbol)
     source = _source_map().get(source_key) if source_key else None
-    observed_timestamp = (source.get("last_data_timestamp") if source and symbol in {"GOLD", "USD_IR_FREE", "TEPIX"}
+    observed_timestamp = (source.get("last_data_timestamp") if source and symbol in {"GOLD", "GOLD_18K", "USD_IR_FREE", "TEPIX"}
                           else latest["timestamp"])
     observed_timestamp = observed_timestamp or latest["timestamp"]
     is_stale = stale_status(observed_timestamp, max_hours=MAX_STALE_HOURS)
@@ -225,6 +226,7 @@ async def lifespan(_: FastAPI):
     REFRESH_WAKE = asyncio.Event()
     for key, label, url in [
         ("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL),
+        ("rahavard_gold_18k", "طلای ۱۸ عیار / ره‌آورد۳۶۵", RAHAVARD_GOLD_18K_PAGE_URL),
         ("rahavard_usdt", "قیمت تتر / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL),
         ("rahavard_tepix", "شاخص کل بورس / ره‌آورد۳۶۵", RAHAVARD_TEPIX_PAGE_URL),
         ("yahoo_dxy", "شاخص دلار آمریکا", "https://finance.yahoo.com/quote/DX-Y.NYB/"),
@@ -259,7 +261,7 @@ async def lifespan(_: FastAPI):
         # once before serving the first request so a cold instance still has
         # live Rahavard365 prices, funds, and indicators instead of an empty
         # dashboard.  Warm instances can be refreshed through /api/refresh.
-        if not db.funds(source="Rahavard365"):
+        if not db.funds(source="Rahavard365") or not db.history("GOLD_18K", 1, source="Rahavard365"):
             REFRESH_STATE["running"] = True
             try:
                 REFRESH_STATE["last_result"] = await refresh_all()
@@ -309,12 +311,14 @@ def health():
 def market_summary():
     funds = db.funds(sort="data_timestamp", source="Rahavard365")
     gold_quote = _market_quote("GOLD")
+    gold18k_quote = _market_quote("GOLD_18K")
     dollar_quote = _market_quote("USD_IR_FREE")
     tepix_quote = _market_quote("TEPIX")
     gold_quote.pop("history", None)
+    gold18k_quote.pop("history", None)
     dollar_quote.pop("history", None)
     tepix_quote.pop("history", None)
-    return {"as_of": utc_now(), "gold": gold_quote,
+    return {"as_of": utc_now(), "gold": gold_quote, "gold18k": gold18k_quote,
             "dollar": dollar_quote,
             "tepix": tepix_quote,
             "funds_total": len(funds),
@@ -325,6 +329,11 @@ def market_summary():
 @app.get("/api/gold")
 def gold():
     return _market_quote("GOLD")
+
+
+@app.get("/api/gold-18k")
+def gold_18k():
+    return _market_quote("GOLD_18K")
 
 
 @app.get("/api/gold/history")

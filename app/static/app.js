@@ -1,7 +1,7 @@
 (() => {
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-  const state = { summary: null, gold: null, dollar: null, tepix: null, funds: [], watchlist: [], currentView: "overview" };
+  const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], watchlist: [], currentView: "overview" };
   const fundSortState = { key: "data_timestamp", direction: -1 };
   const nf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const en = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
@@ -680,12 +680,14 @@
     try {
       const summary = await api("/api/market/summary");
       state.summary = summary;
-      state.gold = summary.gold; state.dollar = summary.dollar; state.tepix = summary.tepix;
-      marketQuote(state.gold, "gold"); marketQuote(state.dollar, "dollar"); marketQuote(state.tepix, "tepix");
+      state.gold = summary.gold; state.gold18k = summary.gold18k; state.dollar = summary.dollar; state.tepix = summary.tepix;
+      marketQuote(state.gold, "gold"); marketQuote(state.gold18k, "gold18k"); marketQuote(state.dollar, "dollar"); marketQuote(state.tepix, "tepix");
       freshness($("#gold-analysis-status"), state.gold?.status, state.gold?.data_timestamp);
+      freshness($("#gold18k-analysis-status"), state.gold18k?.status, state.gold18k?.data_timestamp);
       freshness($("#dollar-analysis-status"), state.dollar?.status, state.dollar?.data_timestamp);
       freshness($("#tepix-analysis-status"), state.tepix?.status, state.tepix?.data_timestamp);
       $("#gold-analysis").innerHTML = analysisHtml(state.gold?.analysis);
+      $("#gold18k-analysis").innerHTML = analysisHtml(state.gold18k?.analysis);
       $("#dollar-analysis").innerHTML = analysisHtml(state.dollar?.analysis);
       $("#tepix-analysis").innerHTML = analysisHtml(state.tepix?.analysis);
       const sourceList = summary.sources || [];
@@ -721,17 +723,21 @@
       url.searchParams.set("search", search); url.searchParams.set("category", category); url.searchParams.set("sort", sort);
       const data = await api(url.pathname + url.search);
       state.funds = sortedFundItems(data.items);
-      $("#fund-result-count").textContent = `${nf.format(data.count)} صندوق`;
+      const resultCount = $("#fund-result-count");
+      if (resultCount) resultCount.textContent = `${nf.format(data.count)} صندوق`;
       renderFundTable(state.funds);
       renderMarketWatchlist(options.existing?.length ? options.existing : state.funds.slice(0, 5));
-      $("#fund-count").textContent = nf.format(data.count);
+      const fundCount = $("#fund-count");
+      if (fundCount) fundCount.textContent = nf.format(data.count);
       const fs = _sourceByName("rahavard_funds"); freshness($("#funds-freshness"), fs?.status || "unavailable", fs?.last_data_timestamp);
       const categories = Object.groupBy ? Object.groupBy(state.funds, (x) => x.category || "نامشخص") : state.funds.reduce((a, x) => ((a[x.category || "نامشخص"] ||= []).push(x), a), {});
       const cats = Object.entries(categories).sort((a, b) => b[1].length - a[1].length).slice(0, 3);
       const maximum = Math.max(1, ...cats.map((x) => x[1].length));
-      $("#category-bars").innerHTML = cats.length ? cats.map(([name, rows]) => `<div class="cat-row"><span>${esc(name)}</span><div><i style="width:${rows.length / maximum * 100}%"></i></div><b>${nf.format(rows.length)}</b></div>`).join("") : `<div class="empty-state compact"><b>دسته صندوق در دسترس نیست</b></div>`;
+      const categoryBars = $("#category-bars");
+      if (categoryBars) categoryBars.innerHTML = cats.length ? cats.map(([name, rows]) => `<div class="cat-row"><span>${esc(name)}</span><div><i style="width:${rows.length / maximum * 100}%"></i></div><b>${nf.format(rows.length)}</b></div>`).join("") : `<div class="empty-state compact"><b>دسته صندوق در دسترس نیست</b></div>`;
       const best = state.funds.find((f) => f.technical_score != null);
-      $("#best-fund").textContent = best ? (best.display_symbol || `شناسه ${best.rahavard_asset_id}`) : state.funds.length ? "برای امتیاز، نمایهٔ نماد را باز کنید" : "هنوز داده‌ای نیست";
+      const bestFund = $("#best-fund");
+      if (bestFund) bestFund.textContent = best ? (best.display_symbol || `شناسه ${best.rahavard_asset_id}`) : state.funds.length ? "برای امتیاز، نمایهٔ نماد را باز کنید" : "هنوز داده‌ای نیست";
     } catch (err) {
       if (!options.quiet) toast(`فهرست صندوق‌ها در دسترس نیست: ${err.message}`, true);
       $("#funds-freshness") && freshness($("#funds-freshness"), "unavailable", null);
