@@ -542,7 +542,6 @@
     };
     const parsedPrice = a?.price == null ? NaN : Number(a.price);
     const price = Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : null;
-    const priceBadge = a?.price_is_cached ? "آخرین قیمت پایانی" : "قیمت فعلی";
     const cards = scenarios.map((scenario) => {
       const direction = scenario.direction === "bullish" ? "bullish" : "bearish";
       const probability = Math.max(0, Math.min(100, Number(scenario.probability) || 0));
@@ -572,6 +571,7 @@
   function tradePlanHtml(a) {
     const price = Number(a?.price ?? a?.indicators?.latest);
     if (!Number.isFinite(price) || price <= 0) return "";
+    const priceBadge = a?.price_is_cached ? "آخرین قیمت پایانی" : "قیمت فعلی";
     const levelValue = (raw) => {
       if (typeof raw === "number" && Number.isFinite(raw)) return raw;
       if (!raw || typeof raw !== "object") return null;
