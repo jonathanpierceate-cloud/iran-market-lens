@@ -797,6 +797,9 @@
 
   function renderMarketWatchlist(items) {
     const target = $("#watchlist");
+    // The dashboard watchlist summary was removed; fund loading should still
+    // work when that optional surface is not present in the current layout.
+    if (!target) return;
     if (!items?.length) {
       target.innerHTML = `<div class="empty-state compact"><span>▤</span><b>هنوز صندوقی دریافت نشده</b><small>اتصال فهرست ETF ره‌آورد را در وضعیت سامانه بررسی کنید.</small></div>`;
       return;
