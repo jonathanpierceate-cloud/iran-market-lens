@@ -233,15 +233,7 @@
 @media(max-width:720px){.fund-recommendation{padding:14px}.fund-recommendation-main{align-items:flex-start;flex-direction:column;gap:7px}.fund-recommendation h3{font-size:18px}.entry-outlook{grid-template-columns:1fr;gap:8px}.entry-outlook p{grid-column:auto}}
 #view-funds .fund-analysis-full{width:100%;margin-top:22px}
 #view-funds .fund-analysis-full>h3{margin:0 0 12px;font-size:21px}
-#view-funds .fund-analysis-full .indicator-workbench{margin:0;padding:24px}
-#view-funds .fund-analysis-full .indicator-readouts{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-#view-funds .fund-analysis-full .indicator-card-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}
-#view-funds .fund-analysis-full .indicator-card{padding:18px;gap:12px}
-#view-funds .fund-analysis-full .indicator-card-head b{font-size:18px}
-#view-funds .fund-analysis-full .indicator-card p{font-size:15px}
-@media(max-width:1300px){#view-funds .fund-analysis-full .indicator-card-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
-@media(max-width:900px){#view-funds .fund-analysis-full .indicator-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#view-funds .fund-analysis-full .indicator-readouts{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:600px){#view-funds .fund-analysis-full .indicator-workbench{padding:14px}#view-funds .fund-analysis-full .indicator-card-grid,#view-funds .fund-analysis-full .indicator-readouts{grid-template-columns:1fr}}
+#view-funds .fund-analysis-full .indicator-workbench{margin:17px 0 0;padding:16px}
 
 #view-watchlist .watchlist-panel{padding:0;overflow:hidden}
 .watchlist-toolbar{padding:20px 22px 14px;border-bottom:1px solid var(--line-soft)}
@@ -313,3 +305,27 @@
 .light-mode .watch-outlook{background:#f4f7fb;border-color:#dae3ee}
 .light-mode .watch-remove{background:#fff3f4;border-color:#edcbd0;color:#a84050}
 @media(max-width:720px){.watchlist-toolbar{padding:15px}.watchlist-add-form{grid-template-columns:1fr;gap:8px}.watchlist-add-form label{white-space:normal}.watchlist-add-form .button{justify-content:center}.watchlist-scroll{max-height:calc(100vh - 300px)}.watchlist-footer{padding:10px 12px}.scenario-grid{grid-template-columns:1fr}.watchlist-totals{grid-template-columns:repeat(2,minmax(0,1fr));padding:12px}.watch-total-card b{font-size:14px}}
+
+/* Compact, readable pivot levels on narrow screens */
+.rahavard-pivot-empty{padding:18px;text-align:center;color:#95a7bc;font-size:13px}
+@media(max-width:720px){
+  .rahavard-pivot-table{margin:12px 0 15px;border-radius:12px}
+  .rahavard-pivot-table-head{padding:12px;gap:8px}
+  .rahavard-pivot-table-head h4{font-size:16px}
+  .rahavard-pivot-table-head p{font-size:12px}
+  .rahavard-pivot-table-head>span{font-size:11px;padding:4px 7px}
+  .rahavard-pivot-scroll{overflow:visible}
+  .rahavard-pivot-scroll table{display:block;width:100%;min-width:0;font-size:12px}
+  .rahavard-pivot-scroll thead{display:none}
+  .rahavard-pivot-scroll tbody{display:grid;gap:8px;padding:9px}
+  .rahavard-pivot-scroll tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;padding:8px;border:1px solid #2a4257;border-radius:10px;background:rgba(19,35,52,.78)}
+  .rahavard-pivot-scroll tbody tr:nth-child(even),.rahavard-pivot-scroll tbody tr:hover{background:rgba(19,35,52,.78)}
+  .rahavard-pivot-scroll th:first-child{grid-column:1/-1;position:static;z-index:auto;min-width:0;height:auto;padding:3px 4px 8px;border:0;border-bottom:1px solid #2a4055;border-radius:0;background:transparent;text-align:right;font-size:13px;white-space:normal}
+  .rahavard-pivot-scroll tbody td{display:flex;min-width:0;height:auto;align-items:center;justify-content:space-between;gap:5px;padding:7px;border:1px solid #2a4055;border-radius:7px;background:rgba(10,22,35,.5);text-align:left;white-space:normal;font-size:12px;overflow-wrap:anywhere}
+  .rahavard-pivot-scroll tbody td::before{content:attr(data-label);flex:0 0 auto;color:#8ea4ba;font-size:11px;font-weight:650;direction:ltr}
+  .light-mode .rahavard-pivot-scroll tbody tr,.light-mode .rahavard-pivot-scroll tbody tr:nth-child(even),.light-mode .rahavard-pivot-scroll tbody tr:hover{background:#f7fafd;border-color:#d8e2ee}
+  .light-mode .rahavard-pivot-scroll th:first-child{background:transparent;color:#263d56;border-color:#dfe7f0}
+  .light-mode .rahavard-pivot-scroll tbody td{background:#fff;border-color:#dfe7f0}
+  .light-mode .rahavard-pivot-scroll tbody td::before{color:#687e96}
+}
+@media(max-width:380px){.rahavard-pivot-scroll tbody{padding:7px}.rahavard-pivot-scroll tbody tr{gap:5px;padding:6px}.rahavard-pivot-scroll tbody td{padding:6px;font-size:11px}}
