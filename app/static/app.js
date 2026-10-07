@@ -595,18 +595,69 @@
     const rahavardAtrValue = rahavardAtr?.value?.find?.((part) => String(part?.name || "").toLowerCase() === "value")?.value ?? rahavardAtr?.value?.[0]?.value;
     const atr = Number(genericAtr?.value ?? rahavardAtrValue);
     const step = Number.isFinite(atr) && atr > 0 ? Math.min(.1, Math.max(.01, atr / price)) : .02;
-    const entry1 = below[0] ?? price * (1 - step * .45);
-    const entry2 = below[1] ?? Math.min(entry1 * (1 - step * .45), price * (1 - step * .9));
-    const entry3 = below[2] ?? Math.min(entry2 * (1 - step * .45), price * (1 - step * 1.35));
-    const target1 = above[0] ?? price * (1 + step * 1.4);
-    const target2 = above[1] ?? Math.max(target1 * (1 + step * .35), price * (1 + step * 2.4));
-    const stopBase = below[0] ?? price * (1 - step * 1.25);
-    const stop = Math.max(0, stopBase - Math.max(price * .005, Number.isFinite(atr) ? atr * .35 : price * step * .35));
-    const signal = String(a?.signal || "").toLowerCase();
-    const tone = signal.includes("sell") || a?.trend === "bearish" ? "bearish" : signal.includes("buy") || a?.trend === "bullish" ? "bullish" : "neutral";
-    const advice = tone === "bullish" ? "ورود فقط به‌صورت پله‌ای و نزدیک حمایت‌ها بررسی شود؛ خرید یک‌جا ریسک زمان‌بندی دارد." : tone === "bearish" ? "تا تثبیت بالای مقاومت یا برگشت روند، خرید تازه با احتیاط و حجم کم بررسی شود." : "سطوح برای سناریوی میان‌مدت هستند؛ ابتدا واکنش قیمت در پله اول را بررسی کن.";
-    const card = (className, label, value, note) => `<article class="trade-level ${className}"><span>${label}</span><b>${money(value)}</b><small>${note}</small></article>`;
-    return `<section class="trade-plan ${tone}"><div class="trade-plan-head"><div><span class="panel-kicker">برنامه معاملاتی میان‌مدت</span><h3>پله‌های خرید، حد سود و حد ضرر</h3></div><span class="trade-plan-badge">سطوح محاسباتی</span></div><div class="trade-plan-grid">${card("entry", "پله خرید 1", entry1, below[0] ? "نزدیک‌ترین حمایت معتبر" : "حدود 0.45 ATR پایین‌تر از قیمت")} ${card("entry", "پله خرید 2", entry2, below[1] ? "حمایت بعدی" : "در صورت اصلاح بیشتر")} ${card("entry", "پله خرید 3", entry3, below[2] ? "حمایت عمیق‌تر" : "پله ریسک بالاتر")} ${card("target", "حد سود میان‌مدت 1", target1, above[0] ? "نزدیک‌ترین مقاومت" : "هدف نوسانی اول")} ${card("target", "حد سود میان‌مدت 2", target2, above[1] ? "مقاومت بعدی" : "هدف نوسانی دوم")} ${card("stop", "حد ضرر میان‌مدتی", stop, "پایین‌تر از حمایت و با فاصله نوسان")}</div><p class="trade-plan-note">${advice} این اعداد توصیه قطعی نیستند و با تغییر قیمت و داده‌های ره‌آورد به‌روزرسانی می‌شوند.</p></section>`;
+    const buffer = Math.max(price * .003, Number.isFinite(atr) && atr > 0 ? atr * .15 : price * step * .2);
+    const support1 = below[0] ?? price * (1 - step * .45);
+    const support2 = below[1] ?? Math.min(support1 * (1 - step * .45), price * (1 - step * .9));
+    const support3 = below[2] ?? Math.min(support2 * (1 - step * .45), price * (1 - step * 1.35));
+    const r1 = above[0] ?? price * (1 + step * .45);
+    const r2 = above[1] ?? Math.max(r1 * (1 + step * .45), price * (1 + step * .9));
+    const r3 = above[2] ?? Math.max(r2 * (1 + step * .45), price * (1 + step * 1.35));
+    const breakout1 = r1 + buffer;
+    const retest1 = r1;
+    const breakout2 = r2 + buffer;
+    const pullback1 = support1;
+    const pullback2 = support2;
+    const pullback3 = support3;
+    const bullishTarget1 = above[1] ?? Math.max(breakout2, price * (1 + step * 1.8));
+    const bullishTarget2 = above[2] ?? Math.max(bullishTarget1 * (1 + step * .45), price * (1 + step * 2.7));
+    const bullishStop = Math.max(0, (below[0] ?? retest1) - buffer);
+    const pullbackTarget1 = above[0] ?? price * (1 + step * 1.1);
+    const pullbackTarget2 = above[1] ?? Math.max(pullbackTarget1 * (1 + step * .4), price * (1 + step * 2));
+    const pullbackStop = Math.max(0, (below[3] ?? pullback3) - buffer);
+    const measuredResistance = above.length > 0;
+    const measuredSupport = below.length > 0;
+    const priceCard = (kind, label, value, note) => `<article class="trade-level ${kind}"><span>${label}</span><b>${money(value)}</b><small>${note}</small></article>`;
+    const pathCard = ({ direction, title, subtitle, condition, entries, targets, stop, invalidation }) => `<article class="trade-path ${direction}">
+      <header class="trade-path-head"><div><span>${subtitle}</span><h4>${title}</h4></div><span class="trade-path-mark">${direction === "bullish" ? "↗" : "↘"}</span></header>
+      <div class="trade-path-trigger"><b>شرط شروع مسیر</b><p>${condition}</p></div>
+      <h5 class="trade-path-section-title">پله‌های ورود</h5>
+      <div class="trade-path-entries">${entries.map((item, index) => priceCard("entry", `پله ${index + 1} · ${item.label}`, item.value, item.note)).join("")}</div>
+      <h5 class="trade-path-section-title trade-path-exits-title">مدیریت خروج در همین مسیر</h5>
+      <div class="trade-path-exits">${priceCard("target", "حد سود ۱", targets[0].value, targets[0].note)}${priceCard("target", "حد سود ۲", targets[1].value, targets[1].note)}${priceCard("stop", "حد ضرر", stop.value, stop.note)}</div>
+      <div class="trade-path-invalidation"><b>لغو سناریو</b><span>${invalidation}</span></div>
+    </article>`;
+    const bullishPath = pathCard({
+      direction: "bullish", subtitle: "مسیر اول · ورود پس از قدرت‌گرفتن قیمت", title: "خرید در صورت صعود",
+      condition: `ابتدا قیمت بالای مقاومت نزدیک (${money(r1)}) بسته شود و تثبیت یا حجم، شکست را تأیید کند.`,
+      entries: [
+        { label: "شکست مقاومت", value: breakout1, note: measuredResistance ? "پس از بسته‌شدن بالای مقاومت اول" : "سطح تخمینی؛ مقاومت در داده نیست" },
+        { label: "پولبک موفق", value: retest1, note: measuredResistance ? "بازگشت به مقاومت شکسته‌شده و حفظ آن" : "بازآزمایی سطح شکست با تأیید برگشت" },
+        { label: "ادامه روند", value: breakout2, note: above.length > 1 ? "تثبیت بالای مقاومت بعدی" : "سطح تخمینی با دامنه نوسان" },
+      ],
+      targets: [
+        { value: bullishTarget1, note: above.length > 1 ? "مقاومت بعدی" : "هدف محاسباتی بر پایه دامنه نوسان" },
+        { value: bullishTarget2, note: above.length > 2 ? "مقاومت بالاتر" : "هدف محاسباتی دوم" },
+      ],
+      stop: { value: bullishStop, note: measuredSupport ? "زیر حمایت نزدیک با حاشیه نوسان" : "زیر سطح شکست؛ حمایت داده‌ای موجود نیست" },
+      invalidation: `اگر قیمت پس از شکست دوباره زیر ${money(r1)} تثبیت شد، ورودهای باقی‌مانده این مسیر را متوقف کن.`,
+    });
+    const pullbackPath = pathCard({
+      direction: "pullback", subtitle: "مسیر دوم · ورود در اصلاح با تأیید برگشت", title: "خرید در صورت نزول و پولبک",
+      condition: "قیمت به حمایت‌ها اصلاح کند؛ هر پله فقط پس از مشاهده حفظ سطح و نشانه برگشت بررسی شود.",
+      entries: [
+        { label: "حمایت نزدیک", value: pullback1, note: measuredSupport ? "حمایت اول؛ منتظر واکنش مثبت بمان" : "سطح تخمینی؛ حمایت در داده نیست" },
+        { label: "اصلاح عمیق‌تر", value: pullback2, note: below.length > 1 ? "حمایت بعدی؛ ورود مشروط به حفظ سطح" : "سطح تخمینی با دامنه نوسان" },
+        { label: "پله آخر", value: pullback3, note: below.length > 2 ? "حمایت پایین‌تر؛ فقط با تأیید برگشت" : "سطح تخمینی؛ از میانگین‌کم‌کردن بی‌شرط پرهیز کن" },
+      ],
+      targets: [
+        { value: pullbackTarget1, note: above.length ? "مقاومت نزدیک؛ هدف اول برگشت" : "هدف محاسباتی بر پایه دامنه نوسان" },
+        { value: pullbackTarget2, note: above.length > 1 ? "مقاومت بعدی" : "هدف محاسباتی دوم" },
+      ],
+      stop: { value: pullbackStop, note: below.length > 3 ? "زیر حمایت بعدی" : "زیر پله سوم با حاشیه نوسان" },
+      invalidation: `اگر حمایت ${money(pullback3)} با فشار فروش شکسته شد، پله‌های بعدی را اجرا نکن و حد ضرر را رعایت کن.`,
+    });
+    const fallbackNote = (!measuredResistance || !measuredSupport) ? " هرجا سطح رسمی حمایت یا مقاومت موجود نبوده، سطح جایگزین با دامنه نوسان قیمت برآورد شده است." : "";
+    return `<section class="trade-plan"><div class="trade-plan-head"><div><span class="panel-kicker">برنامه معاملاتی میان‌مدت</span><h3>دو مدل پله خرید</h3><p>این دو مسیر جایگزین یکدیگرند؛ فقط پس از برقرارشدن شرط همان مسیر بررسی شوند.</p></div><span class="trade-plan-badge">قیمت فعلی: ${money(price)}</span></div><div class="trade-path-grid">${bullishPath}${pullbackPath}</div><p class="trade-plan-note">سطوح با داده‌های قیمت، حمایت/مقاومت و ATR ره‌آورد محاسبه می‌شوند؛ قطعی نیستند و با تازه‌شدن قیمت تغییر می‌کنند.${fallbackNote}</p></section>`;
   }
 
   function rahavardAnalysisHtml(a) {
