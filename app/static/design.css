@@ -479,6 +479,26 @@ body.light-mode .news-row small { color: #637b74; }
 .market-analysis-panel { overflow: hidden; }
 .market-analysis-panel .analysis-content { padding: 2px; }
 
+.index-analysis-panel {
+  overflow: hidden;
+  padding: 0;
+  background: linear-gradient(145deg, #1a2d35, #14242c);
+  border-color: #385660;
+}
+.index-analysis-panel > .panel-heading {
+  margin: 0;
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid rgba(102, 150, 148, .2);
+  background: linear-gradient(120deg, rgba(42, 88, 83, .22), transparent 58%);
+}
+.index-analysis-panel > .analysis-content { padding: 20px 22px 24px; }
+body.light-mode .index-analysis-panel { background: linear-gradient(145deg, #ffffff, #f3f8f5); border-color: #cfdfd8; }
+body.light-mode .index-analysis-panel > .panel-heading { background: linear-gradient(120deg, rgba(69, 157, 133, .1), transparent 58%); border-color: #d7e5df; }
+@media (max-width: 600px) {
+  .index-analysis-panel > .panel-heading,
+  .index-analysis-panel > .analysis-content { padding-left: 16px; padding-right: 16px; }
+}
+
 /* Shared analysis header and factor presentation. */
 .score-card {
   display: grid;

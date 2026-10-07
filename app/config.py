@@ -66,6 +66,10 @@ RAHAVARD_INDEX_BASE_URL = os.getenv(
     "RAHAVARD_INDEX_BASE_URL", f"{RAHAVARD_API_BASE_URL}/market-data/indexes"
 )
 RAHAVARD_TEPIX_INDEX_ID = os.getenv("RAHAVARD_TEPIX_INDEX_ID", "1")
+RAHAVARD_TEPIX_PAGE_URL = os.getenv(
+    "RAHAVARD_TEPIX_PAGE_URL",
+    "https://rahavard365.com/index/1/%D8%B4%D8%A7%D8%AE%D8%B5-%DA%A9%D9%84-%D8%A8%D9%88%D8%B1%D8%B3",
+)
 TABDEAL_TRADES_URL = os.getenv(
     "TABDEAL_TRADES_URL", "https://api1.tabdeal.org/r/api/v1/trades"
 )

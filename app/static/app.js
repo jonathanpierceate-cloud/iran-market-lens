@@ -672,10 +672,12 @@
       $("#dollar-detail-price").textContent = state.dollar?.price == null ? "داده در دسترس نیست" : `تومان ${money(state.dollar.price)}`;
       freshness($("#gold-detail-status"), state.gold?.status, state.gold?.data_timestamp);
       freshness($("#dollar-detail-status"), state.dollar?.status, state.dollar?.data_timestamp);
+      freshness($("#tepix-analysis-status"), state.tepix?.status, state.tepix?.data_timestamp);
       $("#gold-source-line").textContent = `منبع: ${text(state.gold?.source)} · دریافت: ${formatDate(state.gold?.fetched_at)} · مشاهده بازار: ${formatDate(state.gold?.data_timestamp)}`;
       $("#dollar-source-line").textContent = `منبع: ${text(state.dollar?.source)} · دریافت: ${formatDate(state.dollar?.fetched_at)} · مشاهده بازار: ${formatDate(state.dollar?.data_timestamp)}`;
       $("#gold-analysis").innerHTML = analysisHtml(state.gold?.analysis);
       $("#dollar-analysis").innerHTML = analysisHtml(state.dollar?.analysis);
+      $("#tepix-analysis").innerHTML = analysisHtml(state.tepix?.analysis);
       const sourceList = summary.sources || [];
       const connected = sourceList.filter((s) => s.status === "connected").length;
       $("#source-count").textContent = `${nf.format(connected)}/${nf.format(sourceList.length)}`;

@@ -18,7 +18,8 @@ from .config import (CODAL_API_URL, HTTP_TIMEOUT_SECONDS, NEWS_RSS_URLS,
                      RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_ASSET_ID,
                      RAHAVARD_GOLD_PAGE_URL, RAHAVARD_LIGHT_BARS_URL,
                      RAHAVARD_PUBLIC_BARS_URL, RAHAVARD_INDEX_BASE_URL,
-                     RAHAVARD_TEPIX_INDEX_ID, RAHAVARD_USDT_ASSET_ID,
+                     RAHAVARD_TEPIX_INDEX_ID, RAHAVARD_TEPIX_PAGE_URL,
+                     RAHAVARD_USDT_ASSET_ID,
                      RAHAVARD_USDT_PAGE_URL)
 from .db import db, utc_now
 
@@ -237,6 +238,60 @@ def rahavard_tepix_current() -> dict[str, Any]:
         },
         "raw": data,
     }
+
+
+def rahavard_tepix_history() -> list[dict[str, Any]]:
+    """Return recent daily TEPIX candles from the official Rahavard index feed."""
+    query = urllib.parse.urlencode({"symbol": f"exchange.index:{RAHAVARD_TEPIX_INDEX_ID}:close"})
+    payload = _json(f"{RAHAVARD_LIGHT_BARS_URL}?{query}", referer=RAHAVARD_TEPIX_PAGE_URL)
+    rows = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(rows, list) or not rows:
+        raise SourceError("ره‌آورد۳۶۵ برای شاخص کل بورس کندلی برنگرداند")
+
+    grouped: dict[str, dict[str, Any]] = {}
+    for item in sorted(rows, key=lambda row: _num(row.get("time")) or 0):
+        try:
+            raw_time = item.get("utc")
+            if raw_time:
+                candle_time = datetime.fromisoformat(str(raw_time).replace("Z", "+00:00"))
+            elif _num(item.get("time")) is not None:
+                candle_time = datetime.fromtimestamp(float(item["time"]) / 1000, timezone.utc)
+            else:
+                continue
+            if candle_time.tzinfo is None:
+                candle_time = candle_time.replace(tzinfo=timezone.utc)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        day = candle_time.date().isoformat()
+        open_value, high, low, close = (_num(item.get(k)) for k in ("open", "high", "low", "close"))
+        if close is None or close <= 0:
+            continue
+        observed_at = candle_time.astimezone(timezone.utc).isoformat(timespec="seconds")
+        current = grouped.get(day)
+        if current is None:
+            grouped[day] = {
+                "timestamp": f"{day}T00:00:00+03:30",
+                "observed_at": observed_at,
+                "fetched_at": utc_now(),
+                "open": open_value if open_value is not None else close,
+                "high": high if high is not None else close,
+                "low": low if low is not None else close,
+                "close": close,
+                "volume": _num(item.get("volume")),
+            }
+            continue
+        current["high"] = max(current["high"], high if high is not None else close)
+        current["low"] = min(current["low"], low if low is not None else close)
+        current["close"] = close
+        current["observed_at"] = observed_at
+        volume = _num(item.get("volume"))
+        if volume is not None:
+            current["volume"] = volume
+
+    bars = [grouped[day] for day in sorted(grouped)]
+    if not bars:
+        raise SourceError("کندل‌های شاخص کل بورس ره‌آورد۳۶۵ معتبر نیستند")
+    return bars
 
 
 def _rahavard_asset_id(fund: dict[str, Any]) -> str:
@@ -478,11 +533,11 @@ async def refresh_all() -> dict[str, Any]:
                 {"status": "stale", "message": "آخرین مشاهدهٔ USDT/IRT از آستانه تازگی عبور کرده است"} if stale else {})
 
     def apply_tepix(result):
-        bar = result["bar"]
-        url = f"{RAHAVARD_INDEX_BASE_URL}/{RAHAVARD_TEPIX_INDEX_ID}/last-value"
+        bars = result
         db.save_bars("TEPIX", "شاخص کل بورس", "index", "POINT", "واحد",
-                     "Rahavard365", url, [bar])
-        return 1, bar["timestamp"]
+                     "Rahavard365", RAHAVARD_TEPIX_PAGE_URL, bars)
+        observed = bars[-1].get("observed_at") or bars[-1].get("timestamp")
+        return len(bars), observed
 
     async def funds_from_rahavard():
         started_at, tick = utc_now(), time.monotonic()
@@ -516,8 +571,7 @@ async def refresh_all() -> dict[str, Any]:
         run_source("rahavard_usdt", "قیمت تتر / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL,
                    rahavard_usdt_history, apply_usd),
         run_source("rahavard_tepix", "شاخص کل بورس / ره‌آورد۳۶۵",
-                   f"{RAHAVARD_INDEX_BASE_URL}/{RAHAVARD_TEPIX_INDEX_ID}/last-value",
-                   rahavard_tepix_current, apply_tepix),
+                   RAHAVARD_TEPIX_PAGE_URL, rahavard_tepix_history, apply_tepix),
         funds_from_rahavard(),
     ]
     await asyncio.gather(*tasks, return_exceptions=True)

@@ -19,8 +19,8 @@ from pydantic import BaseModel, Field
 from .analysis import analyze, analyze_rahavard, stale_status
 from .config import (MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
                      RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_PAGE_URL,
-                     RAHAVARD_INDEX_BASE_URL, RAHAVARD_LIGHT_BARS_URL,
-                     RAHAVARD_TEPIX_INDEX_ID, RAHAVARD_USDT_PAGE_URL,
+                     RAHAVARD_LIGHT_BARS_URL, RAHAVARD_TEPIX_PAGE_URL,
+                     RAHAVARD_USDT_PAGE_URL,
                      REFRESH_INTERVAL_SECONDS, ROOT)
 from .db import db, utc_now
 from .sources import (SourceError, fetch_fund_indicators, fetch_fund_nav_history,
@@ -226,8 +226,7 @@ async def lifespan(_: FastAPI):
     for key, label, url in [
         ("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL),
         ("rahavard_usdt", "قیمت تتر / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL),
-        ("rahavard_tepix", "شاخص کل بورس / ره‌آورد۳۶۵",
-         f"{RAHAVARD_INDEX_BASE_URL}/{RAHAVARD_TEPIX_INDEX_ID}/last-value"),
+        ("rahavard_tepix", "شاخص کل بورس / ره‌آورد۳۶۵", RAHAVARD_TEPIX_PAGE_URL),
         ("yahoo_dxy", "شاخص دلار آمریکا", "https://finance.yahoo.com/quote/DX-Y.NYB/"),
         ("rahavard_funds", "صندوق‌های قابل معامله / ره‌آورد۳۶۵", RAHAVARD_ETF_FUNDS_URL),
         ("rahavard_fund_details", "نمایه و NAV صندوق / ره‌آورد۳۶۵", RAHAVARD_API_BASE_URL + "/asset/{asset_id}"),
