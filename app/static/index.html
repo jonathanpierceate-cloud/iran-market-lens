@@ -12,7 +12,7 @@
   <title>AliVest | تحلیل سرمایه‌گذاری</title>
   <link rel="stylesheet" href="/static/app.css?v=market-summary-20261007">
   <link rel="stylesheet" href="/static/analysis.css?v=watchlist-profit-exit-20261007">
-  <link rel="stylesheet" href="/static/design.css?v=exit-levels-bbd8da8">
+  <link rel="stylesheet" href="/static/design.css?v=gold18k-valuation-20261007">
 </head>
 <body>
   <div class="app-shell">
@@ -79,9 +79,14 @@
           </article>
 
           <article class="market-card gold18k-card market-analysis-trigger" data-analysis-toggle="gold18k" role="button" tabindex="0" aria-controls="gold18k-analysis" aria-expanded="false">
-            <div class="card-top"><span class="asset-icon gold18k-icon">18K</span><span class="card-kicker">طلای ۱۸ عیار · ره‌آورد۳۶۵</span><span class="freshness" id="gold18k-freshness"><i></i> در حال بررسی</span></div>
-            <div class="quote-line"><strong class="quote-value" id="gold18k-price">—</strong><span class="quote-unit">ریال / گرم</span><span class="change-pill" id="gold18k-change">—</span></div>
-            <div class="quote-meta"><span>منبع: <b id="gold18k-source">—</b></span><span>زمان داده: <b id="gold18k-time">—</b></span></div>
+            <div class="card-top"><span class="asset-icon gold18k-icon">18K</span><span class="card-kicker">طلای ۱۸ عیار · قیمت محاسباتی</span><span class="freshness" id="gold18k-freshness"><i></i> در حال بررسی</span></div>
+            <div class="quote-line"><strong class="quote-value" id="gold18k-price">—</strong><span class="quote-unit">ریال / گرم · محاسباتی</span><span class="change-pill" id="gold18k-change">—</span></div>
+            <div class="gold18k-valuation" aria-label="مقایسه قیمت محاسباتی و قیمت ره‌آورد">
+              <div class="valuation-row"><span>قیمت ره‌آورد</span><b id="gold18k-rahavard-price">—</b><small>ریال / گرم</small></div>
+              <div class="valuation-row"><span>حباب نسبت به محاسبه</span><b id="gold18k-bubble-value">—</b><small id="gold18k-bubble-percent">—</small></div>
+              <p>مبنای محاسبه: اونس جهانی × تتر × خلوص ۷۵٪</p>
+            </div>
+            <div class="quote-meta"><span>منبع قیمت ره‌آورد: <b id="gold18k-source">—</b></span><span>زمان داده: <b id="gold18k-time">—</b></span></div>
             <div class="card-bottom"><span>روند میان‌مدت</span><strong id="gold18k-trend" class="trend neutral">داده ناکافی</strong><span class="card-action">تحلیل با کلیک ←</span></div>
           </article>
         </div>
@@ -94,9 +99,6 @@
           <article class="panel index-analysis-panel hidden" data-analysis-panel="tepix"><div class="panel-heading"><div><span class="panel-kicker">TEPIX · ره‌آورد۳۶۵</span><h3>تحلیل تکنیکال شاخص کل</h3></div><span id="tepix-analysis-status" class="freshness"><i></i> در حال دریافت</span></div><div id="tepix-analysis" class="analysis-content"><div class="empty-state compact"><b>تحلیل شاخص کل در حال دریافت است</b><small>اندیکاتورها و سطوح از منبع رسمی ره‌آورد۳۶۵ خوانده می‌شوند.</small></div></div></article>
         </div>
 
-        <div class="content-grid lower-grid">
-          <article class="panel source-panel"><div class="panel-heading"><div><span class="panel-kicker">پایش اتصال</span><h3>وضعیت منابع داده</h3></div><button class="text-button" data-open-view="admin">جزئیات <span>←</span></button></div><div id="source-summary" class="source-list"><div class="source-row"><i class="status-dot unknown"></i><span>در حال اتصال به منابع</span><b>—</b></div></div><div class="source-note"><span>◇</span><p>اگر منبعی در دسترس نباشد، آخرین داده معتبر با برچسب کهنگی نمایش داده می‌شود.</p></div></article>
-        </div>
         <footer class="page-footer"><span>AliVest</span><span>پشتیبان تصمیم‌گیری با داده‌های قابل ردیابی</span><span>نسخه 1.0</span></footer>
       </section>
 
@@ -152,6 +154,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=exit-levels-bbd8da8"></script>
+  <script src="/static/app.js?v=gold18k-valuation-20261007"></script>
 </body>
 </html>

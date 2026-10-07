@@ -141,6 +141,28 @@ button, a, .market-card, .panel, input, select { transition: background-color .1
 .quote-unit { color: #a0b0af; }
 .quote-meta { color: #91a4a3; border-color: #2a3e45; }
 .quote-meta b { color: #d1ddda; }
+.gold18k-valuation {
+  display: grid;
+  gap: 7px;
+  margin-top: 11px;
+  padding: 10px 12px 9px;
+  border: 1px solid rgba(155, 123, 55, .28);
+  border-radius: 12px;
+  background: linear-gradient(110deg, rgba(91, 69, 32, .16), rgba(21, 42, 45, .38));
+}
+.gold18k-valuation .valuation-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: baseline;
+  gap: 8px;
+  color: #a9bbba;
+  font-size: 12px;
+}
+.gold18k-valuation .valuation-row b { color: #e4eeeb; font: 700 14px "DM Mono", Tahoma, sans-serif; direction: ltr; }
+.gold18k-valuation .valuation-row small { color: #8da4a1; font-size: 10px; white-space: nowrap; }
+.gold18k-valuation .valuation-value.positive, .gold18k-valuation .positive { color: #63d4b5 !important; }
+.gold18k-valuation .valuation-value.negative, .gold18k-valuation .negative { color: #f29a9f !important; }
+.gold18k-valuation p { margin: 1px 0 0; color: #8fa8a4; font-size: 10px; line-height: 1.65; }
 .mini-chart-wrap { height: 70px; }
 .chart-periods { color: #869c9b; }
 .chart-periods b { color: #d0dfda; }
@@ -292,6 +314,8 @@ tbody tr:hover { background: rgba(81, 158, 143, .08); }
   .market-strip, .market-detail-grid, .two-col, .lower-grid, .market-lower { grid-template-columns: 1fr; }
   .breadth-card { grid-column: auto; }
   .market-card { min-height: 220px; padding: 17px; }
+  .gold18k-valuation .valuation-row { grid-template-columns: 1fr auto; }
+  .gold18k-valuation .valuation-row small { grid-column: 2; margin-top: -5px; }
   .section-heading { margin-top: 25px; align-items: flex-start; gap: 5px; }
   .section-note { font-size: 13px; }
   .panel { padding: 17px; }

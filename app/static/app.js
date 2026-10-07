@@ -114,6 +114,26 @@
     if (scoreEl) scoreEl.textContent = quote.analysis?.technical_score == null ? "—" : `${num(quote.analysis.technical_score, 0)} / ۱۰۰`;
   }
 
+  function renderGold18kValuation(valuation) {
+    const price = $("#gold18k-price");
+    const rahavard = $("#gold18k-rahavard-price");
+    const bubble = $("#gold18k-bubble-value");
+    const bubblePercent = $("#gold18k-bubble-percent");
+    if (!price || !rahavard || !bubble || !bubblePercent) return;
+
+    const theoretical = valuation?.theoretical_price;
+    const observed = valuation?.rahavard_price;
+    const difference = valuation?.bubble;
+    const percent = valuation?.bubble_percent;
+    price.classList.remove("unavailable-text");
+    price.textContent = theoretical == null ? "\u2014" : money(theoretical);
+    rahavard.textContent = observed == null ? "\u2014" : money(observed);
+    bubble.textContent = difference == null ? "\u2014" : `${Number(difference) > 0 ? "+" : ""}${money(difference)}`;
+    bubble.className = `valuation-value ${difference == null ? "" : changeClass(Number(difference))}`;
+    bubblePercent.textContent = percent == null ? "\u2014" : `${Number(percent) > 0 ? "+" : ""}${num(percent, 2)}%`;
+    bubblePercent.className = difference == null ? "" : changeClass(Number(difference));
+  }
+
   function drawChart(canvas, bars, { color = "#e4b34e", mode = "candles", volume = false } = {}) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
@@ -799,11 +819,6 @@
     return `${overview}${tradePlanHtml(a)}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(entries.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div>${pivotTable}<div class="indicator-readouts">${summaryCards}</div><div class="indicator-card-grid">${cards}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
 
-  function sourceCard(status) {
-    const cls = status.status === "connected" ? "" : status.status === "failed" ? "bad" : "unknown";
-    return `<div class="source-row"><i class="status-dot ${cls}"></i><span>${esc(status.label || status.name)}</span><b>${esc(statusText(status.status))}</b></div>`;
-  }
-
   function renderOverviewMarketSummary() {
     const node = $("#overview-market-summary");
     if (!node) return;
@@ -829,6 +844,7 @@
       state.gold = summary.gold; state.gold18k = summary.gold18k; state.dollar = summary.dollar; state.tepix = summary.tepix;
       renderOverviewMarketSummary();
       marketQuote(state.gold, "gold"); marketQuote(state.gold18k, "gold18k"); marketQuote(state.dollar, "dollar"); marketQuote(state.tepix, "tepix");
+      renderGold18kValuation(summary.gold18k?.valuation);
       freshness($("#gold-analysis-status"), state.gold?.status, state.gold?.data_timestamp);
       freshness($("#gold18k-analysis-status"), state.gold18k?.status, state.gold18k?.data_timestamp);
       freshness($("#dollar-analysis-status"), state.dollar?.status, state.dollar?.data_timestamp);
@@ -841,7 +857,6 @@
       const connected = sourceList.filter((s) => s.status === "connected").length;
       $("#source-count").textContent = `${nf.format(connected)}/${nf.format(sourceList.length)}`;
       $("#sidebar-status").className = `status-dot ${connected ? "" : "bad"}`;
-      $("#source-summary").innerHTML = sourceList.slice(0, 5).map(sourceCard).join("") || `<div class="source-row">منبع ثبت‌شده‌ای نیست</div>`;
       $("#last-updated").textContent = `آخرین بررسی ${formatDate(summary.as_of)}`;
       await loadFunds({ quiet: true, existing: summary.top_funds });
     } catch (err) {

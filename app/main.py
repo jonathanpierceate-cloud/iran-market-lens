@@ -316,6 +316,45 @@ def health():
         return JSONResponse(status_code=503, content={"status": "error", "database": str(exc)})
 
 
+def _gold18k_valuation(gold_quote: dict[str, Any], dollar_quote: dict[str, Any], rahavard_quote: dict[str, Any]) -> dict[str, Any]:
+    """Estimate 18K gold per gram from XAU/USD and USDT/IRT, then compare it with Rahavard."""
+    def number(value: Any) -> float | None:
+        try:
+            result = float(value)
+        except (TypeError, ValueError):
+            return None
+        return result if math.isfinite(result) and result > 0 else None
+
+    gold_usd_per_ounce = number(gold_quote.get("price"))
+    usdt_toman = number(dollar_quote.get("price"))
+    rahavard_irr_per_gram = number(rahavard_quote.get("price"))
+    valuation: dict[str, Any] = {
+        "theoretical_price": None,
+        "rahavard_price": rahavard_irr_per_gram,
+        "bubble": None,
+        "bubble_percent": None,
+        "gold_usd_per_ounce": gold_usd_per_ounce,
+        "usdt_toman": usdt_toman,
+        "purity": 0.75,
+        "ounce_grams": 31.1034768,
+        "method": "XAU/USD * USDT/IRT * 75% / 31.1034768",
+    }
+    if gold_usd_per_ounce is None or usdt_toman is None or rahavard_irr_per_gram is None:
+        return valuation
+
+    # Rahavard supplies the USDT quote in the numeric scale used by its
+    # local rial-denominated gold feed; applying another factor of 10 would
+    # overstate the result and create a false tenfold bubble.
+    theoretical = gold_usd_per_ounce * usdt_toman * 0.75 / 31.1034768
+    bubble = rahavard_irr_per_gram - theoretical
+    valuation.update({
+        "theoretical_price": round(theoretical),
+        "bubble": round(bubble),
+        "bubble_percent": round((bubble / theoretical) * 100, 2) if theoretical else None,
+    })
+    return valuation
+
+
 @app.get("/api/market/summary")
 def market_summary():
     funds = db.funds(sort="data_timestamp", source="Rahavard365")
@@ -327,6 +366,7 @@ def market_summary():
     gold18k_quote.pop("history", None)
     dollar_quote.pop("history", None)
     tepix_quote.pop("history", None)
+    gold18k_quote["valuation"] = _gold18k_valuation(gold_quote, dollar_quote, gold18k_quote)
     return {"as_of": utc_now(), "gold": gold_quote, "gold18k": gold18k_quote,
             "dollar": dollar_quote,
             "tepix": tepix_quote,
