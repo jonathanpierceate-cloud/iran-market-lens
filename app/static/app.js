@@ -693,8 +693,11 @@
     return `<section class="trade-plan"><div class="trade-plan-head"><div><span class="panel-kicker">برنامه معاملاتی میان‌مدت</span><h3>دو مدل پله خرید</h3><p>این دو مسیر جایگزین یکدیگرند؛ فقط پس از برقرارشدن شرط همان مسیر بررسی شوند.</p></div><span class="trade-plan-badge">${priceBadge}: ${money(price)}</span></div>${mediumTermExitHtml}<div class="trade-path-grid">${bullishPath}${pullbackPath}</div><p class="trade-plan-note">سطوح با داده‌های قیمت، حمایت/مقاومت و ATR ره‌آورد محاسبه می‌شوند و با تازه‌شدن قیمت تغییر می‌کنند.${fallbackNote}</p></section>`;
   }
 
-  function pivotTableHtml(pivots) {
+  function pivotTableHtml(pivots, currentPrice = null) {
     const columns = ["R3", "R2", "R1", "P", "S1", "S2", "S3"];
+    const price = Number(currentPrice);
+    const hasPrice = Number.isFinite(price) && price > 0;
+    const nearRange = 0.01;
     const normalize = (key) => String(key || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const entries = Array.isArray(pivots)
       ? pivots.map((item) => ({
@@ -704,19 +707,27 @@
       : Object.entries(pivots || {}).map(([method, values]) => ({ name: method, values: new Map(Object.entries(values || {}).map(([key, value]) => [normalize(key), value])) }));
     const rows = entries.map(({ name, values }) => {
       const methodName = /^PivotPoint/i.test(name) ? name : `PivotPoint${name}(30)`;
-      const valueFor = (column) => {
+      const cellFor = (column) => {
         const key = column.toLowerCase();
         const raw = column === "P" ? (values.get("p") ?? values.get("pp") ?? values.get("pivot") ?? values.get("pivotpoint")) : values.get(key);
-        if (raw == null || raw === "") return "—";
+        if (raw == null || raw === "") return `<td data-label="${column}">—</td>`;
         const value = Number(raw);
-        return Number.isFinite(value) ? num(value, 0) : "—";
+        if (!Number.isFinite(value)) return `<td data-label="${column}">—</td>`;
+        const distance = hasPrice ? Math.abs(value - price) / price : Infinity;
+        const near = distance <= nearRange;
+        const side = value < price ? "support" : value > price ? "resistance" : "current";
+        const className = near ? ` class="pivot-near-level pivot-near-${side}"` : "";
+        const title = near ? `نزدیک قیمت فعلی · ${pct(distance * 100)} فاصله` : "";
+        return `<td data-label="${column}"${className}${title ? ` title="${esc(title)}"` : ""}>${num(value, 0)}</td>`;
       };
-      return `<tr><th scope="row">${esc(methodName)}</th>${columns.map((column) => `<td data-label="${column}">${valueFor(column)}</td>`).join("")}</tr>`;
+      return `<tr><th scope="row">${esc(methodName)}</th>${columns.map(cellFor).join("")}</tr>`;
     });
     const body = rows.length
       ? `<div class="rahavard-pivot-scroll"><table dir="rtl"><thead><tr><th scope="col">نام</th>${columns.map((column) => `<th scope="col">${column}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`
       : `<div class="rahavard-pivot-empty">سطوح پیوت برای این دارایی در داده‌های موجود نیست.</div>`;
-    return `<section class="rahavard-pivot-table"><div class="rahavard-pivot-table-head"><div><h4>حمایت و مقاومت</h4><p>سطوح پیوت به تفکیک روش محاسبه</p></div><span>${nf.format(rows.length)} روش</span></div>${body}</section>`;
+    const currentPriceLabel = hasPrice ? `<span class="pivot-legend-price">قیمت فعلی <b>${num(price, 0)}</b></span>` : "";
+    const legend = hasPrice ? `<div class="pivot-level-legend">${currentPriceLabel}<span class="pivot-legend-support">نزدیک حمایت</span><span class="pivot-legend-resistance">نزدیک مقاومت</span><small>فاصله تا قیمت فعلی حداکثر 1%</small></div>` : "";
+    return `<section class="rahavard-pivot-table"><div class="rahavard-pivot-table-head"><div><h4>حمایت و مقاومت</h4><p>سطوح پیوت به تفکیک روش محاسبه</p>${legend}</div><span>${nf.format(rows.length)} روش</span></div>${body}</section>`;
   }
 
   function rahavardAnalysisHtml(a) {
@@ -732,7 +743,7 @@
     const groups = a.indicators || {};
     const notes = new Map((a.indicator_notes || []).map((x) => [x.name, x]));
     const groupNames = { oscillators: "نوسانگرها و روند", moving_averages: "میانگین‌ها و باندها", bands: "باندهای نوسان", pivots: "پیوت‌ها و سطوح", volumes: "شاخص‌های حجم" };
-    const pivotTable = pivotTableHtml(groups.pivots);
+    const pivotTable = pivotTableHtml(groups.pivots, a.price);
     const valueNames = {
       rsi: "RSI", mfi: "جریان پول", cci: "CCI", wr: "Williams %R", k: "خط K", d: "خط D",
       up: "Aroon صعودی", down: "Aroon نزولی", adx: "قدرت روند", awesome: "AO", stochrsi: "StochRSI",
@@ -796,7 +807,7 @@
       const extra = indicatorExtra(key, value);
       return `<article class="indicator-card" title="فرمول: ${esc(value.formula || "ثبت نشده")}"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(displayKey)}</small></div><span class="indicator-status ${assessment.state}">${assessment.label}</span></div><div class="indicator-card-value"><strong>${indicatorValueText(key, value)}</strong><span>${key.startsWith("EMA(") || key.startsWith("SMA(") ? "مقدار میانگین" : key === "BB(20)" || key === "KELTNER(16)" ? "خط میانی کانال" : key === "Ichimoku(9,26,52,26)" ? "خط تنکان" : "مقدار فعلی"}</span></div><p>${esc(indicatorNumericSummary(key, value))}</p><div class="indicator-range-guide"><b>راهنمای محدوده</b><span>${esc(indicatorRangeGuide(key))}</span></div>${extra ? `<div class="indicator-extra">${esc(extra)}</div>` : ""}<div class="indicator-previous">مقدار قبلی <b>${value.previous_value == null ? "—" : num(value.previous_value, 3)}</b></div></article>`;
     }).join("");
-    const pivotTable = pivotTableHtml(a.indicators?.pivots || {});
+    const pivotTable = pivotTableHtml(a.indicators?.pivots || {}, a.price);
     const ind = all;
     const rsi = ind["RSI(14)"];
     const macd = ind["MACD(12,26,9)"];

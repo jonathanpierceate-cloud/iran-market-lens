@@ -335,3 +335,23 @@
   .light-mode .rahavard-pivot-scroll tbody td::before{color:#687e96}
 }
 @media(max-width:380px){.rahavard-pivot-scroll tbody{padding:7px}.rahavard-pivot-scroll tbody tr{gap:5px;padding:6px}.rahavard-pivot-scroll tbody td{padding:6px;font-size:11px}}
+
+/* Highlight pivot levels within 1% of the current quote. */
+.pivot-level-legend{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:9px}
+.pivot-level-legend>span,.pivot-level-legend>small{display:inline-flex;align-items:center;gap:5px;padding:4px 8px;border:1px solid #31485a;border-radius:999px;background:rgba(12,25,38,.5);color:#a9bac8;font-size:11px;line-height:1.5}
+.pivot-level-legend .pivot-legend-price b{color:#eff6fb;font-variant-numeric:tabular-nums}
+.pivot-level-legend .pivot-legend-support{border-color:rgba(72,205,164,.4);background:rgba(34,145,112,.13);color:#65d8b4}
+.pivot-level-legend .pivot-legend-resistance{border-color:rgba(245,172,101,.4);background:rgba(168,100,43,.14);color:#ffc078}
+.pivot-level-legend>small{border-color:transparent;background:transparent;color:#8399aa}
+.rahavard-pivot-scroll tbody td.pivot-near-level{font-weight:800;transition:background-color .16s ease,color .16s ease,box-shadow .16s ease}
+.rahavard-pivot-scroll tbody td.pivot-near-support{color:#6ce0b9;background:rgba(35,157,119,.2);box-shadow:inset 0 0 0 1px rgba(78,211,167,.48)}
+.rahavard-pivot-scroll tbody td.pivot-near-resistance{color:#ffc078;background:rgba(183,112,52,.2);box-shadow:inset 0 0 0 1px rgba(245,172,101,.48)}
+.rahavard-pivot-scroll tbody td.pivot-near-current{color:#c7a5ff;background:rgba(135,91,197,.2);box-shadow:inset 0 0 0 1px rgba(178,139,239,.5)}
+.light-mode .pivot-level-legend>span{background:#f6f9fc;border-color:#dae4ec;color:#61758a}
+.light-mode .pivot-level-legend .pivot-legend-price b{color:#263e55}
+.light-mode .pivot-level-legend .pivot-legend-support{background:#e9f8f2;border-color:#b8e6d5;color:#13845f}
+.light-mode .pivot-level-legend .pivot-legend-resistance{background:#fff4e8;border-color:#f0d0aa;color:#a75e17}
+.light-mode .pivot-level-legend>small{background:transparent;border-color:transparent;color:#71849a}
+.light-mode .rahavard-pivot-scroll tbody td.pivot-near-support{color:#087a55;background:#e5f7ef;box-shadow:inset 0 0 0 1px #9bd9c1}
+.light-mode .rahavard-pivot-scroll tbody td.pivot-near-resistance{color:#9a5410;background:#fff0df;box-shadow:inset 0 0 0 1px #edc28f}
+.light-mode .rahavard-pivot-scroll tbody td.pivot-near-current{color:#6942a1;background:#f1eafe;box-shadow:inset 0 0 0 1px #c8b1ed}
