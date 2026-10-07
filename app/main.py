@@ -687,6 +687,8 @@ async def get_watchlist():
         }
 
     items = await asyncio.gather(*(load_item(record) for record in records))
+    default_order = {symbol: index for index, (symbol, _units, _price) in enumerate(_DEFAULT_WATCHLIST_ITEMS)}
+    items.sort(key=lambda item: (default_order.get(item.get("symbol"), len(default_order)), str(item.get("fund_key", ""))))
     total_units = sum(_watchlist_number(item.get("units")) or 0 for item in items)
     positions = [item for item in items if (_watchlist_number(item.get("units")) or 0) > 0]
     has_cost = bool(positions) and all(_watchlist_number(item.get("break_even_price")) is not None for item in positions)
