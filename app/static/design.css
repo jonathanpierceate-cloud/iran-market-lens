@@ -212,6 +212,8 @@ tbody tr:hover { background: rgba(81, 158, 143, .08); }
 .fund-table-name strong { color: #e0e9e6; font-size: 14px; }
 .fund-table-name small { color: #9aacaa; font-size: 13px; }
 .table-footer { color: #91a3a2; font-size: 13px; }
+.fund-empty-state { gap: 6px; }
+.fund-clear-filter { margin-top: 8px; min-height: 36px; padding: 6px 12px; font-size: 12px; }
 .fund-detail { margin-top: 17px; }
 .fund-detail-head { padding-bottom: 16px; }
 .fund-detail-head h2 { font-size: 22px; }

@@ -783,7 +783,10 @@
   function renderFundTable(items) {
     const target = $("#fund-table");
     if (!items.length) {
-      target.innerHTML = `<tr><td colspan="9"><div class="empty-state"><span>&#9632;</span><b>صندوقی از ره‌آورد۳۶۵ دریافت نشده</b><small>وضعیت اتصال ره‌آورد را در صفحه وضعیت سامانه ببینید.</small></div></td></tr>`;
+      const search = $("#fund-search")?.value.trim() || "";
+      const category = $("#fund-category")?.value.trim() || "";
+      const filtered = search || category;
+      target.innerHTML = `<tr><td colspan="9"><div class="empty-state fund-empty-state"><span>&#9632;</span><b>${filtered ? "نتیجه‌ای برای فیلتر فعلی پیدا نشد" : "صندوقی از ره‌آورد۳۶۵ دریافت نشده"}</b><small>${filtered ? `جستجو: ${esc(search || category)} · برای نمایش همه صندوق‌ها فیلتر را پاک کنید.` : "وضعیت اتصال ره‌آورد را در صفحه وضعیت سامانه ببینید."}</small>${filtered ? `<button class="button button-quiet fund-clear-filter" type="button" data-clear-fund-filters>پاک کردن فیلترها</button>` : ""}</div></td></tr>`;
       return;
     }
     const amount = (value) => value == null ? "—" : money(value);
@@ -1093,7 +1096,18 @@
     try { await loadWatchlist(); }
     finally { button.disabled = false; button.classList.remove("spinning"); }
   });
-  $("#fund-table").addEventListener("click", (event) => { const button = event.target.closest("[data-fund]"); if (button) showFund(button.dataset.fund); });
+  $("#fund-table").addEventListener("click", (event) => {
+    if (event.target.closest("[data-clear-fund-filters]")) {
+      const search = $("#fund-search");
+      const category = $("#fund-category");
+      if (search) search.value = "";
+      if (category) category.value = "";
+      loadFunds();
+      return;
+    }
+    const button = event.target.closest("[data-fund]");
+    if (button) showFund(button.dataset.fund);
+  });
   $("#fund-table-grid").addEventListener("click", (event) => {
     const header = event.target.closest("th[data-fund-sort]");
     if (header) sortFundTable(header.dataset.fundSort);
