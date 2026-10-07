@@ -116,18 +116,18 @@
 
   function renderGold18kValuation(valuation) {
     const price = $("#gold18k-price");
-    const rahavard = $("#gold18k-rahavard-price");
+    const theoreticalEl = $("#gold18k-theoretical-price");
     const bubble = $("#gold18k-bubble-value");
     const bubblePercent = $("#gold18k-bubble-percent");
-    if (!price || !rahavard || !bubble || !bubblePercent) return;
+    if (!price || !theoreticalEl || !bubble || !bubblePercent) return;
 
     const theoretical = valuation?.theoretical_price;
     const observed = valuation?.rahavard_price;
     const difference = valuation?.bubble;
     const percent = valuation?.bubble_percent;
     price.classList.remove("unavailable-text");
-    price.textContent = theoretical == null ? "\u2014" : money(theoretical);
-    rahavard.textContent = observed == null ? "\u2014" : money(observed);
+    price.textContent = observed == null ? "\u2014" : money(observed);
+    theoreticalEl.textContent = theoretical == null ? "\u2014" : money(theoretical);
     bubble.textContent = difference == null ? "\u2014" : `${Number(difference) > 0 ? "+" : ""}${money(difference)}`;
     bubble.className = `valuation-value ${difference == null ? "" : changeClass(Number(difference))}`;
     bubblePercent.textContent = percent == null ? "\u2014" : `${Number(percent) > 0 ? "+" : ""}${num(percent, 2)}%`;
