@@ -673,6 +673,20 @@
     const groups = a.indicators || {};
     const notes = new Map((a.indicator_notes || []).map((x) => [x.name, x]));
     const groupNames = { oscillators: "نوسانگرها و روند", moving_averages: "میانگین‌ها و باندها", bands: "باندهای نوسان", pivots: "پیوت‌ها و سطوح", volumes: "شاخص‌های حجم" };
+    const pivotColumns = ["R3", "R2", "R1", "P", "S1", "S2", "S3"];
+    const pivotRows = (Array.isArray(groups.pivots) ? groups.pivots : []).map((item) => {
+      const name = item.short_name_en || item.name_en || "Pivot";
+      const values = new Map((item.value || []).map((part) => [String(part.name || "").toLowerCase().replace(/[^a-z0-9]/g, ""), part.value]));
+      const valueFor = (column) => {
+        const key = column.toLowerCase();
+        const raw = column === "P" ? (values.get("p") ?? values.get("pp") ?? values.get("pivot") ?? values.get("pivotpoint")) : values.get(key);
+        if (raw == null || raw === "") return "—";
+        const value = Number(raw);
+        return Number.isFinite(value) ? num(value, 0) : "—";
+      };
+      return `<tr><th scope="row">${esc(name)}</th>${pivotColumns.map((column) => `<td>${valueFor(column)}</td>`).join("")}</tr>`;
+    });
+    const pivotTable = pivotRows.length ? `<section class="rahavard-pivot-table"><div class="rahavard-pivot-table-head"><div><h4>حمایت و مقاومت</h4><p>سطوح پیوت ره‌آورد در روش‌های مختلف محاسبه</p></div><span>${nf.format(pivotRows.length)} روش</span></div><div class="rahavard-pivot-scroll"><table dir="rtl"><thead><tr><th scope="col">نام</th>${pivotColumns.map((column) => `<th scope="col">${column}</th>`).join("")}</tr></thead><tbody>${pivotRows.join("")}</tbody></table></div></section>` : "";
     const valueNames = {
       rsi: "RSI", mfi: "جریان پول", cci: "CCI", wr: "Williams %R", k: "خط K", d: "خط D",
       up: "Aroon صعودی", down: "Aroon نزولی", adx: "قدرت روند", awesome: "AO", stochrsi: "StochRSI",
@@ -683,7 +697,7 @@
       r4: "مقاومت ۴", s1: "حمایت ۱", s2: "حمایت ۲", s3: "حمایت ۳", s4: "حمایت ۴",
       rv: "حجم نسبی", sm: "جریان پول هوشمند", vrsi: "VRSI", vmacd: "VMACD", obv: "OBV"
     };
-    const cards = Object.entries(groups).flatMap(([group, items]) => (items || []).map((item) => {
+    const cards = Object.entries(groups).flatMap(([group, items]) => group === "pivots" ? [] : (items || []).map((item) => {
       const name = item.short_name_en || item.name_en || "شاخص ره‌آورد";
       const note = notes.get(name) || {};
       const rawSignal = String(item.signal || "Neutral");
@@ -712,7 +726,7 @@
     const cls = a.signal === "buy" ? "bullish" : a.signal === "sell" ? "bearish" : "";
     const missing = (a.missing_indicators || []).map((name) => `<article class="indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>در پاسخ نماد منتشر نشده</small></div><span class="indicator-status unknown">موجود نیست</span></div><p>برای این مقدار عدد جایگزین ساخته نشده است.</p><div class="indicator-range-guide"><b>راهنمای محدوده</b><span>${esc(indicatorRangeGuide(name))}</span></div></article>`).join("");
     const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}${scenarioHtml(a)}</section>`;
-    return `${overview}${tradePlanHtml(a)}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div><div class="indicator-readouts">${gaugeCards}</div><div class="indicator-card-grid">${cards.join("")}${missing}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
+    return `${overview}${tradePlanHtml(a)}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div><div class="indicator-readouts">${gaugeCards}</div>${pivotTable}<div class="indicator-card-grid">${cards.join("")}${missing}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
 
   function analysisHtml(a) {

@@ -133,6 +133,31 @@
 .indicator-range-guide{display:grid;gap:4px;padding:9px 10px;border:1px solid #26394e;border-right:3px solid #6687aa;border-radius:8px;background:rgba(19,34,52,.72);color:#aebed0;font-size:12px;line-height:1.75}
 .indicator-range-guide b{color:#d2deeb;font-size:12px;font-weight:650}
 .indicator-range-guide span{display:block}
+.rahavard-pivot-table{margin:16px 0 18px;overflow:hidden;border:1px solid #2d4658;border-radius:13px;background:linear-gradient(145deg,rgba(17,31,47,.96),rgba(13,25,39,.96))}
+.rahavard-pivot-table-head{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:14px 17px;border-bottom:1px solid #263c50}
+.rahavard-pivot-table-head h4{margin:0;color:#e1eaf4;font-size:17px}
+.rahavard-pivot-table-head p{margin:3px 0 0;color:#8fa3ba;font-size:13px;line-height:1.6}
+.rahavard-pivot-table-head>span{flex:0 0 auto;padding:5px 9px;border:1px solid #304a60;border-radius:999px;background:#172a3e;color:#aac0d3;font-size:12px}
+.rahavard-pivot-scroll{overflow-x:auto;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+.rahavard-pivot-scroll table{width:100%;min-width:905px;border-collapse:separate;border-spacing:0;direction:rtl;font-size:14px}
+.rahavard-pivot-scroll th,.rahavard-pivot-scroll td{height:46px;padding:10px 13px;border-bottom:1px solid rgba(137,158,181,.14);text-align:center;white-space:nowrap}
+.rahavard-pivot-scroll thead th{height:42px;background:#1a2c3e;color:#a9bbcf;font-size:12px;font-weight:650}
+.rahavard-pivot-scroll tbody td{color:#d9e4ef;font-variant-numeric:tabular-nums;direction:ltr}
+.rahavard-pivot-scroll tbody tr:nth-child(even){background:rgba(80,111,139,.055)}
+.rahavard-pivot-scroll tbody tr:hover{background:rgba(69,197,170,.08)}
+.rahavard-pivot-scroll tr:last-child th,.rahavard-pivot-scroll tr:last-child td{border-bottom:0}
+.rahavard-pivot-scroll th:first-child{position:sticky;right:0;z-index:1;min-width:235px;text-align:right;background:#17283a;color:#d9e5f0}
+.rahavard-pivot-scroll thead th:first-child{z-index:2;background:#1e3346;color:#b8c9da}
+.light-mode .rahavard-pivot-table{background:#fff;border-color:#d5e1ee}
+.light-mode .rahavard-pivot-table-head{border-color:#e1e8f0}
+.light-mode .rahavard-pivot-table-head h4{color:#20354d}
+.light-mode .rahavard-pivot-table-head p{color:#60748c}
+.light-mode .rahavard-pivot-table-head>span{background:#f2f6fa;border-color:#dce5ef;color:#526981}
+.light-mode .rahavard-pivot-scroll thead th{background:#eef3f8;color:#536a82}
+.light-mode .rahavard-pivot-scroll tbody td{color:#253c55}
+.light-mode .rahavard-pivot-scroll tbody tr:nth-child(even){background:#f8fafd}
+.light-mode .rahavard-pivot-scroll th:first-child{background:#f4f7fb;color:#263d56}
+.light-mode .rahavard-pivot-scroll thead th:first-child{background:#e9f0f7;color:#314a64}
 .fund-recommendation{display:grid;gap:13px;margin-top:18px;padding:18px 20px;border:1px solid #31445b;border-right:4px solid #8294aa;border-radius:13px;background:linear-gradient(120deg,rgba(22,38,57,.96),rgba(13,25,40,.96));direction:rtl}
 .fund-recommendation.positive{border-right-color:#42b78d}
 .fund-recommendation.negative{border-right-color:#dc6977}
