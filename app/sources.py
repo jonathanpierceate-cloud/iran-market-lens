@@ -13,7 +13,7 @@ from email.utils import parsedate_to_datetime
 from html import unescape
 from typing import Any
 
-from .config import (CODAL_API_URL, HTTP_TIMEOUT_SECONDS, NEWS_RSS_URLS,
+from .config import (HTTP_TIMEOUT_SECONDS, NEWS_RSS_URLS,
                      MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
                      RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_ASSET_ID,
                      RAHAVARD_GOLD_PAGE_URL, RAHAVARD_LIGHT_BARS_URL,
@@ -436,12 +436,6 @@ def _save_rahavard_nav(fund_key: str, profile: dict[str, Any]) -> list[dict[str,
     return history
 
 
-def codal_ping() -> int:
-    url = CODAL_API_URL + "?" + urllib.parse.urlencode({"PageNumber": 1, "PageSize": 1})
-    data = _json(url, referer="https://www.codal.ir/")
-    return len(data.get("Letters", data.get("letters", []))) if isinstance(data, dict) else 0
-
-
 def _clean_html(text: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", unescape(text or ""))).strip()
 
@@ -558,11 +552,6 @@ async def refresh_all() -> dict[str, Any]:
             db.log_fetch("rahavard_funds", started_at, "failed", 0, message, _elapsed_ms(tick))
             summary["sources"].append({"name": "rahavard_funds", "status": "failed", "error": message})
 
-    async def codal_job():
-        async def run():
-            return await asyncio.to_thread(codal_ping)
-        return await run()
-
     tasks = [
         run_source("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL,
                    rahavard_gold_history, apply_gold),
@@ -576,18 +565,6 @@ async def refresh_all() -> dict[str, Any]:
     ]
     await asyncio.gather(*tasks, return_exceptions=True)
 
-    # Codal has a separate request because it is not mixed with market or fund observations.
-    started_at, tick = utc_now(), time.monotonic()
-    try:
-        count = await asyncio.to_thread(codal_ping)
-        db.save_source("codal", "افشاهای رسمی / کدال", "connected", CODAL_API_URL, utc_now(), None, _elapsed_ms(tick))
-        db.log_fetch("codal", started_at, "success", count, "درگاه جست‌وجوی کدال پاسخ داد", _elapsed_ms(tick))
-        summary["sources"].append({"name": "codal", "status": "connected", "records": count})
-    except Exception as exc:
-        message = str(exc)[:400]
-        db.save_source("codal", "افشاهای رسمی / کدال", "failed", CODAL_API_URL, None, message, _elapsed_ms(tick))
-        db.log_fetch("codal", started_at, "failed", 0, message, _elapsed_ms(tick))
-        summary["sources"].append({"name": "codal", "status": "failed", "error": message})
     summary["finished_at"] = utc_now()
     return summary
 

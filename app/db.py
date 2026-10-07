@@ -496,7 +496,7 @@ class Database:
 
     def source_status(self) -> list[dict[str, Any]]:
         with self.connect() as conn:
-            return [dict(row) for row in conn.execute("SELECT * FROM data_sources ORDER BY name").fetchall()]
+            return [dict(row) for row in conn.execute("SELECT * FROM data_sources WHERE name != 'codal' ORDER BY name").fetchall()]
 
     def fetch_logs(self, limit: int = 30) -> list[dict[str, Any]]:
         with self.connect() as conn:

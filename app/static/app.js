@@ -682,14 +682,9 @@
       state.summary = summary;
       state.gold = summary.gold; state.dollar = summary.dollar; state.tepix = summary.tepix;
       marketQuote(state.gold, "gold"); marketQuote(state.dollar, "dollar"); marketQuote(state.tepix, "tepix");
-      renderMetrics("gold", state.gold); renderMetrics("dollar", state.dollar);
-      $("#gold-detail-price").textContent = state.gold?.price == null ? "داده در دسترس نیست" : `$ ${money(state.gold.price)}`;
-      $("#dollar-detail-price").textContent = state.dollar?.price == null ? "داده در دسترس نیست" : `تومان ${money(state.dollar.price)}`;
-      freshness($("#gold-detail-status"), state.gold?.status, state.gold?.data_timestamp);
-      freshness($("#dollar-detail-status"), state.dollar?.status, state.dollar?.data_timestamp);
+      freshness($("#gold-analysis-status"), state.gold?.status, state.gold?.data_timestamp);
+      freshness($("#dollar-analysis-status"), state.dollar?.status, state.dollar?.data_timestamp);
       freshness($("#tepix-analysis-status"), state.tepix?.status, state.tepix?.data_timestamp);
-      $("#gold-source-line").textContent = `منبع: ${text(state.gold?.source)} · دریافت: ${formatDate(state.gold?.fetched_at)} · مشاهده بازار: ${formatDate(state.gold?.data_timestamp)}`;
-      $("#dollar-source-line").textContent = `منبع: ${text(state.dollar?.source)} · دریافت: ${formatDate(state.dollar?.fetched_at)} · مشاهده بازار: ${formatDate(state.dollar?.data_timestamp)}`;
       $("#gold-analysis").innerHTML = analysisHtml(state.gold?.analysis);
       $("#dollar-analysis").innerHTML = analysisHtml(state.dollar?.analysis);
       $("#tepix-analysis").innerHTML = analysisHtml(state.tepix?.analysis);
@@ -832,8 +827,7 @@
         const rendered = typeof value === "number" ? money(value) : text(value);
         return `<div class="property"><span>${label}</span><b>${esc(rendered)}</b></div>`;
       }).join("");
-      const portfolioNote = data.portfolio_note || "ترکیب تفصیلی دارایی در نمایه عمومی ره‌آورد برنگشت.";
-      section.innerHTML = `<div class="fund-detail-head"><div><span class="panel-kicker">نمایه صندوق · ${esc(displaySymbol)}</span><h2>${esc(f.name || displaySymbol)}</h2><p>فهرست، قیمت، NAV و اندیکاتورهای رسمی ره‌آورد۳۶۵ · داده تا ${esc(formatDate(f.data_timestamp))}</p></div><button class="icon-button" data-close-fund aria-label="بستن">×</button></div><div class="fund-detail-body"><div><div class="fund-properties">${propsHtml}</div><h3 style="margin:16px 0 8px">ترکیب دارایی</h3>${data.portfolio?.length ? data.portfolio.map((p) => `<div class="source-row"><span>${esc(p.asset_type)}</span><b>${p.percentage == null ? "—" : `${num(p.percentage)}٪`}</b></div>`).join("") : `<div class="factor-foot">${esc(portfolioNote)}</div>`}</div><div><h3>داده‌های تکمیلی</h3><p class="fund-chart-caption">تاریخچه و NAV از ره‌آورد دریافت شده‌اند و برای تحلیل شاخص‌ها استفاده می‌شوند.</p><div class="source-line">منبع: ره‌آورد۳۶۵ · ${nf.format(data.history?.length || 0)} مشاهده قیمت · ${nf.format(data.nav_history?.length || 0)} مشاهدهٔ NAV</div><a class="button button-quiet" href="/api/funds/${encodeURIComponent(symbol)}/history" target="_blank" rel="noopener">مشاهدهٔ دادهٔ خام قیمت و NAV</a></div></div><div class="fund-analysis-full"><h3>تحلیل تکنیکال ره‌آورد</h3>${analysisHtml(a)}</div>`;
+      section.innerHTML = `<div class="fund-detail-head"><div><span class="panel-kicker">نمایه صندوق · ${esc(displaySymbol)}</span><h2>${esc(f.name || displaySymbol)}</h2><p>فهرست، قیمت، NAV و اندیکاتورهای رسمی ره‌آورد۳۶۵ · داده تا ${esc(formatDate(f.data_timestamp))}</p></div><button class="icon-button" data-close-fund aria-label="بستن">×</button></div><div class="fund-detail-body"><div><div class="fund-properties">${propsHtml}</div></div><div><h3>داده‌های تکمیلی</h3><p class="fund-chart-caption">تاریخچه و NAV از ره‌آورد دریافت شده‌اند و برای تحلیل شاخص‌ها استفاده می‌شوند.</p><div class="source-line">منبع: ره‌آورد۳۶۵ · ${nf.format(data.history?.length || 0)} مشاهده قیمت · ${nf.format(data.nav_history?.length || 0)} مشاهدهٔ NAV</div><a class="button button-quiet" href="/api/funds/${encodeURIComponent(symbol)}/history" target="_blank" rel="noopener">مشاهدهٔ دادهٔ خام قیمت و NAV</a></div></div><div class="fund-analysis-full"><h3>تحلیل تکنیکال ره‌آورد</h3>${analysisHtml(a)}</div>`;
       section.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
       toast(`نمایه صندوق باز نشد: ${err.message}`, true);
@@ -906,6 +900,7 @@
     $$("[data-analysis-panel]").forEach((node) => node.classList.add("hidden"));
     $$("[data-analysis-toggle]").forEach((node) => {
       node.classList.remove("is-open");
+      node.setAttribute("aria-expanded", "false");
       const hint = $(".analysis-toggle-hint", node);
       if (hint) hint.textContent = "\u0628\u0631\u0627\u06cc \u0645\u0634\u0627\u0647\u062f\u0647 \u062a\u062d\u0644\u06cc\u0644 \u0639\u062f\u062f\u06cc \u06a9\u0644\u06cc\u06a9 \u06a9\u0646\u06cc\u062f \u2190";
     });
@@ -913,6 +908,7 @@
       panel.classList.remove("hidden");
       const trigger = $("[data-analysis-toggle=\"" + key + "\"]");
       trigger?.classList.add("is-open");
+      trigger?.setAttribute("aria-expanded", "true");
       const hint = trigger ? $(".analysis-toggle-hint", trigger) : null;
       if (hint) hint.textContent = "\u0628\u0633\u062a\u0646 \u062a\u062d\u0644\u06cc\u0644 \u2191";
       panel.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1092,11 +1088,11 @@
     sortFundTable(header.dataset.fundSort);
   });
   $("#fund-detail").addEventListener("click", (event) => { if (event.target.closest("[data-close-fund]")) $("#fund-detail").classList.add("hidden"); });
-  $(".market-detail-grid").addEventListener("click", (event) => {
+  $(".market-strip").addEventListener("click", (event) => {
     const trigger = event.target.closest("[data-analysis-toggle]");
     if (trigger) toggleMarketAnalysis(trigger.dataset.analysisToggle);
   });
-  $(".market-detail-grid").addEventListener("keydown", (event) => {
+  $(".market-strip").addEventListener("keydown", (event) => {
     if (event.key !== "Enter" && event.key !== " ") return;
     const trigger = event.target.closest("[data-analysis-toggle]");
     if (!trigger) return;

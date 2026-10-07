@@ -73,4 +73,3 @@ RAHAVARD_TEPIX_PAGE_URL = os.getenv(
 TABDEAL_TRADES_URL = os.getenv(
     "TABDEAL_TRADES_URL", "https://api1.tabdeal.org/r/api/v1/trades"
 )
-CODAL_API_URL = os.getenv("CODAL_API_URL", "https://search.codal.ir/api/search/v2/q")

@@ -124,6 +124,9 @@ button, a, .market-card, .panel, input, select { transition: background-color .1
   box-shadow: 0 10px 28px rgba(0, 0, 0, .12);
 }
 .market-card { padding: 20px 21px 16px; min-height: 236px; }
+.market-card.market-analysis-trigger { cursor: pointer; transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease; }
+.market-card.market-analysis-trigger:hover, .market-card.market-analysis-trigger:focus-visible { border-color: #5e9ca3; box-shadow: 0 14px 30px rgba(0, 0, 0, .2); transform: translateY(-2px); outline: none; }
+.market-card.market-analysis-trigger.is-open { border-color: #6ac2b0; box-shadow: 0 0 0 1px rgba(106, 194, 176, .18), 0 14px 30px rgba(0, 0, 0, .2); }
 .market-card:hover, .panel:hover { border-color: #3a5559; }
 .asset-icon { width: 32px; height: 32px; border-radius: 10px; }
 .gold-icon { background: #3a3324; border-color: #68552d; }
@@ -151,6 +154,9 @@ button, a, .market-card, .panel, input, select { transition: background-color .1
 .fund-best { color: #d0ddda; }
 .text-button { color: #80cbbb; font-size: 14px; }
 .text-button:hover { color: #b0ebdf; }
+.card-action { color: #82cdbb; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.dashboard-analysis-stack { display: grid; gap: 16px; }
+.dashboard-analysis-stack .market-analysis-panel { margin: 0; }
 
 .section-heading { margin-top: 31px; margin-bottom: 15px; }
 .section-heading h2 { font-size: 20px; }

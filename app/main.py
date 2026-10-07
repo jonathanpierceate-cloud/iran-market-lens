@@ -232,7 +232,6 @@ async def lifespan(_: FastAPI):
         ("rahavard_fund_details", "نمایه و NAV صندوق / ره‌آورد۳۶۵", RAHAVARD_API_BASE_URL + "/asset/{asset_id}"),
         ("rahavard_fund_charts", "نمودار صندوق / ره‌آورد۳۶۵", RAHAVARD_LIGHT_BARS_URL + "?symbol=exchange.asset:{asset_id}:real_close"),
         ("rahavard_indicators", "اندیکاتورهای صندوق / ره‌آورد۳۶۵", RAHAVARD_API_BASE_URL + "/asset/{asset_id}/indicators"),
-        ("codal", "افشاهای رسمی / کدال", "https://www.codal.ir/"),
     ]:
         if key not in _source_map():
             db.save_source(key, label, "not_tested", url, None, "هنوز بررسی نشده است", None)
@@ -708,8 +707,7 @@ async def fund_detail(symbol: str):
     return {"fund": fund, "history": bars, "nav_history": nav, "portfolio": [],
             "analysis": analysis_result, "market_data_available": bool(bars),
             "fundamentals_source": "Rahavard365", "market_price_source": "Rahavard365" if fund.get("market_price") is not None else None,
-            "history_source": "Rahavard365" if bars else None,
-            "portfolio_note": "در نمایه عمومی این نماد، ترکیب دارایی تفصیلی برنگشت."}
+            "history_source": "Rahavard365" if bars else None}
 
 
 @app.get("/api/funds/{symbol}/history")
