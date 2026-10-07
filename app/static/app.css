@@ -217,3 +217,15 @@ body {
   #view-overview .page-heading p { max-width: 100%; }
   #view-overview .heading-actions { justify-content: flex-start; }
 }
+
+#view-overview .page-heading p.market-status-summary{display:flex;max-width:700px;flex-wrap:wrap;align-items:center;gap:7px;margin-top:10px}
+.market-change-chip{display:inline-flex;align-items:center;justify-content:space-between;gap:9px;padding:4px 9px;border:1px solid rgba(136,177,169,.24);border-radius:9px;background:rgba(11,25,30,.45);color:#c5d5d1;font-size:13px;line-height:1.55;white-space:nowrap}
+.market-change-chip b{font:600 13px 'DM Mono',monospace;direction:ltr}
+.market-change-chip b.positive{color:#62d1aa}
+.market-change-chip b.negative{color:#f08a96}
+.market-change-chip b.unknown{color:#9baead}
+.light-mode .market-change-chip{background:rgba(255,255,255,.66);border-color:#d2e2da;color:#38584f}
+.light-mode .market-change-chip b.positive{color:#16845c}
+.light-mode .market-change-chip b.negative{color:#b84351}
+@media(max-width:600px){#view-overview .page-heading p.market-status-summary{max-width:100%;gap:6px}.market-change-chip{flex:1 1 calc(50% - 6px);min-width:0;padding:5px 7px;font-size:12px}.market-change-chip b{font-size:12px}}
+@media(max-width:360px){.market-change-chip{flex-basis:100%}}

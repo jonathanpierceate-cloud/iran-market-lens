@@ -791,11 +791,30 @@
     return `<div class="source-row"><i class="status-dot ${cls}"></i><span>${esc(status.label || status.name)}</span><b>${esc(statusText(status.status))}</b></div>`;
   }
 
+  function renderOverviewMarketSummary() {
+    const node = $("#overview-market-summary");
+    if (!node) return;
+    const items = [
+      ["\u0637\u0644\u0627\u06cc \u062c\u0647\u0627\u0646\u06cc", state.gold],
+      ["\u062a\u062a\u0631", state.dollar],
+      ["\u0634\u0627\u062e\u0635 \u06a9\u0644", state.tepix],
+      ["\u0637\u0644\u0627\u06cc 18 \u0639\u06cc\u0627\u0631", state.gold18k],
+    ];
+    node.innerHTML = items.map(([label, quote]) => {
+      const raw = quote?.returns?.daily;
+      const daily = raw == null ? NaN : Number(raw);
+      const value = Number.isFinite(daily) ? `${daily > 0 ? "+" : ""}${num(daily, 2)}%` : "\u2014";
+      const tone = Number.isFinite(daily) ? changeClass(daily) : "unknown";
+      return `<span class="market-change-chip"><span>${label}</span><b class="${tone}">${value}</b></span>`;
+    }).join("");
+  }
+
   async function loadOverview() {
     try {
       const summary = await api("/api/market/summary");
       state.summary = summary;
       state.gold = summary.gold; state.gold18k = summary.gold18k; state.dollar = summary.dollar; state.tepix = summary.tepix;
+      renderOverviewMarketSummary();
       marketQuote(state.gold, "gold"); marketQuote(state.gold18k, "gold18k"); marketQuote(state.dollar, "dollar"); marketQuote(state.tepix, "tepix");
       freshness($("#gold-analysis-status"), state.gold?.status, state.gold?.data_timestamp);
       freshness($("#gold18k-analysis-status"), state.gold18k?.status, state.gold18k?.data_timestamp);
