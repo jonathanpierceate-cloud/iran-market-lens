@@ -566,7 +566,7 @@ async def refresh_all() -> dict[str, Any]:
 
     def apply_gold_18k(result):
         bars = result
-        db.save_bars("GOLD_18K", "طلای ۱۸ عیار", "commodity", "IRR", "تومان/گرم",
+        db.save_bars("GOLD_18K", "طلای ۱۸ عیار", "commodity", "IRR", "ریال/گرم",
                      "Rahavard365", RAHAVARD_GOLD_18K_PAGE_URL, bars)
         return len(bars), bars[-1].get("observed_at") or bars[-1]["timestamp"]
 
