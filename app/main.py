@@ -448,6 +448,21 @@ def _fund_observation_rank(fund: dict[str, Any]) -> tuple[float, int]:
     return timestamp, int(fund.get("fund_key") == db.fund_key(fund))
 
 
+def _fund_updated_at(fund: dict[str, Any]) -> str | None:
+    raw = fund.get("raw") if isinstance(fund.get("raw"), dict) else {}
+    return raw.get("trade_date_time") or raw.get("data_updated_at") or fund.get("data_timestamp")
+
+
+def _fund_date(value: Any):
+    try:
+        stamp = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        return stamp.astimezone(timezone(timedelta(hours=3, minutes=30))).date()
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
 def _dedupe_rahavard_funds(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     selected: dict[str, tuple[int, dict[str, Any]]] = {}
     for index, item in enumerate(items):
@@ -461,13 +476,14 @@ def _dedupe_rahavard_funds(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 @app.get("/api/funds")
-def funds(search: str = "", category: str = "", sort: str = "data_timestamp"):
+def funds(search: str = "", category: str = "", sort: str = "data_timestamp", trade_date: str = ""):
     items = _dedupe_rahavard_funds(db.funds(search=search, category=category, sort=sort, source="Rahavard365"))
     snapshots = db.fund_indicator_snapshots()
     for item in items:
         raw = item.get("raw") if isinstance(item.get("raw"), dict) else {}
         item["rahavard_asset_id"] = str(raw.get("rahavard_asset_id") or item["symbol"])
         item["rahavard_state"] = raw.get("instrument_state")
+        item["updated_at"] = _fund_updated_at(item)
         for field in ("open_price", "high_price", "low_price", "ask_price", "ask_volume",
                       "bid_price", "bid_volume", "real_close_price_change",
                       "real_close_price_change_percent", "trade_date_time"):
@@ -480,6 +496,24 @@ def funds(search: str = "", category: str = "", sort: str = "data_timestamp"):
         item["technical_score"] = result.get("technical_score") if result else None
         item["trend"] = result.get("trend") if result else "unavailable"
         item["indicator_fetched_at"] = snapshot.get("fetched_at") if snapshot else None
+    if trade_date:
+        dated = [(item, _fund_date(item.get("updated_at"))) for item in items]
+        valid_dates = [stamp for _, stamp in dated if stamp is not None]
+        today = datetime.now(timezone(timedelta(hours=3, minutes=30))).date()
+        latest = max(valid_dates) if valid_dates else None
+        if trade_date == "latest":
+            items = [item for item, stamp in dated if latest is not None and stamp == latest]
+        elif trade_date == "today":
+            items = [item for item, stamp in dated if stamp == today]
+        elif trade_date in {"3d", "7d"}:
+            days = 3 if trade_date == "3d" else 7
+            cutoff = today - timedelta(days=days - 1)
+            items = [item for item, stamp in dated if stamp is not None and cutoff <= stamp <= today]
+        else:
+            requested = _fund_date(trade_date)
+            if requested is not None:
+                items = [item for item, stamp in dated if stamp == requested]
+
     sort_key = {"return": "one_year_return", "technical_score": "technical_score"}.get(sort, sort)
     if sort_key in {"one_year_return", "monthly_return", "daily_return", "technical_score"}:
         items.sort(key=lambda f: f.get(sort_key) if f.get(sort_key) is not None else float("-inf"), reverse=True)

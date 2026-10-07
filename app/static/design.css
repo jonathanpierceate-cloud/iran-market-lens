@@ -200,6 +200,7 @@ button, a, .market-card, .panel, input, select { transition: background-color .1
 .fund-row { padding: 12px 2px; font-size: 14px; }
 .fund-name strong { color: #e1eae7; font-size: 14px; }
 .fund-name small, .fund-row .num { font-size: 13px; }
+.fund-update-time { color: #9fb4b0; font-size: 12px; white-space: nowrap; direction: ltr; }
 .news-teaser { padding: 12px 4px; }
 .news-teaser strong { font-size: 14px; color: #dce7e3; }
 .news-teaser small { font-size: 13px; color: #9aacab; }
