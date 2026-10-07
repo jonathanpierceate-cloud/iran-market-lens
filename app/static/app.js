@@ -919,9 +919,24 @@
     try {
       const data = await api("/api/admin");
       const count = data.health.counts || {};
-      $("#admin-stats").innerHTML = [["نقاط قیمت", count.prices], ["صندوق‌ها", count.funds], ["هشدارها", count.alerts]].map(([label, value]) => `<div class="admin-stat"><span>${label}</span><b>${nf.format(value || 0)}</b></div>`).join("");
-      $("#admin-sources").innerHTML = data.sources.map((s) => `<div class="source-table-row"><strong>${esc(s.label)}</strong><span>${esc(statusText(s.status))}</span><small title="${esc(s.error || s.source_url || "")}">${esc(s.error || (s.last_data_timestamp ? `داده: ${formatDate(s.last_data_timestamp)}` : s.source_url || "بدون همگام‌سازی"))}</small></div>`).join("");
-      $("#admin-logs").innerHTML = data.recent_logs.length ? data.recent_logs.map((l) => `<div class="log-row"><time>${esc(formatDate(l.started_at))}</time><div><strong>${esc(l.source)} · ${esc(l.status === "success" ? "موفق" : "ناموفق")} · ${nf.format(l.records)} ردیف</strong><small>${esc(l.message || "")}</small></div></div>`).join("") : `<div class="empty-state compact"><b>گزارشی ثبت نشده</b><small>پس از همگام‌سازی، فعالیت منابع ثبت می‌شود.</small></div>`;
+      const statItems = [
+        ["prices", "نقاط قیمت", "داده‌های بازار", "◈"],
+        ["funds", "صندوق‌ها", "نمادهای قابل معامله", "▤"],
+        ["alerts", "هشدارها", "شرایط فعال", "◉"],
+      ];
+      $("#admin-stats").innerHTML = statItems.map(([key, label, caption, icon]) => `<article class="admin-stat-card admin-stat-${key}"><span class="admin-stat-icon">${icon}</span><div class="admin-stat-copy"><span>${label}</span><small>${caption}</small><b>${nf.format(count[key] || 0)}</b></div></article>`).join("");
+
+      const sourceClass = (status) => status === "connected" ? "connected" : status === "failed" ? "failed" : "pending";
+      $("#admin-sources").innerHTML = data.sources.length ? data.sources.map((s) => {
+        const detail = s.error || (s.last_data_timestamp ? `آخرین داده: ${formatDate(s.last_data_timestamp)}` : "در انتظار نخستین همگام‌سازی");
+        return `<article class="admin-source-card ${sourceClass(s.status)}"><div class="admin-source-head"><span class="admin-source-dot"></span><div><strong>${esc(s.label)}</strong><small>${esc(s.name)}</small></div><b>${esc(statusText(s.status))}</b></div><div class="admin-source-meta"><span title="${esc(s.error || s.source_url || "")}">${esc(detail)}</span>${s.latency_ms != null ? `<small>${nf.format(s.latency_ms)} ms</small>` : ""}</div></article>`;
+      }).join("") : `<div class="empty-state compact"><b>منبع داده‌ای ثبت نشده</b><small>پس از افزودن منبع، وضعیت اتصال اینجا نمایش داده می‌شود.</small></div>`;
+
+      const logs = (data.recent_logs || []).slice(0, 8);
+      $("#admin-logs").innerHTML = logs.length ? logs.map((l) => {
+        const ok = l.status === "success";
+        return `<article class="admin-log-card"><time>${esc(formatDate(l.started_at))}</time><div class="admin-log-body"><div class="admin-log-head"><strong>${esc(l.source)}</strong><span class="admin-log-status ${ok ? "success" : "failed"}">${ok ? "موفق" : "ناموفق"}</span></div><p>${esc(l.message || "همگام‌سازی انجام شد")}</p><small>${nf.format(l.records || 0)} ردیف داده</small></div></article>`;
+      }).join("") : `<div class="empty-state compact"><b>گزارشی ثبت نشده</b><small>پس از همگام‌سازی، فعالیت منابع ثبت می‌شود.</small></div>`;
     } catch (err) { toast(`وضعیت سامانه خوانده نشد: ${err.message}`, true); }
   }
 
