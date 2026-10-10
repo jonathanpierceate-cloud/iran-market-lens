@@ -227,6 +227,7 @@ button, a, .market-card, .panel, input, select { transition: background-color .1
 .table-search input { font-size: 14px; }
 .fund-toolbar select { padding: 7px 11px; }
 .fund-mobile-score-sort { display: none; }
+.fund-score-progress { color: #82d7bd; font-size: 12px; line-height: 1.7; }
 th { background: #1c2c33; color: #b7c8c4; font-size: 14px; padding: 14px; }
 th[data-fund-sort] { cursor: pointer; user-select: none; white-space: nowrap; transition: background .18s ease, color .18s ease; }
 th[data-fund-sort]:hover, th[data-fund-sort].is-sorted { background: #254149; color: #e1f2ed; }
@@ -327,6 +328,7 @@ tbody tr:hover { background: rgba(81, 158, 143, .08); }
   .table-search { min-width: 100%; }
   .fund-toolbar select { flex: 1 1 140px; }
   .fund-count-label { width: 100%; }
+  .fund-score-progress { width: 100%; }
   #view-watchlist .watchlist-scroll { max-height: none; overflow: visible; }
   #view-watchlist .watchlist-table { display: block; width: 100%; min-width: 0; table-layout: fixed; }
   #view-watchlist .watchlist-table thead { display: none; }

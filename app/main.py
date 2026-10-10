@@ -45,6 +45,10 @@ class WatchlistUpdateInput(BaseModel):
     units: float | None = Field(default=None, ge=0)
 
 
+class FundScoreBatchInput(BaseModel):
+    fund_keys: list[str] = Field(default_factory=list, max_length=4)
+
+
 def _source_map() -> dict[str, dict[str, Any]]:
     return {row["name"]: row for row in db.source_status()}
 
@@ -524,6 +528,36 @@ def _fund_or_error(identifier: str) -> dict[str, Any]:
     if fund.get("source") != "Rahavard365":
         raise HTTPException(status_code=404, detail="این صندوق در فهرست ره‌آورد۳۶۵ موجود نیست")
     return fund
+
+
+@app.post("/api/funds/scores/batch")
+async def fund_score_batch(payload: FundScoreBatchInput):
+    keys = list(dict.fromkeys(key.strip() for key in payload.fund_keys if key.strip()))
+    if not keys:
+        raise HTTPException(status_code=422, detail="شناسه‌ای برای محاسبه امتیاز ارسال نشده است")
+
+    semaphore = asyncio.Semaphore(4)
+
+    async def calculate(identifier: str) -> dict[str, Any]:
+        async with semaphore:
+            try:
+                fund = _fund_or_error(identifier)
+                indicators = await fetch_fund_indicators(fund["fund_key"])
+                analysis_result = analyze_rahavard(
+                    fund.get("symbol"), indicators, fund.get("data_timestamp"), fund.get("market_price"))
+                return {"fund_key": fund["fund_key"], "technical_score": analysis_result.get("technical_score"),
+                        "error": None if analysis_result.get("technical_score") is not None else "داده کافی برای محاسبه موجود نیست"}
+            except HTTPException as exc:
+                return {"fund_key": identifier, "technical_score": None, "error": str(exc.detail)}
+            except SourceError as exc:
+                return {"fund_key": identifier, "technical_score": None, "error": str(exc)}
+            except Exception as exc:
+                return {"fund_key": identifier, "technical_score": None, "error": str(exc)[:180]}
+
+    items = await asyncio.gather(*(calculate(key) for key in keys))
+    return {"items": items, "processed": len(items),
+            "scored": sum(item["technical_score"] is not None for item in items),
+            "unavailable": sum(item["technical_score"] is None for item in items)}
 
 
 def _watchlist_number(value: Any) -> float | None:

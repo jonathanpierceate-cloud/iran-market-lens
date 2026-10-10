@@ -3,6 +3,8 @@
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
   const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], watchlist: [], currentView: "overview", watchlistRefreshTimer: null, watchlistRefreshSeconds: 900 };
   const fundSortState = { key: "data_timestamp", direction: -1 };
+  let fundScoreFillRunning = false;
+  const fundScoreAttemptedKeys = new Set();
   const nf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const en = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const dates = new Intl.DateTimeFormat("fa-IR-u-nu-latn", { dateStyle: "medium", timeStyle: "short" });
@@ -851,6 +853,7 @@
       const best = state.funds.find((f) => f.technical_score != null);
       const bestFund = $("#best-fund");
       if (bestFund) bestFund.textContent = best ? (best.display_symbol || `شناسه ${best.rahavard_asset_id}`) : state.funds.length ? "برای امتیاز، نمایهٔ نماد را باز کنید" : "هنوز داده‌ای نیست";
+      if (state.currentView === "funds") void fillVisibleFundScores();
     } catch (err) {
       if (!options.quiet) toast(`فهرست صندوق‌ها در دسترس نیست: ${err.message}`, true);
       $("#funds-freshness") && freshness($("#funds-freshness"), "unavailable", null);
@@ -921,6 +924,71 @@
       return `<tr><td><button class="row-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><strong>${esc(f.name)}</strong><small class="fund-symbol">شناسه ره‌آورد: ${esc(id)}</small></span></button></td><td class="fund-technical-score">${scoreCell}</td><td>${amount(price)}</td><td><span class="${changeClass(f.daily_return)}">${pct(f.daily_return)}</span></td><td>${pct(f.monthly_return)}</td><td>${pct(f.three_month_return)}</td><td>${pct(f.six_month_return)}</td><td>${pct(f.one_year_return)}</td><td>${amount(f.volume)}</td><td>${amount(f.value)}</td><td class="fund-update-time">${esc(formatDate(f.updated_at))}</td></tr>`;
     }).join("");
     updateFundSortIndicators();
+  }
+
+  async function fillVisibleFundScores() {
+    if (fundScoreFillRunning) return;
+    const pending = [...new Set(state.funds
+      .filter((fund) => fund.technical_score == null)
+      .map((fund) => fund.fund_key || fund.symbol)
+      .filter((key) => key && !fundScoreAttemptedKeys.has(String(key)))
+      .map(String))];
+    if (!pending.length) return;
+
+    fundScoreFillRunning = true;
+    const progress = $("#fund-score-progress");
+    let processed = 0;
+    let scored = 0;
+    let unavailable = 0;
+    try {
+      for (let offset = 0; offset < pending.length; offset += 4) {
+        const batch = pending.slice(offset, offset + 4);
+        let response;
+        try {
+          response = await api("/api/funds/scores/batch", {
+            method: "POST",
+            body: JSON.stringify({ fund_keys: batch })
+          });
+        } catch (error) {
+          batch.forEach((key) => fundScoreAttemptedKeys.add(key));
+          unavailable += batch.length;
+          if (progress) progress.textContent = "دریافت امتیازها موقتاً متوقف شد؛ دوباره فهرست را به‌روز کنید.";
+          break;
+        }
+
+        const returned = new Set();
+        for (const result of response.items || []) {
+          const key = String(result.fund_key || "");
+          if (!key) continue;
+          returned.add(key);
+          fundScoreAttemptedKeys.add(key);
+          const listed = state.funds.find((fund) => String(fund.fund_key || fund.symbol) === key);
+          if (result.technical_score != null) {
+            scored += 1;
+            if (listed) listed.technical_score = Number(result.technical_score);
+          } else {
+            unavailable += 1;
+          }
+        }
+        for (const key of batch) {
+          if (!returned.has(key)) {
+            fundScoreAttemptedKeys.add(key);
+            unavailable += 1;
+          }
+        }
+        processed += batch.length;
+        state.funds = sortedFundItems(state.funds);
+        renderFundTable(state.funds);
+        if (progress) progress.textContent = `محاسبهٔ امتیازها: ${nf.format(processed)} از ${nf.format(pending.length)}`;
+      }
+      if (progress && processed >= pending.length) {
+        progress.textContent = unavailable
+          ? `${nf.format(scored)} امتیاز آماده شد · ${nf.format(unavailable)} نماد دادهٔ کافی نداشت`
+          : `${nf.format(scored)} امتیاز تکنیکال آماده شد`;
+      }
+    } finally {
+      fundScoreFillRunning = false;
+    }
   }
 
   function renderMarketWatchlist(items) {
