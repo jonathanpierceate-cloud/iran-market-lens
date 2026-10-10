@@ -8,6 +8,17 @@ from typing import Any
 from .indicators import compute_indicators
 
 
+# Weights are deliberately tilted toward medium-term trend and price structure.
+# Oscillators receive the smallest weight because they are more useful for timing
+# short-term entries than for judging the persistence of a medium-term trend.
+MEDIUM_TERM_SCORE_WEIGHTS = {
+    "moving_averages": 0.40,
+    "volume": 0.20,
+    "oscillators": 0.15,
+    "resistance": 0.25,
+}
+
+
 def _num(item: dict[str, Any] | None) -> float | None:
     val = item.get("value") if isinstance(item, dict) else None
     try:
@@ -256,13 +267,6 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     gauges = data.get("gauges") if isinstance(data.get("gauges"), dict) else {}
     main_gauge = gauges.get("main") if isinstance(gauges.get("main"), dict) else {}
     main_signal = main_gauge.get("signal") if isinstance(main_gauge.get("signal"), dict) else {}
-    pointer = main_gauge.get("pointer")
-    try:
-        score = float(pointer) * 100 if pointer is not None else None
-        if score is not None and not math.isfinite(score):
-            score = None
-    except (TypeError, ValueError):
-        score = None
     try:
         net_signal = float(main_signal.get("value"))
     except (TypeError, ValueError):
@@ -409,6 +413,26 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         resistance_score = max(15.0, 100.0 - len(near_resistances) * 22.0
                                - (10.0 if nearest_resistance_distance is not None and nearest_resistance_distance <= 3 else 0.0))
         resistance_score = round(resistance_score, 1)
+    score_components = {
+        "moving_averages": moving_average_score,
+        "volume": volume_score,
+        "oscillators": oscillator_score,
+        "resistance": resistance_score,
+    }
+    available_components = [
+        (name, value, MEDIUM_TERM_SCORE_WEIGHTS[name])
+        for name, value in score_components.items()
+        if value is not None
+    ]
+    available_weight = sum(weight for _, _, weight in available_components)
+    weighted_score = (
+        round(sum(value * weight for _, value, weight in available_components) / available_weight, 1)
+        if available_weight else None
+    )
+    weighted_contributions = {
+        name: round(value * weight / available_weight, 1)
+        for name, value, weight in available_components
+    } if available_weight else {}
     resistance_pressure = min(22.0, len(near_resistances) * 7.0
                               + (8.0 if nearest_resistance_distance is not None and nearest_resistance_distance <= 3 else 0.0))
     overbought_count = sum(
@@ -529,12 +553,16 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
             "structural_price": structural_exit_price,
             "structural_trigger": "شکست و تثبیت زیر SMA(100) یا حمایت ساختاری ره‌آورد",
         },
-        "technical_score": round(score, 1) if score is not None else None,
+        "technical_score": weighted_score,
+        "score_method": "medium_term_weighted",
+        "score_weights": {name: round(weight * 100) for name, weight in MEDIUM_TERM_SCORE_WEIGHTS.items()},
         "score_breakdown": {
             "moving_averages": moving_average_score,
             "volume": volume_score,
             "oscillators": oscillator_score,
             "resistance": resistance_score,
+            "weighted_contributions": weighted_contributions,
+            "available_weight": round(available_weight * 100),
             "front_resistance_count": len(front_resistances),
             "near_resistance_count": len(near_resistances),
         },
