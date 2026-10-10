@@ -444,17 +444,23 @@
     const neutral = readCount("Neutral");
     const sell = readCount("Sell");
     const countsAvailable = [buy, neutral, sell].some((value) => value != null);
+    const modelSignal = String(a.signal || "").trim().toLowerCase().replace(/[^a-z]/g, "");
+    const modelDirection = ["buy", "strongbuy"].includes(modelSignal) ? 1
+      : ["sell", "strongsell"].includes(modelSignal) ? -1
+        : ["hold", "neutral"].includes(modelSignal) ? 0 : null;
     const direction = Number.isFinite(signalValue)
       ? Math.sign(signalValue)
-      : buy != null && sell != null ? Math.sign(buy - sell) : null;
+      : buy != null && sell != null ? Math.sign(buy - sell) : modelDirection;
     const verdict = direction == null ? "اطلاعات کافی نیست" : direction > 0 ? "خرید" : direction < 0 ? "فروش" : "صبر / خنثی";
     const tone = direction == null ? "unknown" : direction > 0 ? "positive" : direction < 0 ? "negative" : "neutral";
     const trendItem = Object.values(a.indicators || {}).flatMap((items) => Array.isArray(items) ? items : [])
       .find((item) => String(item?.short_name_en || item?.name_en || "").trim().toLowerCase() === "trend");
     const trendSignal = String(trendItem?.signal || "").trim().toLowerCase().replace(/[^a-z]/g, "");
+    const fallbackTrend = String(a.medium_term_trend || "").trim().toLowerCase();
     const trendDirection = ["buy", "bullish", "strongbuy"].includes(trendSignal) ? 1
       : ["sell", "bearish", "strongsell"].includes(trendSignal) ? -1
-        : ["neutral", "hold"].includes(trendSignal) ? 0 : null;
+        : ["neutral", "hold"].includes(trendSignal) ? 0
+          : fallbackTrend === "bullish" ? 1 : fallbackTrend === "bearish" ? -1 : fallbackTrend === "neutral" ? 0 : null;
     const trendLabel = trendDirection == null ? "نامشخص" : trendDirection > 0 ? "صعودی" : trendDirection < 0 ? "نزولی" : "خنثی";
     const trendTone = trendDirection == null ? "unknown" : trendDirection > 0 ? "positive" : trendDirection < 0 ? "negative" : "neutral";
     const scores = a.score_breakdown || {};
@@ -470,7 +476,7 @@
       }).filter((value) => value != null);
       return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
     };
-    const scoreOf = (key, fallback) => Number.isFinite(Number(scores[key])) ? Number(scores[key]) : fallback;
+    const scoreOf = (key, fallback) => scores[key] != null && Number.isFinite(Number(scores[key])) ? Number(scores[key]) : fallback;
     const oscillatorScore = scoreOf("oscillators", groupScore("oscillators"));
     const rsiValue = scores.rsi == null || !Number.isFinite(Number(scores.rsi)) ? null : Number(scores.rsi);
     const oscillatorDetail = rsiValue == null ? "مومنتوم و اشباع" : rsiValue >= 80 ? "RSI " + num(rsiValue, 1) + " · خریدزدگی بالا" : rsiValue >= 70 ? "RSI " + num(rsiValue, 1) + " · خریدزدگی" : "مومنتوم و اشباع";
@@ -491,7 +497,7 @@
         : "سیگنال‌ها هم‌جهت نیستند؛ برای ورود، تثبیت قیمت و کاهش ریسک اصلاح را بررسی کن.";
     const scoreCard = (label, value, detail, tone = "neutral") => `<article class="analysis-score-card ${tone}"><span>${label}</span><strong>${value == null ? "—" : `${num(value, 0)}٪`}</strong><small>${detail}</small><i style="width:${value == null ? 0 : Math.max(0, Math.min(100, value))}%"></i></article>`;
     const stats = countsAvailable ? `<div class="recommendation-stats">${buy != null ? `<span class="recommendation-count buy">خرید <b>${num(buy, 0)}</b></span>` : ""}${neutral != null ? `<span class="recommendation-count neutral">خنثی <b>${num(neutral, 0)}</b></span>` : ""}${sell != null ? `<span class="recommendation-count sell">فروش <b>${num(sell, 0)}</b></span>` : ""}</div>` : "";
-    return `<section class="fund-recommendation ${tone}"><div class="fund-recommendation-main"><div><span class="recommendation-kicker">شاخص‌های ره‌آورد · ${esc(a.symbol || "این صندوق")}</span><h3>سیگنال ره‌آورد: <strong>${verdict}</strong></h3></div><div class="recommendation-context"><p>${esc(rationale)}</p><div class="recommendation-trend ${trendTone}"><span>روند فعلی</span><b>${trendLabel}</b></div></div></div><div class="analysis-score-grid"><div class="analysis-score-card primary ${tone}"><span>امتیاز کلی تکنیکال</span><strong>${a.technical_score == null ? "—" : `${num(a.technical_score, 0)}٪`}</strong><small>مدل میان‌مدتی · روند 20% · حجم 30% · نوسان‌گر 35% · مقاومت 15%</small><i style="width:${a.technical_score == null ? 0 : Math.max(0, Math.min(100, Number(a.technical_score)))}%"></i></div>${scoreCard("روند", movingAverageScore, "میانگین‌های EMA / SMA", movingAverageScore >= 60 ? "positive" : movingAverageScore <= 40 ? "negative" : "neutral")}${scoreCard("حجم", volumeScore, "تأیید ورود پول", volumeScore >= 60 ? "positive" : volumeScore <= 40 ? "negative" : "neutral")}${scoreCard("نوسان‌گرها", oscillatorScore, oscillatorDetail, oscillatorScore >= 60 ? "positive" : oscillatorScore <= 40 ? "negative" : "neutral")}${scoreCard("مقاومت‌های پیش‌رو", resistanceScore, `${num(nearResistanceCount, 0)} سطح نزدیک · ${num(Number(scores.front_resistance_count ?? resistanceLevels.length), 0)} سطح جلو`, resistanceScore != null && resistanceScore <= 40 ? "negative" : "neutral")}</div><div class="analysis-probability-grid"><article class="analysis-probability bullish"><div><span>ادامهٔ روند صعودی</span><strong>${num(bullishProbability, 0)}٪</strong></div><i style="width:${Math.max(0, Math.min(100, bullishProbability))}%"></i></article><article class="analysis-probability bearish"><div><span>ادامهٔ روند نزولی</span><strong>${num(bearishProbability, 0)}٪</strong></div><i style="width:${Math.max(0, Math.min(100, bearishProbability))}%"></i></article><article class="analysis-probability correction"><div><span>ریسک اصلاح</span><strong>${num(correctionProbability, 0)}٪</strong></div><small>سطح ریسک: ${esc(correctionLabel)}</small><i style="width:${Math.max(0, Math.min(100, correctionProbability))}%"></i></article></div>${stats}</section>`;
+    return `<section class="fund-recommendation ${tone}"><div class="fund-recommendation-main"><div><span class="recommendation-kicker">${a.source === "Rahavard365" ? "شاخص‌های ره‌آورد · امتیاز مدل AliVest" : "مدل میان‌مدتی AliVest"} · ${esc(a.symbol || "این دارایی")}</span><h3>${a.source === "Rahavard365" ? "سیگنال ره‌آورد" : "برآورد مدل AliVest"}: <strong>${verdict}</strong></h3></div><div class="recommendation-context"><p>${esc(rationale)}</p><div class="recommendation-trend ${trendTone}"><span>روند فعلی</span><b>${trendLabel}</b></div></div></div><div class="analysis-score-grid"><div class="analysis-score-card primary ${tone}"><span>امتیاز کلی تکنیکال</span><strong>${a.technical_score == null ? "—" : `${num(a.technical_score, 0)}٪`}</strong><small>مدل میان‌مدتی · روند 20% · حجم 30% · نوسان‌گر 35% · مقاومت 15%</small><i style="width:${a.technical_score == null ? 0 : Math.max(0, Math.min(100, Number(a.technical_score)))}%"></i></div>${scoreCard("روند", movingAverageScore, "میانگین‌های EMA / SMA", movingAverageScore >= 60 ? "positive" : movingAverageScore <= 40 ? "negative" : "neutral")}${scoreCard("حجم", volumeScore, "تأیید ورود پول", volumeScore >= 60 ? "positive" : volumeScore <= 40 ? "negative" : "neutral")}${scoreCard("نوسان‌گرها", oscillatorScore, oscillatorDetail, oscillatorScore >= 60 ? "positive" : oscillatorScore <= 40 ? "negative" : "neutral")}${scoreCard("مقاومت‌های پیش‌رو", resistanceScore, `${num(nearResistanceCount, 0)} سطح نزدیک · ${num(Number(scores.front_resistance_count ?? resistanceLevels.length), 0)} سطح جلو`, resistanceScore != null && resistanceScore <= 40 ? "negative" : "neutral")}</div><div class="analysis-probability-grid"><article class="analysis-probability bullish"><div><span>ادامهٔ روند صعودی</span><strong>${num(bullishProbability, 0)}٪</strong></div><i style="width:${Math.max(0, Math.min(100, bullishProbability))}%"></i></article><article class="analysis-probability bearish"><div><span>ادامهٔ روند نزولی</span><strong>${num(bearishProbability, 0)}٪</strong></div><i style="width:${Math.max(0, Math.min(100, bearishProbability))}%"></i></article><article class="analysis-probability correction"><div><span>ریسک اصلاح</span><strong>${num(correctionProbability, 0)}٪</strong></div><small>سطح ریسک: ${esc(correctionLabel)}</small><i style="width:${Math.max(0, Math.min(100, correctionProbability))}%"></i></article></div>${stats}</section>`;
   }
 
   function scenarioHtml(a) {
@@ -733,9 +739,6 @@
   function analysisHtml(a) {
     if (a?.source === "Rahavard365") return rahavardAnalysisHtml(a);
     if (!a || a.technical_score == null) return `<div class="empty-state compact"><b>داده کافی برای محاسبه امتیاز موجود نیست</b><small>مدل فقط داده ذخیره‌شده از منبع را تحلیل می‌کند.</small></div>`;
-    const score = Number(a.technical_score);
-    const factors = (a.factors || []).map((f) => `<div class="factor-item"><span>${factorFa[f.name] || esc(f.name)} · وزن ${num(f.weight * 100, 0)}٪</span><b>${esc(f.evidence)}</b></div>`).join("");
-    const signalClass = a.signal.includes("buy") ? "bullish" : a.signal.includes("sell") ? "bearish" : "";
     const all = a.indicators?.indicators || {};
     const seen = new Set();
     const entries = Object.entries(all).filter(([key]) => {
@@ -767,10 +770,7 @@
       summary("ADX · قدرت و جهت روند", adx?.value == null ? "—" : num(adx.value, 1), adx ? indicatorAssessment("ADX(14)", adx).state : "unknown", adx ? `${indicatorAssessment("ADX(14)", adx).label} · ADX جهت را به‌تنهایی نمی‌گوید` : "داده ناکافی"),
       summary("میانگین‌های EMA", maAlignment.length ? `${maAlignment.filter(Boolean).length} از ${maAlignment.length}` : "—", maState, `${maLabel} · نسبت قیمت به EMA20/50/200`)
     ].join("");
-    const scoreCard = `<div class="score-card compact-score-card"><div class="score-ring" style="--score:${score}%"><b>${num(score, 0)}</b></div><div class="score-copy"><strong>امتیاز فنی · پوشش عوامل ${num(a.confidence, 0)}٪</strong><small>کوتاه‌مدت ${trendText(a.short_term_trend)} · میان‌مدت ${trendText(a.medium_term_trend)}</small></div><span class="signal-pill ${signalClass}">${signalFa[a.signal] || a.signal}</span></div>`;
-    const meta = `<div class="analysis-meta"><span><b>${esc(trendText(a.medium_term_trend))}</b> روند میان‌مدت</span><span><b>${esc(a.risk || "نامشخص")}</b> ریسک نوسان</span><span><b>${esc(formatDate(a.data_timestamp))}</b> آخرین داده</span></div>`;
-    const reason = compactText(a.decision_support || a.explanation || "", 150);
-    const overview = `<section class="analysis-overview">${scoreCard}${factors ? `<div class="factor-list compact-factor-list">${factors}</div>` : ""}${reason ? `<p class="analysis-reason">${esc(reason)}</p>` : ""}${meta}${scenarioHtml(a)}</section>`;
+    const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
     return `${overview}${tradePlanHtml(a)}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(entries.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div>${pivotTable}<div class="indicator-readouts">${summaryCards}</div><div class="indicator-card-grid">${cards}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
 
