@@ -88,52 +88,66 @@ def analyze(symbol: str, bars: list[dict[str, Any]]) -> dict[str, Any]:
     medium = _trend(current, _num(indicators.get("EMA(50)")), _num(indicators.get("EMA(200)")))
     long = _trend(current, _num(indicators.get("EMA(200)")))
 
-    # Factors and weights are explicit and returned for inspection. Missing inputs are excluded and weights renormalized.
-    factors: list[dict[str, Any]] = []
-    def add_factor(name: str, score: float | None, weight: float, evidence: str):
-        if score is not None:
-            factors.append({"name": name, "score": score, "weight": weight, "evidence": evidence})
-    trend_score = {"bullish": 100, "neutral": 50, "bearish": 0}.get(medium)
-    add_factor("trend", trend_score, 0.25, medium)
     rsi = _num(indicators.get("RSI(14)"))
-    add_factor("momentum", max(0, min(100, rsi if rsi is not None else 50)), 0.18,
-               f"RSI(14)={rsi:.1f}" if rsi is not None else "RSI unavailable")
     ma_score = None
     if ma.get("price_above_ema20") is not None:
         checks = [ma.get(k) for k in ["price_above_ema20", "price_above_ema50", "price_above_ema200"]]
         checks = [x for x in checks if x is not None]
         ma_score = 100 * sum(checks) / len(checks) if checks else None
-    add_factor("moving_averages", ma_score, 0.22, "قیمت نسبت به EMA20/50/200")
     volume = tech.get("volume_analysis", {})
     vol_score = (65 if volume.get("volume_spike") else 55 if volume.get("volume_trend") == "up" else 45) if volume.get("available") else None
-    add_factor("volume", vol_score, 0.12, "افزایش حجم" if volume.get("volume_spike") else "روند حجم روزانه")
     rv = _num(indicators.get("RV(30)"))
-    risk_adj = max(0, min(100, 100 - rv * 2)) if rv is not None else None
-    add_factor("volatility", risk_adj, 0.10, f"RV(30)={rv:.2f}%" if rv is not None else "RV unavailable")
     signal_score = 55
     macd = indicators.get("MACD(12,26,9)", {}).get("signal")
     if macd == "bullish": signal_score = 80
     elif macd == "bearish": signal_score = 20
-    add_factor("oscillators", signal_score if rsi is not None or macd else None, 0.08, f"MACD={macd}; RSI={rsi}")
     levels = support_resistance(bars, tech)
     supports = [x for x in levels if x["kind"] == "support"]
     resistances = [x for x in levels if x["kind"] == "resistance"]
     nearest_support = max((x for x in supports if x["midpoint"] < current), key=lambda x: x["midpoint"], default=None) if current is not None else None
     nearest_resistance = min((x for x in resistances if x["midpoint"] > current), key=lambda x: x["midpoint"], default=None) if current is not None else None
-    proximity = None
-    if current and nearest_support:
-        distance_pct = abs(current - nearest_support["midpoint"]) / current * 100
-        proximity = max(0, 100 - distance_pct * 20)
-    add_factor("support_resistance", proximity, 0.05,
-               "نزدیکی به نزدیک‌ترین حمایت" if proximity is not None else "سطح نزدیک معتبر در دسترس نیست")
-    total_weight = sum(x["weight"] for x in factors)
-    score = sum(x["score"] * x["weight"] for x in factors) / total_weight if total_weight else None
-    confidence = round(100 * min(1, len(bars) / 200) * (total_weight / 1.0), 0)
+    front_resistances = [x["midpoint"] for x in resistances if current is not None and x["midpoint"] > current]
+    near_resistances = [value for value in front_resistances if (value - current) / current <= 0.10] if current else []
+    nearest_front_resistance = min(front_resistances) if front_resistances else None
+    resistance_distance = ((nearest_front_resistance - current) / current * 100
+                           if nearest_front_resistance is not None and current else None)
+    resistance_score = None
+    if current is not None:
+        resistance_score = max(15.0, 100.0 - len(near_resistances) * 22.0
+                               - (10.0 if resistance_distance is not None and resistance_distance <= 3 else 0.0))
+    oscillator_score = signal_score if rsi is not None or macd else None
+    if oscillator_score is not None and rsi is not None:
+        if rsi >= 80:
+            oscillator_score = min(oscillator_score, 20.0)
+        elif rsi >= 70:
+            oscillator_score = min(oscillator_score, 40.0)
+    score_components = {
+        "moving_averages": ma_score,
+        "volume": vol_score,
+        "oscillators": oscillator_score,
+        "resistance": resistance_score,
+    }
+    available_components = [
+        (name, value, MEDIUM_TERM_SCORE_WEIGHTS[name])
+        for name, value in score_components.items()
+        if value is not None
+    ]
+    total_weight = sum(weight for _, _, weight in available_components)
+    score = (sum(value * weight for _, value, weight in available_components) / total_weight
+             if total_weight else None)
+    weighted_contributions = {
+        name: round(value * weight / total_weight, 1)
+        for name, value, weight in available_components
+    } if total_weight else {}
+    factors = [
+        {"name": name, "score": value, "weight": weight,
+         "evidence": medium if name == "moving_averages" else "volume analysis" if name == "volume"
+         else f"MACD={macd}; RSI={rsi}" if name == "oscillators" else f"{len(near_resistances)} nearby resistance levels"}
+        for name, value, weight in available_components
+    ]
+    confidence = round(100 * min(1, len(bars) / 200) * total_weight, 0)
 
-    explanation = []
-    for factor in factors:
-        if factor["name"] in ("trend", "moving_averages", "momentum", "oscillators", "volume", "support_resistance"):
-            explanation.append(f"{factor['name']}: {factor['evidence']}")
+    explanation = [f"{factor['name']}: {factor['evidence']}" for factor in factors]
     if score is None:
         signal = "unavailable"
     elif score >= 80 and confidence >= 35:
@@ -149,9 +163,20 @@ def analyze(symbol: str, bars: list[dict[str, Any]]) -> dict[str, Any]:
 
     atr = _num(indicators.get("ATR(14)"))
     scenarios = []
+    bullish_probability = 50
+    bearish_probability = 50
+    correction_probability = 50
+    correction_label = "متوسط"
     if current is not None:
-        bullish_probability = max(5, min(95, round(float(score or 50) + (8 if medium == "bullish" else -8 if medium == "bearish" else 0))))
+        bullish_probability = max(5, min(95, round(float(score if score is not None else 50) + (8 if medium == "bullish" else -8 if medium == "bearish" else 0))))
         bearish_probability = 100 - bullish_probability
+        resistance_pressure = min(22.0, len(near_resistances) * 7.0
+                                  + (8.0 if resistance_distance is not None and resistance_distance <= 3 else 0.0))
+        overbought_count = 1 if rsi is not None and rsi >= 70 else 0
+        correction_probability = round(max(5.0, min(95.0,
+            bearish_probability * 0.65 + resistance_pressure + min(18.0, overbought_count * 6.0)
+            + (8.0 if medium == "bearish" else 0.0))))
+        correction_label = "بالا" if correction_probability >= 55 else "متوسط" if correction_probability >= 30 else "پایین"
         bullish_reasons = [f"امتیاز فنی فعلی {score:.1f} از ۱۰۰ است" if score is not None else "امتیاز فنی کامل در دسترس نیست"]
         bearish_reasons = [f"امتیاز فنی فعلی {score:.1f} از ۱۰۰ هنوز تأیید قطعی صعود نیست" if score is not None else "امتیاز فنی کامل در دسترس نیست"]
         if medium == "bullish":
@@ -217,6 +242,16 @@ def analyze(symbol: str, bars: list[dict[str, Any]]) -> dict[str, Any]:
         },
         "trend": medium, "short_term_trend": short, "medium_term_trend": medium,
         "long_term_trend": long, "technical_score": round(score, 1) if score is not None else None,
+        "score_method": "medium_term_weighted",
+        "score_weights": {name: round(weight * 100) for name, weight in MEDIUM_TERM_SCORE_WEIGHTS.items()},
+        "score_breakdown": {
+            **score_components, "rsi": rsi, "weighted_contributions": weighted_contributions,
+            "available_weight": round(total_weight * 100),
+            "front_resistance_count": len(front_resistances),
+            "near_resistance_count": len(near_resistances),
+        },
+        "trend_probabilities": {"bullish": bullish_probability, "bearish": bearish_probability},
+        "correction_risk": {"probability": correction_probability, "label": correction_label},
         "confidence": confidence, "confidence_basis": "پوشش عوامل قابل محاسبه و طول تاریخچه؛ احتمال موفقیت نیست",
         "risk": risk, "signal": signal,
         "factors": factors, "explanation": explanation, "indicators": tech,
