@@ -226,6 +226,7 @@ button, a, .market-card, .panel, input, select { transition: background-color .1
 }
 .table-search input { font-size: 14px; }
 .fund-toolbar select { padding: 7px 11px; }
+.fund-mobile-score-sort { display: none; }
 th { background: #1c2c33; color: #b7c8c4; font-size: 14px; padding: 14px; }
 th[data-fund-sort] { cursor: pointer; user-select: none; white-space: nowrap; transition: background .18s ease, color .18s ease; }
 th[data-fund-sort]:hover, th[data-fund-sort].is-sorted { background: #254149; color: #e1f2ed; }
@@ -755,7 +756,7 @@ body.light-mode #view-settings .alert-form { background: #f5f9f6; border-color: 
 #view-funds .table-scroll { overflow: auto; scrollbar-color: #527f7c #14242c; }
 #view-funds #fund-table-grid {
   width: 100%;
-  min-width: 1060px;
+  min-width: 1140px;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: auto;
@@ -851,11 +852,17 @@ body.light-mode #view-settings .alert-form { background: #f5f9f6; border-color: 
 #view-funds .row-open:focus-visible .fund-table-name { border-color: #68c8b0; background: linear-gradient(135deg, rgba(42, 111, 105, .76), rgba(23, 56, 61, .82)); transform: translateX(-2px); }
 #view-funds .fund-table-name strong { display: block; color: #edf7f3; font-size: 14px; font-weight: 700; line-height: 1.5; }
 #view-funds .fund-table-name small { display: block; margin-top: 1px; color: #9eb8b3; font: 11px Tahoma, sans-serif; line-height: 1.5; }
-#view-funds #fund-table-grid tbody td:nth-child(2) { color: #e5eee9; font-weight: 650; }
-#view-funds #fund-table-grid tbody td:nth-child(3) .positive,
-#view-funds #fund-table-grid tbody td:nth-child(4) .positive { color: #71d6af; }
-#view-funds #fund-table-grid tbody td:nth-child(3) .negative,
-#view-funds #fund-table-grid tbody td:nth-child(4) .negative { color: #ef9aa2; }
+#view-funds .fund-technical-score { direction: ltr; text-align: center !important; }
+#view-funds .technical-score-chip { display: inline-flex; align-items: center; justify-content: center; min-width: 72px; padding: 5px 8px; border: 1px solid transparent; border-radius: 999px; font: 700 12px "DM Mono", Tahoma, sans-serif; direction: ltr; }
+#view-funds .technical-score-chip.positive { color: #71d6af; border-color: rgba(76, 196, 151, .3); background: rgba(48, 145, 111, .14); }
+#view-funds .technical-score-chip.neutral { color: #edc578; border-color: rgba(222, 177, 82, .3); background: rgba(165, 119, 33, .13); }
+#view-funds .technical-score-chip.negative { color: #ef9aa2; border-color: rgba(226, 101, 120, .3); background: rgba(153, 53, 72, .13); }
+#view-funds .technical-score-chip.unknown { color: #90a2a0; border-color: rgba(127, 157, 151, .22); background: rgba(83, 108, 105, .12); }
+#view-funds #fund-table-grid tbody td:nth-child(3) { color: #e5eee9; font-weight: 650; }
+#view-funds #fund-table-grid tbody td:nth-child(4) .positive,
+#view-funds #fund-table-grid tbody td:nth-child(5) .positive { color: #71d6af; }
+#view-funds #fund-table-grid tbody td:nth-child(4) .negative,
+#view-funds #fund-table-grid tbody td:nth-child(5) .negative { color: #ef9aa2; }
 #view-funds .table-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 17px; border-top: 1px solid rgba(87, 122, 125, .22); background: rgba(11, 25, 32, .28); color: #91aaa6; font-size: 12px; line-height: 1.8; }
 #view-funds .table-footer span:last-child { color: #718c88; text-align: left; }
 
@@ -873,10 +880,15 @@ body.light-mode #view-funds #fund-table-grid tbody tr:hover td:first-child { bac
 body.light-mode #view-funds .fund-table-name { border-color: #c9dfd4; background: linear-gradient(135deg, #edf8f2, #e4f2eb); }
 body.light-mode #view-funds .fund-table-name strong { color: #294d43; }
 body.light-mode #view-funds .fund-table-name small { color: #6c877e; }
+body.light-mode #view-funds .technical-score-chip.positive { color: #16845c; background: #e1f4e9; }
+body.light-mode #view-funds .technical-score-chip.neutral { color: #946a1a; background: #fbf1d9; }
+body.light-mode #view-funds .technical-score-chip.negative { color: #b33d4d; background: #fbe8eb; }
+body.light-mode #view-funds .technical-score-chip.unknown { color: #71847f; background: #edf3ef; }
 body.light-mode #view-funds .table-footer { border-color: #dce8e2; background: #f6faf8; color: #668078; }
 body.light-mode #view-funds .table-footer span:last-child { color: #7a918a; }
 
 @media (max-width: 700px) {
+  .fund-mobile-score-sort { display: block; flex: 1 1 160px; }
   #view-funds #fund-table-grid { min-width: 980px; }
   #view-funds #fund-table-grid thead th, #view-funds #fund-table-grid tbody td { padding-left: 11px; padding-right: 11px; }
   #view-funds .table-footer { align-items: flex-start; flex-direction: column; gap: 3px; }
@@ -932,14 +944,16 @@ body.light-mode #view-funds .table-footer span:last-child { color: #7a918a; }
     direction: rtl;
   }
   #view-funds #fund-table-grid tbody td:first-child::before { display: none; }
-  #view-funds #fund-table-grid tbody td:nth-child(2)::before { content: "قیمت پایانی"; }
-  #view-funds #fund-table-grid tbody td:nth-child(3)::before { content: "تغییر روز"; }
-  #view-funds #fund-table-grid tbody td:nth-child(4)::before { content: "بازده 1 ماهه"; }
-  #view-funds #fund-table-grid tbody td:nth-child(5)::before { content: "بازده 3 ماهه"; }
-  #view-funds #fund-table-grid tbody td:nth-child(6)::before { content: "بازده 6 ماهه"; }
-  #view-funds #fund-table-grid tbody td:nth-child(7)::before { content: "بازده 1 ساله"; }
-  #view-funds #fund-table-grid tbody td:nth-child(8)::before { content: "حجم"; }
-  #view-funds #fund-table-grid tbody td:nth-child(9)::before { content: "ارزش معامله"; }
+  #view-funds #fund-table-grid tbody td:nth-child(2)::before { content: "امتیاز تکنیکال"; }
+  #view-funds #fund-table-grid tbody td:nth-child(3)::before { content: "قیمت پایانی"; }
+  #view-funds #fund-table-grid tbody td:nth-child(4)::before { content: "تغییر روز"; }
+  #view-funds #fund-table-grid tbody td:nth-child(5)::before { content: "بازده 1 ماهه"; }
+  #view-funds #fund-table-grid tbody td:nth-child(6)::before { content: "بازده 3 ماهه"; }
+  #view-funds #fund-table-grid tbody td:nth-child(7)::before { content: "بازده 6 ماهه"; }
+  #view-funds #fund-table-grid tbody td:nth-child(8)::before { content: "بازده 1 ساله"; }
+  #view-funds #fund-table-grid tbody td:nth-child(9)::before { content: "حجم"; }
+  #view-funds #fund-table-grid tbody td:nth-child(10)::before { content: "ارزش معامله"; }
+  #view-funds #fund-table-grid tbody td:nth-child(11)::before { content: "آخرین به‌روزرسانی"; }
   #view-funds .fund-table-name { width: 100%; min-width: 0; padding: 11px 12px; }
   #view-funds .fund-table-name strong { font-size: 16px; }
   #view-funds .fund-table-name small { font-size: 11px; }

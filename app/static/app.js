@@ -896,6 +896,8 @@
     }
     state.funds = sortedFundItems(state.funds);
     renderFundTable(state.funds);
+    const mobileScoreSort = $("#fund-mobile-score-sort");
+    if (mobileScoreSort) mobileScoreSort.value = key === "technical_score" ? (fundSortState.direction === 1 ? "asc" : "desc") : "";
   }
 
   // ETF directory rows expose a Rahavard asset ID, not necessarily an exchange ticker.
@@ -906,14 +908,17 @@
       const category = $("#fund-category")?.value.trim() || "";
       const filtered = search || category;
       const filterLabel = search || $("#fund-category")?.selectedOptions?.[0]?.textContent?.trim() || "";
-      target.innerHTML = `<tr><td colspan="10"><div class="empty-state fund-empty-state"><span>&#9632;</span><b>${filtered ? "نتیجه‌ای برای فیلتر فعلی پیدا نشد" : "صندوقی از ره‌آورد۳۶۵ دریافت نشده"}</b><small>${filtered ? `فیلتر فعال: ${esc(filterLabel)} · برای نمایش همه صندوق‌ها فیلتر را پاک کنید.` : "وضعیت اتصال ره‌آورد را در صفحه وضعیت سامانه ببینید."}</small>${filtered ? `<button class="button button-quiet fund-clear-filter" type="button" data-clear-fund-filters>پاک کردن فیلترها</button>` : ""}</div></td></tr>`;
+      target.innerHTML = `<tr><td colspan="11"><div class="empty-state fund-empty-state"><span>&#9632;</span><b>${filtered ? "نتیجه‌ای برای فیلتر فعلی پیدا نشد" : "صندوقی از ره‌آورد۳۶۵ دریافت نشده"}</b><small>${filtered ? `فیلتر فعال: ${esc(filterLabel)} · برای نمایش همه صندوق‌ها فیلتر را پاک کنید.` : "وضعیت اتصال ره‌آورد را در صفحه وضعیت سامانه ببینید."}</small>${filtered ? `<button class="button button-quiet fund-clear-filter" type="button" data-clear-fund-filters>پاک کردن فیلترها</button>` : ""}</div></td></tr>`;
       return;
     }
     const amount = (value) => value == null ? "—" : money(value);
     target.innerHTML = items.map((f) => {
       const id = f.rahavard_asset_id || f.symbol;
       const price = f.market_price ?? f.real_close_price;
-      return `<tr><td><button class="row-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><strong>${esc(f.name)}</strong><small class="fund-symbol">شناسه ره‌آورد: ${esc(id)}</small></span></button></td><td>${amount(price)}</td><td><span class="${changeClass(f.daily_return)}">${pct(f.daily_return)}</span></td><td>${pct(f.monthly_return)}</td><td>${pct(f.three_month_return)}</td><td>${pct(f.six_month_return)}</td><td>${pct(f.one_year_return)}</td><td>${amount(f.volume)}</td><td>${amount(f.value)}</td><td class="fund-update-time">${esc(formatDate(f.updated_at))}</td></tr>`;
+      const scoreValue = f.technical_score == null ? null : Number(f.technical_score);
+      const scoreTone = scoreValue == null || !Number.isFinite(scoreValue) ? "unknown" : scoreValue >= 70 ? "positive" : scoreValue >= 50 ? "neutral" : "negative";
+      const scoreCell = scoreValue == null || !Number.isFinite(scoreValue) ? `<span class="technical-score-chip unknown" title="امتیاز هنوز محاسبه نشده">—</span>` : `<span class="technical-score-chip ${scoreTone}" title="امتیاز میان‌مدتی AliVest">${num(scoreValue, 0)} / 100</span>`;
+      return `<tr><td><button class="row-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><strong>${esc(f.name)}</strong><small class="fund-symbol">شناسه ره‌آورد: ${esc(id)}</small></span></button></td><td class="fund-technical-score">${scoreCell}</td><td>${amount(price)}</td><td><span class="${changeClass(f.daily_return)}">${pct(f.daily_return)}</span></td><td>${pct(f.monthly_return)}</td><td>${pct(f.three_month_return)}</td><td>${pct(f.six_month_return)}</td><td>${pct(f.one_year_return)}</td><td>${amount(f.volume)}</td><td>${amount(f.value)}</td><td class="fund-update-time">${esc(formatDate(f.updated_at))}</td></tr>`;
     }).join("");
     updateFundSortIndicators();
   }
@@ -940,6 +945,14 @@
       section.classList.remove("hidden");
       const f = data.fund || {}, a = data.analysis;
       const id = f.rahavard_asset_id || f.symbol;
+      if (a?.technical_score != null) {
+        const listedFund = state.funds.find((item) => item.fund_key === symbol || item.symbol === symbol || String(item.rahavard_asset_id || "") === String(id));
+        if (listedFund) {
+          listedFund.technical_score = Number(a.technical_score);
+          state.funds = sortedFundItems(state.funds);
+          renderFundTable(state.funds);
+        }
+      }
       const displaySymbol = f.display_symbol || `شناسه ره‌آورد ${id}`;
       const props = [
         ["شناسه ره‌آورد", id], ["نماد معاملاتی", f.display_symbol],
@@ -1250,6 +1263,14 @@
     const button = event.target.closest("[data-fund]");
     if (button) showFund(button.dataset.fund);
   });
+  $("#fund-mobile-score-sort").addEventListener("change", (event) => {
+    const direction = event.target.value;
+    fundSortState.key = direction ? "technical_score" : "data_timestamp";
+    fundSortState.direction = direction === "asc" ? 1 : -1;
+    state.funds = sortedFundItems(state.funds);
+    renderFundTable(state.funds);
+  });
+
   $("#fund-table-grid").addEventListener("click", (event) => {
     const header = event.target.closest("th[data-fund-sort]");
     if (header) sortFundTable(header.dataset.fundSort);
