@@ -590,10 +590,15 @@ def _fund_purchase_assessment(price: Any, analysis: dict[str, Any] | None) -> di
     score = _watchlist_number(analysis.get("technical_score"))
     breakdown = analysis.get("score_breakdown") if isinstance(analysis.get("score_breakdown"), dict) else {}
     near_resistance_count = _watchlist_number(breakdown.get("near_resistance_count"))
+    rsi = _watchlist_number(breakdown.get("rsi"))
     if current_price is None or current_price <= 0 or exit_price is None or exit_price <= 0 or score is None or near_resistance_count is None:
         return {"status": "unknown", "label": "داده کافی نیست", "reason": "برای ارزیابی قیمت فعلی، قیمت و دادهٔ کامل تکنیکال لازم است.", "rank": None}
     if current_price <= exit_price:
         return {"status": "unsuitable", "label": "نامناسب", "reason": "قیمت فعلی روی حد خروج میان‌مدت یا پایین‌تر از آن است.", "rank": 0}
+    if rsi is not None and rsi >= 70:
+        label = "صبر · RSI داغ" if rsi >= 80 else "صبر · RSI بالاست"
+        return {"status": "wait", "label": label,
+                "reason": f"RSI(14) برابر {rsi:.1f} است؛ برای خرید تازه تا کاهش خریدزدگی و تأیید دوباره صبر کن.", "rank": 2}
     if score >= 70 and near_resistance_count == 0:
         return {"status": "suitable", "label": "مناسب", "reason": "امتیاز میان‌مدت قوی است؛ قیمت بالای حد خروج و دور از مقاومت نزدیک است.", "rank": 3}
     if score >= 55:
@@ -898,6 +903,7 @@ async def get_watchlist():
         technical_score = _watchlist_number(analysis_result.get("technical_score")) if analysis_result else None
         score_breakdown = analysis_result.get("score_breakdown") if analysis_result and isinstance(analysis_result.get("score_breakdown"), dict) else {}
         near_resistance_count = _watchlist_number(score_breakdown.get("near_resistance_count"))
+        rsi = _watchlist_number(score_breakdown.get("rsi"))
         if price is None or medium_term_exit_price is None or technical_score is None:
             holding_decision = {"label": "داده کافی نیست", "tone": "unknown", "reason": "برای تعیین نگهداری یا خروج، قیمت و تحلیل کامل لازم است."}
             add_position_decision = {"label": "فعلاً اضافه نکن", "tone": "neutral", "reason": "تا کامل‌شدن داده‌ها برای افزایش حجم صبر کن."}
@@ -905,6 +911,8 @@ async def get_watchlist():
             holding_decision = {"label": "موقعیتی ثبت نشده", "tone": "neutral", "reason": "برای این نماد تعداد واحدی در دیده‌بان ثبت نشده است."}
             if price <= medium_term_exit_price:
                 add_position_decision = {"label": "خیر · حد خروج شکسته", "tone": "negative", "reason": "قیمت به حد خروج میان‌مدت رسیده یا پایین‌تر است."}
+            elif rsi is not None and rsi >= 70:
+                add_position_decision = {"label": "صبر · RSI بالاست", "tone": "neutral", "reason": f"RSI(14) برابر {rsi:.1f} است؛ برای ورود تازه تا کاهش خریدزدگی صبر کن."}
             elif technical_score >= 70 and (near_resistance_count or 0) == 0:
                 add_position_decision = {"label": "بله · پله‌ای", "tone": "positive", "reason": "امتیاز میان‌مدت مناسب است و مقاومت نزدیکی ثبت نشده."}
             elif technical_score >= 55:
@@ -919,7 +927,9 @@ async def get_watchlist():
             add_position_decision = {"label": "خیر · فعلاً", "tone": "negative", "reason": "امتیاز میان‌مدت ضعیف است."}
         else:
             holding_decision = {"label": "نگهداری", "tone": "positive", "reason": "قیمت بالای حد خروج میان‌مدت است؛ شکست این سطح را زیر نظر بگیر."}
-            if technical_score >= 70 and (near_resistance_count or 0) == 0:
+            if rsi is not None and rsi >= 70:
+                add_position_decision = {"label": "صبر · RSI بالاست", "tone": "neutral", "reason": f"RSI(14) برابر {rsi:.1f} است؛ با وجود حفظ موقعیت، برای افزایش حجم تا کاهش خریدزدگی صبر کن."}
+            elif technical_score >= 70 and (near_resistance_count or 0) == 0:
                 add_position_decision = {"label": "بله · پله‌ای", "tone": "positive", "reason": "امتیاز مناسب است و مقاومت نزدیکی ثبت نشده؛ خرید را مرحله‌ای انجام بده."}
             elif technical_score >= 55:
                 add_position_decision = {"label": "صبر برای تأیید", "tone": "neutral", "reason": "برای افزایش حجم، تأیید روند یا اصلاح مناسب‌تر لازم است."}

@@ -8,14 +8,12 @@ from typing import Any
 from .indicators import compute_indicators
 
 
-# Weights are deliberately tilted toward medium-term trend and price structure.
-# Oscillators receive the smallest weight because they are more useful for timing
-# short-term entries than for judging the persistence of a medium-term trend.
+# Medium-term AliVest score weights for the four factors shown in the analysis.
 MEDIUM_TERM_SCORE_WEIGHTS = {
-    "moving_averages": 0.40,
-    "volume": 0.20,
-    "oscillators": 0.15,
-    "resistance": 0.25,
+    "moving_averages": 0.20,
+    "volume": 0.25,
+    "oscillators": 0.40,
+    "resistance": 0.15,
 }
 
 
@@ -400,9 +398,17 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         values = [value for value in values if value is not None]
         return round(sum(values) / len(values), 1) if values else None
 
+    rsi = find_values("RSI").get("rsi")
     moving_average_score = group_score("moving_averages")
     volume_score = group_score("volumes")
     oscillator_score = group_score("oscillators")
+    # RSI over 70 caps the oscillator factor at 40; over 80 caps it at 20.
+    # This prevents a neutral/bullish text label from hiding numeric overbought risk.
+    if oscillator_score is not None and rsi is not None:
+        if rsi >= 80:
+            oscillator_score = min(oscillator_score, 20.0)
+        elif rsi >= 70:
+            oscillator_score = min(oscillator_score, 40.0)
     front_resistances = [value for value in resistances if price is not None and value > price]
     near_resistances = [value for value in front_resistances if (value - price) / price <= 0.10] if price else []
     nearest_front_resistance = min(front_resistances) if front_resistances else None
@@ -439,6 +445,8 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         1 for item in groups["oscillators"]
         if str(item.get("signal") or "").strip().casefold().replace("_", "") == "overbought"
     )
+    if rsi is not None and rsi >= 70:
+        overbought_count = max(1, overbought_count)
     correction_probability = round(max(5.0, min(95.0,
         bearish_probability * 0.65
         + resistance_pressure
@@ -459,7 +467,6 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     if structural_exit_price is not None and immediate_exit_price is not None and structural_exit_price >= immediate_exit_price:
         structural_exit_price = round(immediate_exit_price * 0.985)
     resistance_above_price = price is None or any(value > price for value in resistances)
-    rsi = find_values("RSI").get("rsi")
     mfi = find_values("MFI").get("mfi")
     cci = find_values("CCI").get("cci")
     wr = find_values("WR").get("wr")
@@ -560,6 +567,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
             "moving_averages": moving_average_score,
             "volume": volume_score,
             "oscillators": oscillator_score,
+            "rsi": rsi,
             "resistance": resistance_score,
             "weighted_contributions": weighted_contributions,
             "available_weight": round(available_weight * 100),
@@ -575,7 +583,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         },
         "signal": signal, "trend": trend, "risk": "unavailable",
         "confidence": None,
-        "confidence_basis": "امتیاز و سیگنال از داشبورد تکنیکال خود ره‌آورد دریافت شده‌اند.",
+        "confidence_basis": "امتیاز با وزن‌دهی چهار گروه در AliVest محاسبه شده و سیگنال منتشرشده از داشبورد ره‌آورد است.",
         "decision_support": explanation,
         "explanation": explanation, "site_gauges": gauges,
         "indicators": groups, "indicator_notes": notes,
