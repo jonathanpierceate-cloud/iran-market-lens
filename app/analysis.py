@@ -16,8 +16,17 @@ MEDIUM_TERM_SCORE_WEIGHTS = {
     "resistance": 0.15,
 }
 
-# Dashboard market cards use a separate medium-term model. Fund scores keep
-# MEDIUM_TERM_SCORE_WEIGHTS so their existing calculation remains unchanged.
+# Fund analysis cards use their own medium-term model. Generic local-market
+# analysis keeps MEDIUM_TERM_SCORE_WEIGHTS, while dashboard cards use the
+# separate dashboard weights below.
+FUND_CARD_SCORE_WEIGHTS = {
+    "moving_averages": 0.30,
+    "volume": 0.15,
+    "oscillators": 0.40,
+    "resistance": 0.15,
+}
+
+# Dashboard market cards use a separate medium-term model.
 DASHBOARD_SCORE_WEIGHTS = {
     "moving_averages": 0.40,
     "volume": 0.10,
@@ -472,7 +481,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         "resistance": resistance_score,
     }
     available_components = [
-        (name, value, MEDIUM_TERM_SCORE_WEIGHTS[name])
+        (name, value, FUND_CARD_SCORE_WEIGHTS[name])
         for name, value in score_components.items()
         if value is not None
     ]
@@ -608,7 +617,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         },
         "technical_score": weighted_score,
         "score_method": "medium_term_weighted",
-        "score_weights": {name: round(weight * 100) for name, weight in MEDIUM_TERM_SCORE_WEIGHTS.items()},
+        "score_weights": {name: round(weight * 100) for name, weight in FUND_CARD_SCORE_WEIGHTS.items()},
         "score_breakdown": {
             "moving_averages": moving_average_score,
             "volume": volume_score,
