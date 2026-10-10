@@ -16,6 +16,15 @@ MEDIUM_TERM_SCORE_WEIGHTS = {
     "resistance": 0.15,
 }
 
+# Dashboard market cards use a separate medium-term model. Fund scores keep
+# MEDIUM_TERM_SCORE_WEIGHTS so their existing calculation remains unchanged.
+DASHBOARD_SCORE_WEIGHTS = {
+    "moving_averages": 0.40,
+    "volume": 0.10,
+    "oscillators": 0.30,
+    "resistance": 0.20,
+}
+
 
 def _num(item: dict[str, Any] | None) -> float | None:
     val = item.get("value") if isinstance(item, dict) else None
@@ -79,7 +88,9 @@ def support_resistance(bars: list[dict[str, Any]], indicators: dict[str, Any]) -
     return result
 
 
-def analyze(symbol: str, bars: list[dict[str, Any]]) -> dict[str, Any]:
+def analyze(symbol: str, bars: list[dict[str, Any]],
+            weights: dict[str, float] | None = None) -> dict[str, Any]:
+    score_weights = weights or MEDIUM_TERM_SCORE_WEIGHTS
     tech = compute_indicators(bars)
     indicators = tech["indicators"]
     current = tech.get("latest")
@@ -128,7 +139,7 @@ def analyze(symbol: str, bars: list[dict[str, Any]]) -> dict[str, Any]:
         "resistance": resistance_score,
     }
     available_components = [
-        (name, value, MEDIUM_TERM_SCORE_WEIGHTS[name])
+        (name, value, score_weights[name])
         for name, value in score_components.items()
         if value is not None
     ]
@@ -243,7 +254,7 @@ def analyze(symbol: str, bars: list[dict[str, Any]]) -> dict[str, Any]:
         "trend": medium, "short_term_trend": short, "medium_term_trend": medium,
         "long_term_trend": long, "technical_score": round(score, 1) if score is not None else None,
         "score_method": "medium_term_weighted",
-        "score_weights": {name: round(weight * 100) for name, weight in MEDIUM_TERM_SCORE_WEIGHTS.items()},
+        "score_weights": {name: round(weight * 100) for name, weight in score_weights.items()},
         "score_breakdown": {
             **score_components, "rsi": rsi, "weighted_contributions": weighted_contributions,
             "available_weight": round(total_weight * 100),

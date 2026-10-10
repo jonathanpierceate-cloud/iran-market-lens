@@ -17,7 +17,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .analysis import analyze, analyze_rahavard, stale_status
+from .analysis import DASHBOARD_SCORE_WEIGHTS, analyze, analyze_rahavard, stale_status
 from .config import (MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
                      RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_PAGE_URL,
                      RAHAVARD_GOLD_18K_PAGE_URL,
@@ -97,7 +97,7 @@ def _refresh_interval() -> int:
         return REFRESH_INTERVAL_SECONDS
 
 
-def _market_quote(symbol: str) -> dict[str, Any]:
+def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None) -> dict[str, Any]:
     bars = _market_history(symbol, 10000)
     with db.connect() as conn:
         asset = conn.execute("SELECT * FROM assets WHERE symbol=?", (symbol,)).fetchone()
@@ -149,7 +149,7 @@ def _market_quote(symbol: str) -> dict[str, Any]:
         output["price_is_cached"] = observed_day.astimezone(iran_tz).date() != datetime.now(iran_tz).date()
     except (TypeError, ValueError, OverflowError):
         output["price_is_cached"] = bool(is_stale)
-    output["analysis"] = analyze(symbol, bars)
+    output["analysis"] = analyze(symbol, bars, weights=analysis_weights)
     output["analysis"]["price_is_cached"] = output["price_is_cached"]
     return output
 
@@ -371,10 +371,10 @@ def _gold18k_valuation(gold_quote: dict[str, Any], dollar_quote: dict[str, Any],
 @app.get("/api/market/summary")
 def market_summary():
     funds = _exclude_fixed_income_funds(db.funds(sort="data_timestamp", source="Rahavard365"))
-    gold_quote = _market_quote("GOLD")
-    gold18k_quote = _market_quote("GOLD_18K")
-    dollar_quote = _market_quote("USD_IR_FREE")
-    tepix_quote = _market_quote("TEPIX")
+    gold_quote = _market_quote("GOLD", DASHBOARD_SCORE_WEIGHTS)
+    gold18k_quote = _market_quote("GOLD_18K", DASHBOARD_SCORE_WEIGHTS)
+    dollar_quote = _market_quote("USD_IR_FREE", DASHBOARD_SCORE_WEIGHTS)
+    tepix_quote = _market_quote("TEPIX", DASHBOARD_SCORE_WEIGHTS)
     gold_quote.pop("history", None)
     gold18k_quote.pop("history", None)
     dollar_quote.pop("history", None)
