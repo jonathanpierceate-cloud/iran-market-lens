@@ -785,6 +785,9 @@ async def get_watchlist():
                     "supports": [], "resistances": [],
                     "midterm_outlook": "نماد سفارشی · دادهٔ قیمت موجود نیست" if is_custom_symbol else "صندوق در فهرست ره‌آورد پیدا نشد",
                     "overall_status": "داده در دسترس نیست", "technical_score": None,
+                    "medium_term_exit_price": None, "distance_to_exit": None,
+                    "holding_decision": {"label": "داده کافی نیست", "tone": "unknown", "reason": "قیمت و تحلیل تکنیکال این نماد در دسترس نیست."},
+                    "add_position_decision": {"label": "فعلاً اضافه نکن", "tone": "neutral", "reason": "تا دریافت قیمت و تحلیل معتبر صبر کن."},
                     "explanation": "برای این نماد، نمایه و دادهٔ تحلیلی در فهرست فعلی صندوق‌های ره‌آورد موجود نیست."}
         async with semaphore:
             profile_result, indicator_result = await asyncio.gather(
@@ -839,6 +842,9 @@ async def get_watchlist():
         levels = _watchlist_levels(indicator_data, price)
         signal = analysis_result.get("signal") if analysis_result else None
         trend = analysis_result.get("trend") if analysis_result else None
+        medium_term_exit_price = _watchlist_number(analysis_result.get("medium_term_exit_price")) if analysis_result else None
+        distance_value = price - medium_term_exit_price if price is not None and medium_term_exit_price is not None else None
+        distance_pct = distance_value / price * 100 if distance_value is not None and price else None
         break_even = _watchlist_number(record.get("break_even_price"))
         units = _watchlist_number(record.get("units"))
         profit_per_unit = price - break_even if price is not None and break_even is not None else None
@@ -853,6 +859,36 @@ async def get_watchlist():
         else:
             outlook, tone = "داده تکنیکال کافی نیست", "unknown"
         signal_fa = {"buy": "مثبت", "sell": "منفی", "hold": "خنثی"}.get(signal, "نامشخص")
+        technical_score = _watchlist_number(analysis_result.get("technical_score")) if analysis_result else None
+        score_breakdown = analysis_result.get("score_breakdown") if analysis_result and isinstance(analysis_result.get("score_breakdown"), dict) else {}
+        near_resistance_count = _watchlist_number(score_breakdown.get("near_resistance_count"))
+        if price is None or medium_term_exit_price is None or technical_score is None:
+            holding_decision = {"label": "داده کافی نیست", "tone": "unknown", "reason": "برای تعیین نگهداری یا خروج، قیمت و تحلیل کامل لازم است."}
+            add_position_decision = {"label": "فعلاً اضافه نکن", "tone": "neutral", "reason": "تا کامل‌شدن داده‌ها برای افزایش حجم صبر کن."}
+        elif (units or 0) <= 0:
+            holding_decision = {"label": "موقعیتی ثبت نشده", "tone": "neutral", "reason": "برای این نماد تعداد واحدی در دیده‌بان ثبت نشده است."}
+            if price <= medium_term_exit_price:
+                add_position_decision = {"label": "خیر · حد خروج شکسته", "tone": "negative", "reason": "قیمت به حد خروج میان‌مدت رسیده یا پایین‌تر است."}
+            elif technical_score >= 70 and (near_resistance_count or 0) == 0:
+                add_position_decision = {"label": "بله · پله‌ای", "tone": "positive", "reason": "امتیاز میان‌مدت مناسب است و مقاومت نزدیکی ثبت نشده."}
+            elif technical_score >= 55:
+                add_position_decision = {"label": "صبر برای تأیید", "tone": "neutral", "reason": "برای ورود، تأیید روند یا فاصله‌گرفتن از مقاومت لازم است."}
+            else:
+                add_position_decision = {"label": "خیر · فعلاً", "tone": "negative", "reason": "امتیاز میان‌مدت برای افزودن موقعیت کافی نیست."}
+        elif price <= medium_term_exit_price:
+            holding_decision = {"label": "فروش / کاهش", "tone": "negative", "reason": "قیمت به حد خروج میان‌مدت رسیده یا پایین‌تر است؛ طبق قاعدهٔ خروج، موقعیت را کاهش بده."}
+            add_position_decision = {"label": "خیر · حد خروج شکسته", "tone": "negative", "reason": "تا بازپس‌گیری و تثبیت بالای حد خروج، حجم اضافه نکن."}
+        elif technical_score < 40:
+            holding_decision = {"label": "کاهش ریسک", "tone": "negative", "reason": "امتیاز تکنیکال میان‌مدت ضعیف است؛ نگهداری کامل ریسک بالاتری دارد."}
+            add_position_decision = {"label": "خیر · فعلاً", "tone": "negative", "reason": "امتیاز میان‌مدت ضعیف است."}
+        else:
+            holding_decision = {"label": "نگهداری", "tone": "positive", "reason": "قیمت بالای حد خروج میان‌مدت است؛ شکست این سطح را زیر نظر بگیر."}
+            if technical_score >= 70 and (near_resistance_count or 0) == 0:
+                add_position_decision = {"label": "بله · پله‌ای", "tone": "positive", "reason": "امتیاز مناسب است و مقاومت نزدیکی ثبت نشده؛ خرید را مرحله‌ای انجام بده."}
+            elif technical_score >= 55:
+                add_position_decision = {"label": "صبر برای تأیید", "tone": "neutral", "reason": "برای افزایش حجم، تأیید روند یا اصلاح مناسب‌تر لازم است."}
+            else:
+                add_position_decision = {"label": "خیر · فعلاً", "tone": "negative", "reason": "امتیاز میان‌مدت برای افزایش حجم کافی نیست."}
         asset_id = str(raw.get("rahavard_asset_id") or fund.get("registration_no") or fund["symbol"])
         display_symbol = _WATCHLIST_DISPLAY_BY_ASSET_ID.get(asset_id) or asset.get("trade_symbol") or fund["symbol"]
         return {
@@ -872,7 +908,11 @@ async def get_watchlist():
             "signal": signal,
             "signal_fa": signal_fa,
             "trend": trend,
-            "technical_score": analysis_result.get("technical_score") if analysis_result else None,
+            "technical_score": technical_score,
+            "medium_term_exit_price": medium_term_exit_price,
+            "distance_to_exit": {"value": distance_value, "pct": distance_pct} if distance_value is not None else None,
+            "holding_decision": holding_decision,
+            "add_position_decision": add_position_decision,
             "midterm_outlook": outlook,
             "outlook_tone": tone,
             "overall_status": analysis_result.get("explanation") if analysis_result else "اندیکاتورهای ره‌آورد در دسترس نیستند.",

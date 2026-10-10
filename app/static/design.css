@@ -1032,8 +1032,8 @@ body.light-mode #view-funds #fund-table-grid tbody td::before { color: #6d8980; 
   .brand-lockup { display: none !important; }
 }
 
-/* Personal watchlist: clickable symbols and a compact six-column layout. */
-#view-watchlist .watchlist-table { min-width: 980px; border-collapse: separate; border-spacing: 0; direction: rtl; }
+/* Personal watchlist: clickable symbols and a compact, horizontally scrollable layout. */
+#view-watchlist .watchlist-table { min-width: 1750px; border-collapse: separate; border-spacing: 0; direction: rtl; }
 #view-watchlist .watchlist-table th { background: linear-gradient(180deg, #233d46, #1d343d); color: #c8d9d5; border-bottom: 1px solid #3b5a63; font-size: 13px; font-weight: 700; }
 #view-watchlist .watchlist-table td { border-bottom: 1px solid rgba(87, 122, 125, .18); color: #c6d4d1; font-size: 13px; }
 #view-watchlist .watchlist-table tbody tr { background: rgba(25, 47, 56, .42); transition: background .18s ease; }
@@ -1044,7 +1044,8 @@ body.light-mode #view-funds #fund-table-grid tbody td::before { color: #6d8980; 
 #view-watchlist .watchlist-table th:nth-child(3), #view-watchlist .watchlist-table td:nth-child(3), #view-watchlist .watchlist-table th:nth-child(4), #view-watchlist .watchlist-table td:nth-child(4) { min-width: 155px; }
 #view-watchlist .watchlist-table th:nth-child(5), #view-watchlist .watchlist-table td:nth-child(5) { min-width: 175px; max-width: 250px; }
 #view-watchlist .watchlist-table th:nth-child(6), #view-watchlist .watchlist-table td:nth-child(6) { min-width: 145px; max-width: 210px; }
-#view-watchlist .watchlist-table th:nth-child(7), #view-watchlist .watchlist-table td:nth-child(7) { min-width: 215px; max-width: 290px; }
+#view-watchlist .watchlist-table th:nth-child(7), #view-watchlist .watchlist-table td:nth-child(7) { min-width: 210px; max-width: 270px; }
+#view-watchlist .watchlist-table th:nth-child(8), #view-watchlist .watchlist-table td:nth-child(8), #view-watchlist .watchlist-table th:nth-child(9), #view-watchlist .watchlist-table td:nth-child(9) { min-width: 155px; max-width: 210px; }
 #view-watchlist .watchlist-table th:last-child, #view-watchlist .watchlist-table td:last-child { min-width: 100px; }
 #view-watchlist .watch-fund-open { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid #34545c; border-radius: 12px; background: linear-gradient(135deg, rgba(36, 76, 82, .65), rgba(21, 46, 55, .72)); color: inherit; text-align: right; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
 #view-watchlist .watch-fund-open:hover, #view-watchlist .watch-fund-open:focus-visible { border-color: #68c8b0; background: linear-gradient(135deg, rgba(42, 111, 105, .76), rgba(23, 56, 61, .82)); transform: translateX(-2px); outline: none; }
@@ -1167,6 +1168,7 @@ body.light-mode .trade-path-invalidation span { color: #735e60; }
   .trade-path-entries, .trade-path-exits { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 420px) {
+  #view-watchlist .watchlist-table td:nth-child(8), #view-watchlist .watchlist-table td:nth-child(9) { grid-column: 1 / -1; }
   .trade-path-entries, .trade-path-exits { grid-template-columns: 1fr; }
   .trade-path .trade-level span { min-height: 0; }
   .trade-path .trade-level { display: grid; grid-template-columns: minmax(0, .9fr) minmax(0, 1fr); align-items: center; gap: 8px; }
