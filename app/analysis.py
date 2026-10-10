@@ -375,6 +375,52 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     resistances = sorted({value for item in groups["pivots"] if isinstance(item, dict)
                           for key, value in (indicator_data.get(str(item.get("short_name_en") or item.get("name_en") or ""), {})).items()
                           if key.casefold().startswith("r")})
+
+    def signal_score(item: dict[str, Any]) -> float | None:
+        raw = str(item.get("signal") or "").strip().casefold()
+        key = re.sub(r"[^a-z]", "", raw)
+        if key in {"buy", "strongbuy", "bullish", "support"}:
+            return 100.0
+        if key in {"sell", "strongsell", "bearish", "resistance"}:
+            return 0.0
+        if key == "overbought":
+            return 30.0
+        if key == "oversold":
+            return 70.0
+        if key in {"neutral", "hold", "highvolume", "lowvolume"}:
+            return 50.0
+        return None
+
+    def group_score(group_name: str) -> float | None:
+        values = [signal_score(item) for item in groups.get(group_name, []) if isinstance(item, dict)]
+        values = [value for value in values if value is not None]
+        return round(sum(values) / len(values), 1) if values else None
+
+    moving_average_score = group_score("moving_averages")
+    volume_score = group_score("volumes")
+    oscillator_score = group_score("oscillators")
+    front_resistances = [value for value in resistances if price is not None and value > price]
+    near_resistances = [value for value in front_resistances if (value - price) / price <= 0.10] if price else []
+    nearest_front_resistance = min(front_resistances) if front_resistances else None
+    nearest_resistance_distance = ((nearest_front_resistance - price) / price * 100
+                                   if nearest_front_resistance is not None and price else None)
+    resistance_score = None
+    if price is not None:
+        resistance_score = max(15.0, 100.0 - len(near_resistances) * 22.0
+                               - (10.0 if nearest_resistance_distance is not None and nearest_resistance_distance <= 3 else 0.0))
+        resistance_score = round(resistance_score, 1)
+    resistance_pressure = min(22.0, len(near_resistances) * 7.0
+                              + (8.0 if nearest_resistance_distance is not None and nearest_resistance_distance <= 3 else 0.0))
+    overbought_count = sum(
+        1 for item in groups["oscillators"]
+        if str(item.get("signal") or "").strip().casefold().replace("_", "") == "overbought"
+    )
+    correction_probability = round(max(5.0, min(95.0,
+        bearish_probability * 0.65
+        + resistance_pressure
+        + min(18.0, overbought_count * 6.0)
+        + (8.0 if trend == "bearish" else 0.0))))
+    correction_label = "بالا" if correction_probability >= 55 else "متوسط" if correction_probability >= 30 else "پایین"
     nearest_support = nearest_level(supports, below=True)
     nearest_resistance = nearest_level(resistances, below=False)
     exit_support = min((value for value in supports if price is not None and value < price), default=None)
@@ -484,6 +530,21 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
             "structural_trigger": "شکست و تثبیت زیر SMA(100) یا حمایت ساختاری ره‌آورد",
         },
         "technical_score": round(score, 1) if score is not None else None,
+        "score_breakdown": {
+            "moving_averages": moving_average_score,
+            "volume": volume_score,
+            "oscillators": oscillator_score,
+            "resistance": resistance_score,
+            "front_resistance_count": len(front_resistances),
+            "near_resistance_count": len(near_resistances),
+        },
+        "trend_probabilities": {"bullish": bullish_probability, "bearish": bearish_probability},
+        "correction_risk": {
+            "probability": correction_probability,
+            "label": correction_label,
+            "near_resistance_count": len(near_resistances),
+            "overbought_count": overbought_count,
+        },
         "signal": signal, "trend": trend, "risk": "unavailable",
         "confidence": None,
         "confidence_basis": "امتیاز و سیگنال از داشبورد تکنیکال خود ره‌آورد دریافت شده‌اند.",

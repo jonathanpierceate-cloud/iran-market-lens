@@ -454,80 +454,39 @@
         : ["neutral", "hold"].includes(trendSignal) ? 0 : null;
     const trendLabel = trendDirection == null ? "نامشخص" : trendDirection > 0 ? "صعودی" : trendDirection < 0 ? "نزولی" : "خنثی";
     const trendTone = trendDirection == null ? "unknown" : trendDirection > 0 ? "positive" : trendDirection < 0 ? "negative" : "neutral";
-    const scenarios = Array.isArray(a.scenarios) ? a.scenarios : [];
-    const selectedScenario = direction > 0 ? scenarios.find((item) => item.direction === "bullish")
-      : direction < 0 ? scenarios.find((item) => item.direction === "bearish") : null;
-    const rationale = selectedScenario?.reason
-      ? `به علت ${selectedScenario.reason}، سناریوی ${selectedScenario.name} فعلاً محتمل‌تر است.`
-      : direction == null
-        ? "از روی دادهٔ فعلی دلیل عددی کافی برای نتیجه‌گیری وجود ندارد."
-        : "مقادیر عددی منتشرشده برای نتیجه‌گیری هم‌جهت کافی نیستند؛ حمایت و مقاومت را زیر نظر بگیر.";
-    const trendContext = !trendItem
-      ? "شاخص Trend در دادهٔ منتشرشدهٔ این نماد موجود نیست؛ جمع‌بندی فقط از سیگنال تجمیعی استفاده می‌کند."
-      : direction == null
-        ? `شاخص روند ${trendLabel} است، اما سیگنال تجمیعی قابل‌خواندن نیست.`
-        : direction === trendDirection && direction !== 0
-          ? `روند و برآیند سیگنال‌ها همسو و ${trendLabel} هستند.`
-          : direction === 0
-            ? `سیگنال تجمیعی خنثی است؛ شاخص روند ${trendLabel} را نشان می‌دهد.`
-            : trendDirection === 0
-              ? `برآیند به ${direction > 0 ? "خرید" : "فروش"} متمایل است، اما شاخص روند خنثی است.`
-              : `سیگنال تجمیعی به ${direction > 0 ? "خرید" : "فروش"} متمایل است، ولی شاخص روند ${trendLabel} را نشان می‌دهد؛ این ناهمسویی را در جمع‌بندی لحاظ کن.`;
-    const oscillatorItems = Array.isArray(a.indicators?.oscillators) ? a.indicators.oscillators : [];
-    const overboughtCount = oscillatorItems.filter((item) =>
-      String(item?.signal || "").trim().toLowerCase().replace(/[^a-z]/g, "") === "overbought").length;
-    const hasOscillatorSignals = oscillatorItems.some((item) => item?.signal != null && String(item.signal).trim() !== "");
-    const pivotFooter = a.site_gauges?.pivot?.footer || {};
-    const readPivotCount = (key) => {
-      const raw = pivotFooter[key]?.value;
-      if (raw == null || String(raw).trim() === "") return null;
-      const value = Number(raw);
-      return Number.isFinite(value) ? value : null;
+    const scores = a.score_breakdown || {};
+    const groupScore = (groupName) => {
+      const items = Array.isArray(a.indicators?.[groupName]) ? a.indicators[groupName] : [];
+      const values = items.map((item) => {
+        const key = String(item?.signal || "").trim().toLowerCase().replace(/[^a-z]/g, "");
+        if (["buy", "strongbuy", "bullish", "support"].includes(key)) return 100;
+        if (["sell", "strongsell", "bearish", "resistance"].includes(key)) return 0;
+        if (key === "overbought") return 30;
+        if (key === "oversold") return 70;
+        return ["neutral", "hold", "highvolume", "lowvolume"].includes(key) ? 50 : null;
+      }).filter((value) => value != null);
+      return values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
     };
-    const pivotItems = Array.isArray(a.indicators?.pivots) ? a.indicators.pivots : [];
-    const pivotSignalCount = (key) => pivotItems.filter((item) =>
-      String(item?.signal || "").trim().toLowerCase().replace(/[^a-z]/g, "") === key).length;
-    const resistanceCount = readPivotCount("Resistance") ?? (pivotItems.length ? pivotSignalCount("resistance") : null);
-    const supportCount = readPivotCount("Support") ?? (pivotItems.length ? pivotSignalCount("support") : null);
-    const resistanceWarning = resistanceCount != null && supportCount != null && resistanceCount > supportCount;
-    const overboughtWarning = overboughtCount > 0;
-    const multipleOverboughtWarning = overboughtCount >= 2;
-    const bearishConfluence = direction < 0 && trendDirection < 0;
-    const strongerCorrectionRisk = bearishConfluence || (trendDirection < 0 && (resistanceWarning || multipleOverboughtWarning)) || (resistanceWarning && multipleOverboughtWarning);
-    const correctionRisk = strongerCorrectionRisk ? "بالا"
-      : direction < 0 || trendDirection < 0 || resistanceWarning || overboughtWarning ? "افزایش‌یافته"
-        : direction > 0 && trendDirection > 0 && hasOscillatorSignals ? "نشانهٔ پررنگی دیده نمی‌شود" : "نامشخص";
-    const entryTone = strongerCorrectionRisk ? "negative"
-      : direction > 0 && trendDirection > 0 && !resistanceWarning && !overboughtWarning ? "positive" : "neutral";
-    const entryAction = direction == null || trendDirection == null ? "اطلاعات کافی برای ارزیابی ورود نیست"
-      : strongerCorrectionRisk ? "خرید جدید فعلاً پرریسک است؛ برای ورود صبر کن"
-        : direction > 0 && trendDirection > 0 && (resistanceWarning || multipleOverboughtWarning)
-          ? "برای اصلاح یا تأیید بهتر صبر کن"
-          : direction > 0 && trendDirection > 0 && overboughtWarning
-            ? "ورود پله‌ای؛ از خرید یک‌جا پرهیز کن"
-          : direction > 0 && trendDirection > 0 ? "ورود پله‌ای قابل بررسی است"
-            : "فعلاً صبر؛ نشانه‌ها تأیید همسو نمی‌دهند";
-    const entryReason = selectedScenario?.reason
-      ? selectedScenario.reason
-      : strongerCorrectionRisk
-      ? "روند و مومنتوم نزولی هم‌جهت‌اند؛ احتمال ادامهٔ فشار و اصلاح بیشتر است."
-      : direction > 0 && trendDirection > 0 && (resistanceWarning || overboughtWarning)
-        ? `${overboughtWarning ? `خریدزدگی در ${num(overboughtCount, 0)} اندیکاتور` : ""}${overboughtWarning && resistanceWarning ? " و " : ""}${resistanceWarning ? "سیگنال‌های مقاومتی بیشتر از حمایتی" : ""}؛ برای خرید یک‌جا احتیاط کن و احتمال اصلاح را در نظر بگیر.`
-        : direction > 0 && trendDirection > 0
-          ? "سیگنال کلی و روند هر دو صعودی‌اند؛ نشانهٔ اصلاح پررنگی در داده‌های فعلی دیده نمی‌شود، اما ورود پله‌ای ریسک زمان‌بندی را کمتر می‌کند."
-          : direction < 0 || trendDirection < 0
-            ? "حداقل یکی از سیگنال کلی یا روند نزولی است؛ خرید تازه را تا روشن‌شدن جهت بازار به تعویق بینداز."
-            : "سیگنال کلی خنثی یا ترکیبی است؛ فعلاً جهت روشنی برای ورود دیده نمی‌شود.";
-    const stats = [];
-    if (countsAvailable) {
-      if (buy != null) stats.push(`<span class="recommendation-count buy">خرید <b>${num(buy, 0)}</b></span>`);
-      if (neutral != null) stats.push(`<span class="recommendation-count neutral">خنثی <b>${num(neutral, 0)}</b></span>`);
-      if (sell != null) stats.push(`<span class="recommendation-count sell">فروش <b>${num(sell, 0)}</b></span>`);
-    }
-    if (a.technical_score != null && Number.isFinite(Number(a.technical_score))) {
-      stats.push(`<span class="recommendation-count score">امتیاز تکنیکال <b>${num(a.technical_score, 0)} از ۱۰۰</b></span>`);
-    }
-    return `<section class="fund-recommendation ${tone}"><div class="fund-recommendation-main"><div><span class="recommendation-kicker">جمع‌بندی تکنیکال ره‌آورد · ${esc(a.symbol || "این صندوق")}</span><h3>سیگنال کلی: <strong>${verdict}</strong></h3></div><div class="recommendation-context"><p>${esc(compactText(rationale, 145))}</p><div class="recommendation-trend ${trendTone}"><span>روند ره‌آورد</span><b>${trendLabel}</b></div></div></div><div class="entry-outlook ${entryTone}"><div class="entry-outlook-verdict"><span>اگر الان بخری</span><b>${entryAction}</b></div><div class="entry-outlook-risk"><span>ریسک اصلاح / افت</span><b>${correctionRisk}</b></div><p>${esc(compactText(entryReason, 145))}</p></div>${stats.length ? `<div class="recommendation-stats">${stats.join("")}</div>` : ""}</section>`;
+    const scoreOf = (key, fallback) => Number.isFinite(Number(scores[key])) ? Number(scores[key]) : fallback;
+    const oscillatorScore = scoreOf("oscillators", groupScore("oscillators"));
+    const movingAverageScore = scoreOf("moving_averages", groupScore("moving_averages"));
+    const volumeScore = scoreOf("volume", groupScore("volumes"));
+    const price = Number(a.price);
+    const resistanceLevels = (Array.isArray(a.resistance_levels) ? a.resistance_levels : []).map(Number).filter((value) => Number.isFinite(value) && value > price);
+    const nearResistanceCount = Number.isFinite(Number(scores.near_resistance_count)) ? Number(scores.near_resistance_count) : resistanceLevels.filter((value) => (value - price) / price <= .1).length;
+    const resistanceScore = scoreOf("resistance", price > 0 ? Math.max(15, 100 - nearResistanceCount * 22) : null);
+    const probabilities = a.trend_probabilities || {};
+    const bullishProbability = Number.isFinite(Number(probabilities.bullish)) ? Number(probabilities.bullish) : Number(a.scenarios?.find?.((item) => item.direction === "bullish")?.probability ?? 0);
+    const bearishProbability = Number.isFinite(Number(probabilities.bearish)) ? Number(probabilities.bearish) : 100 - bullishProbability;
+    const correction = a.correction_risk || {};
+    const correctionProbability = Number.isFinite(Number(correction.probability)) ? Number(correction.probability) : Math.round(bearishProbability * .65);
+    const correctionLabel = correction.label || (correctionProbability >= 55 ? "بالا" : correctionProbability >= 30 ? "متوسط" : "پایین");
+    const rationale = direction > 0 ? `سیگنال کلی ${verdict} است و ادامهٔ روند صعودی ${num(bullishProbability, 0)}٪ برآورد شده است.`
+      : direction < 0 ? `سیگنال کلی ${verdict} است و احتمال ادامهٔ روند نزولی ${num(bearishProbability, 0)}٪ برآورد شده است.`
+        : "سیگنال‌ها هم‌جهت نیستند؛ برای ورود، تثبیت قیمت و کاهش ریسک اصلاح را بررسی کن.";
+    const scoreCard = (label, value, detail, tone = "neutral") => `<article class="analysis-score-card ${tone}"><span>${label}</span><strong>${value == null ? "—" : `${num(value, 0)}٪`}</strong><small>${detail}</small><i style="width:${value == null ? 0 : Math.max(0, Math.min(100, value))}%"></i></article>`;
+    const stats = countsAvailable ? `<div class="recommendation-stats">${buy != null ? `<span class="recommendation-count buy">خرید <b>${num(buy, 0)}</b></span>` : ""}${neutral != null ? `<span class="recommendation-count neutral">خنثی <b>${num(neutral, 0)}</b></span>` : ""}${sell != null ? `<span class="recommendation-count sell">فروش <b>${num(sell, 0)}</b></span>` : ""}</div>` : "";
+    return `<section class="fund-recommendation ${tone}"><div class="fund-recommendation-main"><div><span class="recommendation-kicker">جمع‌بندی یکپارچهٔ ره‌آورد · ${esc(a.symbol || "این صندوق")}</span><h3>سیگنال کلی: <strong>${verdict}</strong></h3></div><div class="recommendation-context"><p>${esc(rationale)}</p><div class="recommendation-trend ${trendTone}"><span>روند فعلی</span><b>${trendLabel}</b></div></div></div><div class="analysis-score-grid"><div class="analysis-score-card primary ${tone}"><span>امتیاز کلی تکنیکال</span><strong>${a.technical_score == null ? "—" : `${num(a.technical_score, 0)}٪`}</strong><small>برآیند رسمی ره‌آورد</small><i style="width:${a.technical_score == null ? 0 : Math.max(0, Math.min(100, Number(a.technical_score)))}%"></i></div>${scoreCard("میانگین‌های متحرک", movingAverageScore, "EMA / SMA", movingAverageScore >= 60 ? "positive" : movingAverageScore <= 40 ? "negative" : "neutral")}${scoreCard("حجم", volumeScore, "تأیید ورود پول", volumeScore >= 60 ? "positive" : volumeScore <= 40 ? "negative" : "neutral")}${scoreCard("نوسان‌گرها", oscillatorScore, "مومنتوم و اشباع", oscillatorScore >= 60 ? "positive" : oscillatorScore <= 40 ? "negative" : "neutral")}${scoreCard("مقاومت‌های پیش‌رو", resistanceScore, `${num(nearResistanceCount, 0)} سطح نزدیک · ${num(Number(scores.front_resistance_count ?? resistanceLevels.length), 0)} سطح جلو`, resistanceScore != null && resistanceScore <= 40 ? "negative" : "neutral")}</div><div class="analysis-probability-grid"><article class="analysis-probability bullish"><div><span>ادامهٔ روند صعودی</span><strong>${num(bullishProbability, 0)}٪</strong></div><i style="width:${Math.max(0, Math.min(100, bullishProbability))}%"></i></article><article class="analysis-probability bearish"><div><span>ادامهٔ روند نزولی</span><strong>${num(bearishProbability, 0)}٪</strong></div><i style="width:${Math.max(0, Math.min(100, bearishProbability))}%"></i></article><article class="analysis-probability correction"><div><span>ریسک اصلاح</span><strong>${num(correctionProbability, 0)}٪</strong></div><small>سطح ریسک: ${esc(correctionLabel)}</small><i style="width:${Math.max(0, Math.min(100, correctionProbability))}%"></i></article></div>${stats}</section>`;
   }
 
   function scenarioHtml(a) {
@@ -573,7 +532,6 @@
       const levels = [
         ["حمایت نزدیک", levelText(support), "support"],
         ["مقاومت نزدیک", levelText(resistance), "resistance"],
-        ["هدف سناریو", levelText(scenario.target), "target"],
       ].filter(([, value]) => value);
       return `<article class="scenario-card ${direction}">
         <div class="scenario-card-head"><div><span class="scenario-kicker">برآورد تحلیلی</span><h4>${esc(scenario.name)}</h4></div><div class="scenario-probability"><strong>${num(probability, 0)}٪</strong><small>احتمال برآوردی</small></div></div>
@@ -622,19 +580,12 @@
     const support3 = below[2] ?? Math.min(support2 * (1 - step * .45), price * (1 - step * 1.35));
     const r1 = above[0] ?? price * (1 + step * .45);
     const r2 = above[1] ?? Math.max(r1 * (1 + step * .45), price * (1 + step * .9));
-    const r3 = above[2] ?? Math.max(r2 * (1 + step * .45), price * (1 + step * 1.35));
     const breakout1 = r1 + buffer;
     const retest1 = r1;
     const breakout2 = r2 + buffer;
     const pullback1 = support1;
     const pullback2 = support2;
     const pullback3 = support3;
-    const bullishTarget1 = above[1] ?? Math.max(breakout2, price * (1 + step * 1.8));
-    const bullishTarget2 = above[2] ?? Math.max(bullishTarget1 * (1 + step * .45), price * (1 + step * 2.7));
-    const bullishStop = Math.max(0, (below[0] ?? retest1) - buffer);
-    const pullbackTarget1 = above[0] ?? price * (1 + step * 1.1);
-    const pullbackTarget2 = above[1] ?? Math.max(pullbackTarget1 * (1 + step * .4), price * (1 + step * 2));
-    const pullbackStop = Math.max(0, (below[3] ?? pullback3) - buffer);
     const measuredResistance = above.length > 0;
     const measuredSupport = below.length > 0;
     const lastSupport = below.length ? below[below.length - 1] : null;
@@ -644,53 +595,41 @@
     const structuralExitPrice = structuralApiPrice ?? (lastSupport != null ? Math.round(lastSupport * .993) : null);
     const exitSupportText = lastSupport != null ? ` بر پایهٔ حمایت ساختاری ${money(lastSupport)}` : "";
     const priceUnit = ({ GOLD: "دلار / اونس", GOLD_18K: "ریال / گرم", USD_IR_FREE: "تومان", TEPIX: "واحد" })[String(a?.symbol || "").toUpperCase()] || "ریال";
-    const mediumTermExitHtml = mediumTermExitPrice == null
-      ? `<div class="medium-exit-card unavailable"><span class="medium-exit-icon">!</span><div><b>حد خروج میان‌مدتی محاسبه نشد</b><small>حمایت معتبر برای این دارایی در داده فعلی پیدا نشد.</small></div></div>`
-      : `<div class="medium-exit-card"><span class="medium-exit-icon">↓</span><div><span class="medium-exit-kicker">مدیریت خروج · دو آستانهٔ جدا</span><div class="medium-exit-levels"><div><b>خروج فوری: ${money(mediumTermExitPrice)} ${priceUnit}</b><small>تثبیت زیر این سطح یعنی ریسک کوتاه‌مدت بالا رفته؛ خرید جدید را متوقف و خروج را مرحله‌ای انجام بده.</small></div><div><b>خروج کامل: ${money(structuralExitPrice)} ${priceUnit}</b><small>این سطح ${exitSupportText} است؛ تثبیت زیر آن یعنی شکست ساختاری و خروج کامل از موقعیت.</small></div></div></div></div>`;
+    const riskExitHtml = mediumTermExitPrice == null && structuralExitPrice == null
+      ? `<div class="risk-exit-panel unavailable"><b>سطح خروج و حد ضرر در داده فعلی محاسبه نشد</b><small>حمایت یا میانگین معتبر برای این دارایی در دسترس نیست.</small></div>`
+      : `<div class="risk-exit-panel"><div class="risk-exit-head"><div><span class="panel-kicker">مدیریت ریسک</span><h4>خروج از موقعیت و حد ضرر</h4><p>با شکست و تثبیت زیر هر سطح، همان افق زمانی را مدیریت کن.</p></div><span class="trade-plan-badge">${priceBadge}: ${money(price)} ${priceUnit}</span></div><div class="risk-exit-grid"><article class="risk-exit-card short"><span>کوتاه‌مدت</span><b>${mediumTermExitPrice == null ? "—" : `${money(mediumTermExitPrice)} ${priceUnit}`}</b><small>خروج مرحله‌ای / توقف خرید اگر قیمت زیر حمایت کوتاه‌مدت تثبیت شود.</small></article><article class="risk-exit-card medium"><span>میان‌مدت</span><b>${structuralExitPrice == null ? "—" : `${money(structuralExitPrice)} ${priceUnit}`}</b><small>خروج کامل و فعال‌شدن حد ضرر ساختاری${exitSupportText}.</small></article></div></div>`;
     const priceCard = (kind, label, value, note) => `<article class="trade-level ${kind}"><span>${label}</span><b>${money(value)}</b><small>${note}</small></article>`;
-    const pathCard = ({ direction, title, subtitle, condition, entries, targets, stop, invalidation }) => `<article class="trade-path ${direction}">
+    const pathCard = ({ direction, title, subtitle, condition, entries, invalidation }) => `<article class="trade-path ${direction}">
       <header class="trade-path-head"><div><span>${subtitle}</span><h4>${title}</h4></div><span class="trade-path-mark">${direction === "bullish" ? "↗" : "↘"}</span></header>
       <div class="trade-path-trigger"><b>شرط شروع مسیر</b><p>${condition}</p></div>
-      <h5 class="trade-path-section-title">پله‌های ورود</h5>
+      <h5 class="trade-path-section-title">پله‌های خرید پیشنهادی</h5>
       <div class="trade-path-entries">${entries.length ? entries.map((item, index) => priceCard("entry", `پله ${index + 1} · ${item.label}`, item.value, item.note)).join("") : `<div class="trade-path-empty">در قیمت فعلی پلهٔ خرید معتبر بالاتر از حد خروج فوری وجود ندارد؛ خرید انجام نده.</div>`}</div>
-      <h5 class="trade-path-section-title trade-path-exits-title">مدیریت خروج در همین مسیر</h5>
-      <div class="trade-path-exits">${priceCard("target", "حد سود ۱", targets[0].value, targets[0].note)}${priceCard("target", "حد سود ۲", targets[1].value, targets[1].note)}${priceCard("stop", "حد ضرر", stop.value, stop.note)}</div>
       <div class="trade-path-invalidation"><b>لغو سناریو</b><span>${invalidation}</span></div>
     </article>`;
     const bullishPath = pathCard({
       direction: "bullish", subtitle: "مسیر اول · ورود پس از قدرت‌گرفتن قیمت", title: "خرید در صورت صعود",
       condition: `ابتدا قیمت بالای مقاومت نزدیک (${money(r1)}) بسته شود و تثبیت یا حجم، شکست را تأیید کند.`,
       entries: [
-        { label: "شکست مقاومت", value: breakout1, note: measuredResistance ? "پس از بسته‌شدن بالای مقاومت اول" : "سطح تخمینی؛ مقاومت در داده نیست" },
-        { label: "پولبک موفق", value: retest1, note: measuredResistance ? "بازگشت به مقاومت شکسته‌شده و حفظ آن" : "بازآزمایی سطح شکست با تأیید برگشت" },
-        { label: "ادامه روند", value: breakout2, note: above.length > 1 ? "تثبیت بالای مقاومت بعدی" : "سطح تخمینی با دامنه نوسان" },
+        { label: "شکست مقاومت", value: breakout1, note: `${measuredResistance ? "پس از بسته‌شدن بالای مقاومت اول" : "سطح تخمینی؛ مقاومت در داده نیست"} · تخصیص 30٪` },
+        { label: "پولبک موفق", value: retest1, note: `${measuredResistance ? "بازگشت به مقاومت شکسته‌شده و حفظ آن" : "بازآزمایی سطح شکست با تأیید برگشت"} · تخصیص 40٪` },
+        { label: "ادامه روند", value: breakout2, note: `${above.length > 1 ? "تثبیت بالای مقاومت بعدی" : "سطح تخمینی با دامنه نوسان"} · تخصیص 30٪` },
       ],
-      targets: [
-        { value: bullishTarget1, note: above.length > 1 ? "مقاومت بعدی" : "هدف محاسباتی بر پایه دامنه نوسان" },
-        { value: bullishTarget2, note: above.length > 2 ? "مقاومت بالاتر" : "هدف محاسباتی دوم" },
-      ],
-      stop: { value: bullishStop, note: measuredSupport ? "زیر حمایت نزدیک با حاشیه نوسان" : "زیر سطح شکست؛ حمایت داده‌ای موجود نیست" },
       invalidation: `اگر قیمت پس از شکست دوباره زیر ${money(r1)} تثبیت شد، ورودهای باقی‌مانده این مسیر را متوقف کن.`,
     });
     const pullbackEntries = [
-      { label: "حمایت نزدیک", value: pullback1, note: measuredSupport ? "حمایت اول؛ منتظر واکنش مثبت بمان" : "سطح تخمینی؛ حمایت در داده نیست" },
-      { label: "اصلاح عمیق‌تر", value: pullback2, note: below.length > 1 ? "حمایت بعدی؛ ورود مشروط به حفظ سطح" : "سطح تخمینی با دامنه نوسان" },
-      { label: "پله آخر", value: pullback3, note: below.length > 2 ? "حمایت پایین‌تر؛ فقط با تأیید برگشت" : "سطح تخمینی؛ از میانگین‌کم‌کردن بی‌شرط پرهیز کن" },
+      { label: "حمایت نزدیک", value: pullback1, note: `${measuredSupport ? "حمایت اول؛ منتظر واکنش مثبت بمان" : "سطح تخمینی؛ حمایت در داده نیست"} · تخصیص 35٪` },
+      { label: "اصلاح عمیق‌تر", value: pullback2, note: `${below.length > 1 ? "حمایت بعدی؛ ورود مشروط به حفظ سطح" : "سطح تخمینی با دامنه نوسان"} · تخصیص 35٪` },
+      { label: "پله آخر", value: pullback3, note: `${below.length > 2 ? "حمایت پایین‌تر؛ فقط با تأیید برگشت" : "سطح تخمینی؛ از میانگین‌کم‌کردن بی‌شرط پرهیز کن"} · تخصیص 30٪` },
     ].filter((entry) => mediumTermExitPrice == null || entry.value > mediumTermExitPrice);
     const lastAllowedPullback = pullbackEntries.length ? pullbackEntries[pullbackEntries.length - 1].value : mediumTermExitPrice;
     const pullbackPath = pathCard({
       direction: "pullback", subtitle: "مسیر دوم · ورود در اصلاح با تأیید برگشت", title: "خرید در صورت نزول و پولبک",
       condition: `قیمت به حمایت‌ها اصلاح کند؛ هر پله فقط با حفظ سطح و نشانه برگشت بررسی شود و تا وقتی قیمت بالای حد خروج ${money(mediumTermExitPrice)} است اجرا شود.`,
       entries: pullbackEntries,
-      targets: [
-        { value: pullbackTarget1, note: above.length ? "مقاومت نزدیک؛ هدف اول برگشت" : "هدف محاسباتی بر پایه دامنه نوسان" },
-        { value: pullbackTarget2, note: above.length > 1 ? "مقاومت بعدی" : "هدف محاسباتی دوم" },
-      ],
-      stop: { value: pullbackStop, note: below.length > 3 ? "زیر حمایت بعدی" : "زیر پله سوم با حاشیه نوسان" },
       invalidation: `اگر سطح ${money(lastAllowedPullback)} با فشار فروش شکسته شد، پله‌های بعدی را اجرا نکن و حد خروج فوری را رعایت کن.`,
     });
     const fallbackNote = (!measuredResistance || !measuredSupport) ? " هرجا سطح رسمی حمایت یا مقاومت موجود نبوده، سطح جایگزین با دامنه نوسان قیمت برآورد شده است." : "";
-    return `<section class="trade-plan"><div class="trade-plan-head"><div><span class="panel-kicker">برنامه معاملاتی میان‌مدت</span><h3>دو مدل پله خرید</h3><p>این دو مسیر جایگزین یکدیگرند؛ فقط پس از برقرارشدن شرط همان مسیر بررسی شوند.</p></div><span class="trade-plan-badge">${priceBadge}: ${money(price)}</span></div>${mediumTermExitHtml}<div class="trade-path-grid">${bullishPath}${pullbackPath}</div><p class="trade-plan-note">سطوح با داده‌های قیمت، حمایت/مقاومت و ATR ره‌آورد محاسبه می‌شوند و با تازه‌شدن قیمت تغییر می‌کنند.${fallbackNote}</p></section>`;
+    return `<section class="trade-plan"><div class="trade-plan-head"><div><span class="panel-kicker">برنامه ورود و مدیریت ریسک</span><h3>پله‌های خرید دقیق</h3><p>دو مسیر جایگزین‌اند؛ فقط مسیری را اجرا کن که شرط شروعش برقرار شده باشد.</p></div><span class="trade-plan-badge">${priceBadge}: ${money(price)}</span></div>${riskExitHtml}<div class="trade-path-grid">${bullishPath}${pullbackPath}</div><p class="trade-plan-note">سطوح ورود با قیمت، حمایت/مقاومت و ATR ره‌آورد محاسبه می‌شوند و با تازه‌شدن داده تغییر می‌کنند.${fallbackNote}</p></section>`;
   }
 
   function pivotTableHtml(pivots, currentPrice = null) {
@@ -782,7 +721,7 @@
     const score = a.technical_score == null ? "—" : num(a.technical_score, 0);
     const cls = a.signal === "buy" ? "bullish" : a.signal === "sell" ? "bearish" : "";
     const missing = (a.missing_indicators || []).map((name) => `<article class="indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>در پاسخ نماد منتشر نشده</small></div><span class="indicator-status unknown">موجود نیست</span></div><p>برای این مقدار عدد جایگزین ساخته نشده است.</p><div class="indicator-range-guide"><b>راهنمای محدوده</b><span>${esc(indicatorRangeGuide(name))}</span></div></article>`).join("");
-    const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}${scenarioHtml(a)}</section>`;
+    const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
     return `${overview}${tradePlanHtml(a)}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div>${pivotTable}<div class="indicator-readouts">${gaugeCards}</div><div class="indicator-card-grid">${cards.join("")}${missing}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
 

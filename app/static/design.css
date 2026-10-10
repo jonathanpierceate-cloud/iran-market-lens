@@ -1048,6 +1048,13 @@ body.light-mode #view-funds #fund-table-grid tbody td::before { color: #6d8980; 
 .trade-plan-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
 .trade-plan-head h3 { margin-top: 3px; color: #edf7f3; font-size: 20px; }
 .trade-plan-head p { margin-top: 5px; color: #9eb5b1; font-size: 12px; line-height: 1.8; }
+.risk-exit-panel{margin:0 0 15px;padding:14px 15px;border:1px solid rgba(229,126,135,.3);border-right:4px solid #d67882;border-radius:13px;background:linear-gradient(135deg,rgba(104,40,50,.14),rgba(10,26,35,.62))}
+.risk-exit-panel.unavailable{border-color:#3a5360;border-right-color:#8399a5;background:rgba(11,28,38,.5)}
+.risk-exit-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px}
+.risk-exit-head h4{margin:2px 0 0;color:#ffe1e3;font-size:16px}.risk-exit-head p{margin-top:3px;color:#b9c5c9;font-size:12px;line-height:1.7}
+.risk-exit-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.risk-exit-card{display:grid;gap:3px;padding:10px 11px;border:1px solid rgba(216,139,145,.25);border-radius:10px;background:rgba(9,23,30,.48)}
+.risk-exit-card span{color:#dba8ac;font-size:12px}.risk-exit-card b{color:#ffe1e3;font:700 17px "DM Mono",Tahoma,sans-serif;direction:ltr;text-align:right}.risk-exit-card small{color:#b9c5c9;font-size:11px;line-height:1.65}.risk-exit-card.medium{border-color:rgba(227,181,102,.3)}.risk-exit-card.medium span{color:#e2c17b}
 .medium-exit-card{display:flex;align-items:center;gap:12px;margin:0 0 15px;padding:13px 15px;border:1px solid rgba(229,126,135,.34);border-right:4px solid #d67882;border-radius:13px;background:linear-gradient(135deg,rgba(104,40,50,.18),rgba(10,26,35,.62))}
 .medium-exit-card.unavailable{border-color:#3a5360;border-right-color:#8399a5;background:rgba(11,28,38,.5)}
 .medium-exit-icon{display:grid;place-items:center;width:34px;height:34px;flex:0 0 auto;border-radius:11px;background:rgba(213,106,119,.16);color:#f49ba5;font-size:19px;font-weight:800}
@@ -1106,6 +1113,11 @@ body.light-mode .medium-exit-card b{color:#963d49}
 body.light-mode .medium-exit-card small{color:#687d82}
 body.light-mode .medium-exit-icon{background:#fbe2e4;color:#b34654}
 body.light-mode .medium-exit-levels>div+div{border-color:#e3c9cc}
+body.light-mode .risk-exit-panel{background:linear-gradient(135deg,#fff4f4,#f8fbfc);border-color:#ecd0d3;border-right-color:#c75d68}
+body.light-mode .risk-exit-head h4,body.light-mode .risk-exit-card b{color:#963d49}
+body.light-mode .risk-exit-head p,body.light-mode .risk-exit-card small{color:#687d82}
+body.light-mode .risk-exit-card{background:#fff;border-color:#e3c9cc}
+body.light-mode .risk-exit-card span{color:#a54e59}
 body.light-mode .trade-path-empty{border-color:#d5a6ac;color:#a34a56;background:#fff4f4}
 body.light-mode .trade-plan-head h3, body.light-mode .trade-level b { color: #29453e; }
 body.light-mode .trade-plan-head p, body.light-mode .trade-plan-badge, body.light-mode .trade-level span { color: #637b74; }
@@ -1129,6 +1141,8 @@ body.light-mode .trade-path-invalidation span { color: #735e60; }
   #view-watchlist .watchlist-table td:first-child, #view-watchlist .watchlist-table td:nth-child(5), #view-watchlist .watchlist-table td:nth-child(6), #view-watchlist .watchlist-table td:last-child { grid-column: 1 / -1; }
   .trade-plan { padding: 15px; }
   .trade-plan-head { flex-direction: column; }
+  .risk-exit-head { flex-direction: column; }
+  .risk-exit-grid { grid-template-columns: 1fr; }
   .trade-plan-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .trade-path-grid { grid-template-columns: 1fr; }
   .trade-path { padding: 13px; }

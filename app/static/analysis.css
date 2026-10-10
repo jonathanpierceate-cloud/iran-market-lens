@@ -195,6 +195,31 @@
 .recommendation-count.buy b{color:#75d6b0}
 .recommendation-count.sell b{color:#f09aa4}
 .recommendation-count.score b{color:#cfdae8}
+.analysis-score-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}
+.analysis-score-card{position:relative;min-width:0;overflow:hidden;padding:11px 12px 13px;border:1px solid #2d435a;border-radius:11px;background:rgba(9,20,33,.48)}
+.analysis-score-card>span{display:block;color:#a5b7ca;font-size:12px;line-height:1.6}
+.analysis-score-card>strong{display:block;margin-top:4px;color:#edf5fb;font:700 23px "DM Mono",Tahoma,sans-serif;direction:ltr;text-align:right}
+.analysis-score-card>small{display:block;margin-top:3px;color:#8094aa;font-size:11px;line-height:1.55}
+.analysis-score-card>i{display:block;height:4px;margin-top:9px;border-radius:99px;background:#71839a;opacity:.9}
+.analysis-score-card.primary{border-color:rgba(66,183,141,.38);background:linear-gradient(145deg,rgba(37,119,94,.23),rgba(9,28,39,.58))}
+.analysis-score-card.primary>strong,.analysis-score-card.positive>strong{color:#75d6b0}
+.analysis-score-card.primary>i,.analysis-score-card.positive>i{background:linear-gradient(90deg,#288c6d,#70d9b3)}
+.analysis-score-card.negative{border-color:rgba(220,105,119,.4);background:rgba(57,22,31,.25)}
+.analysis-score-card.negative>strong{color:#f09aa4}
+.analysis-score-card.negative>i{background:linear-gradient(90deg,#a64759,#ef8c9a)}
+.analysis-probability-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.analysis-probability{min-width:0;padding:11px 12px;border:1px solid #2d435a;border-radius:11px;background:rgba(9,20,33,.42)}
+.analysis-probability>div{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.analysis-probability span{color:#b5c5d5;font-size:12px}
+.analysis-probability strong{font:700 19px "DM Mono",Tahoma,sans-serif;direction:ltr}
+.analysis-probability>i{display:block;height:5px;margin-top:8px;border-radius:99px;background:#71839a}
+.analysis-probability small{display:block;margin-top:3px;color:#8fa1b5;font-size:11px}
+.analysis-probability.bullish{border-color:rgba(66,183,141,.4)}
+.analysis-probability.bullish strong{color:#75d6b0}.analysis-probability.bullish>i{background:#4dc69e}
+.analysis-probability.bearish{border-color:rgba(220,105,119,.42)}
+.analysis-probability.bearish strong{color:#f09aa4}.analysis-probability.bearish>i{background:#d67882}
+.analysis-probability.correction{border-color:rgba(227,181,102,.42)}
+.analysis-probability.correction strong{color:#f0c878}.analysis-probability.correction>i{background:#d4a653}
 .fund-recommendation>small{color:#8194ab;font-size:12px;line-height:1.8}
 .fund-chart-caption{margin:3px 0 10px;color:#8296ad;font-size:13px}
 .fund-score-pending{color:#8092aa;font-size:12px;white-space:normal}
@@ -231,6 +256,9 @@
 .light-mode .recommendation-count.score b{color:#394f68}
 @media(max-width:720px){.rahavard-indicator-values{grid-template-columns:1fr}.fund-detail-chart{height:275px}}
 @media(max-width:720px){.fund-recommendation{padding:14px}.fund-recommendation-main{align-items:flex-start;flex-direction:column;gap:7px}.fund-recommendation h3{font-size:18px}.entry-outlook{grid-template-columns:1fr;gap:8px}.entry-outlook p{grid-column:auto}}
+@media(max-width:900px){.analysis-score-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){.analysis-score-grid,.analysis-probability-grid{grid-template-columns:1fr 1fr}.analysis-score-card.primary{grid-column:1/-1}}
+@media(max-width:390px){.analysis-score-grid,.analysis-probability-grid{grid-template-columns:1fr}.analysis-score-card.primary{grid-column:auto}}
 #view-funds .fund-analysis-full{width:100%;margin-top:22px}
 #view-funds .fund-analysis-full>h3{margin:0 0 12px;font-size:21px}
 #view-funds .fund-analysis-full .indicator-workbench{margin:17px 0 0;padding:16px}
