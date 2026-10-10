@@ -496,6 +496,9 @@ def funds(search: str = "", category: str = "", sort: str = "data_timestamp"):
     snapshots = db.fund_indicator_snapshots()
     for item in items:
         raw = item.get("raw") if isinstance(item.get("raw"), dict) else {}
+        current_price = _watchlist_number(item.get("market_price"))
+        if current_price is None or current_price <= 0:
+            current_price = _watchlist_number(raw.get("real_close_price"))
         item["rahavard_asset_id"] = str(raw.get("rahavard_asset_id") or item["symbol"])
         item["rahavard_state"] = raw.get("instrument_state")
         item["updated_at"] = _fund_updated_at(item)
@@ -506,9 +509,12 @@ def funds(search: str = "", category: str = "", sort: str = "data_timestamp"):
         snapshot = snapshots.get(item["fund_key"])
         result = analyze_rahavard(item["symbol"], snapshot["data"],
                                   snapshot.get("data_timestamp") or item.get("data_timestamp"),
-                                  item.get("market_price")) if snapshot else None
+                                  current_price) if snapshot else None
         item["analysis"] = result
         item["technical_score"] = result.get("technical_score") if result else None
+        item["medium_term_exit_price"] = result.get("medium_term_exit_price") if result else None
+        item["purchase_assessment"] = _fund_purchase_assessment(current_price, result)
+        item["buy_suitability_rank"] = item["purchase_assessment"]["rank"]
         item["trend"] = result.get("trend") if result else "unavailable"
         item["indicator_fetched_at"] = snapshot.get("fetched_at") if snapshot else None
     sort_key = {"return": "one_year_return", "technical_score": "technical_score"}.get(sort, sort)
@@ -543,9 +549,17 @@ async def fund_score_batch(payload: FundScoreBatchInput):
             try:
                 fund = _fund_or_error(identifier)
                 indicators = await fetch_fund_indicators(fund["fund_key"])
+                raw = fund.get("raw") if isinstance(fund.get("raw"), dict) else {}
+                current_price = _watchlist_number(fund.get("market_price"))
+                if current_price is None or current_price <= 0:
+                    current_price = _watchlist_number(raw.get("real_close_price"))
                 analysis_result = analyze_rahavard(
-                    fund.get("symbol"), indicators, fund.get("data_timestamp"), fund.get("market_price"))
+                    fund.get("symbol"), indicators, fund.get("data_timestamp"), current_price)
+                purchase_assessment = _fund_purchase_assessment(current_price, analysis_result)
                 return {"fund_key": fund["fund_key"], "technical_score": analysis_result.get("technical_score"),
+                        "medium_term_exit_price": analysis_result.get("medium_term_exit_price"),
+                        "purchase_assessment": purchase_assessment,
+                        "buy_suitability_rank": purchase_assessment["rank"],
                         "error": None if analysis_result.get("technical_score") is not None else "داده کافی برای محاسبه موجود نیست"}
             except HTTPException as exc:
                 return {"fund_key": identifier, "technical_score": None, "error": str(exc.detail)}
@@ -566,6 +580,28 @@ def _watchlist_number(value: Any) -> float | None:
         return result if math.isfinite(result) else None
     except (TypeError, ValueError, OverflowError):
         return None
+
+
+def _fund_purchase_assessment(price: Any, analysis: dict[str, Any] | None) -> dict[str, Any]:
+    current_price = _watchlist_number(price)
+    if not isinstance(analysis, dict):
+        return {"status": "unknown", "label": "داده کافی نیست", "reason": "تحلیل تکنیکال این نماد هنوز آماده نیست.", "rank": None}
+    exit_price = _watchlist_number(analysis.get("medium_term_exit_price"))
+    score = _watchlist_number(analysis.get("technical_score"))
+    breakdown = analysis.get("score_breakdown") if isinstance(analysis.get("score_breakdown"), dict) else {}
+    near_resistance_count = _watchlist_number(breakdown.get("near_resistance_count"))
+    if current_price is None or current_price <= 0 or exit_price is None or exit_price <= 0 or score is None or near_resistance_count is None:
+        return {"status": "unknown", "label": "داده کافی نیست", "reason": "برای ارزیابی قیمت فعلی، قیمت و دادهٔ کامل تکنیکال لازم است.", "rank": None}
+    if current_price <= exit_price:
+        return {"status": "unsuitable", "label": "نامناسب", "reason": "قیمت فعلی روی حد خروج میان‌مدت یا پایین‌تر از آن است.", "rank": 0}
+    if score >= 70 and near_resistance_count == 0:
+        return {"status": "suitable", "label": "مناسب", "reason": "امتیاز میان‌مدت قوی است؛ قیمت بالای حد خروج و دور از مقاومت نزدیک است.", "rank": 3}
+    if score >= 55:
+        reason = ("امتیاز مناسب است، اما مقاومت نزدیک وجود دارد؛ برای ورود صبر کن."
+                  if score >= 70 and near_resistance_count > 0
+                  else "شرایط متوسط است؛ برای ورود منتظر اصلاح یا تأیید روند بمان.")
+        return {"status": "wait", "label": "صبر برای تأیید", "reason": reason, "rank": 2}
+    return {"status": "unsuitable", "label": "فعلاً نامناسب", "reason": "امتیاز میان‌مدت برای خرید در قیمت فعلی پایین است.", "rank": 1}
 
 
 def _watchlist_match_key(value: Any) -> str:
@@ -1060,7 +1096,9 @@ async def fund_detail(symbol: str):
     if analysis_result:
         analysis_result["price_is_cached"] = fund.get("price_is_cached", False)
     return {"fund": fund, "history": bars, "nav_history": nav, "portfolio": [],
-            "analysis": analysis_result, "market_data_available": bool(bars),
+            "analysis": analysis_result,
+            "purchase_assessment": _fund_purchase_assessment(fund.get("market_price"), analysis_result),
+            "market_data_available": bool(bars),
             "fundamentals_source": "Rahavard365", "market_price_source": "Rahavard365" if fund.get("market_price") is not None else None,
             "history_source": "Rahavard365" if bars else None}
 
