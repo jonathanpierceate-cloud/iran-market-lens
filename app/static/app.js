@@ -399,31 +399,32 @@
     return num(value.value, 3);
   }
 
-  function indicatorRangeGuide(name) {
+  function indicatorPlainMeaning(name) {
     const key = String(name || "").toLowerCase().replace(/[^a-z]/g, "");
-    if (key.startsWith("stochrsi")) return "معمولاً ۰ تا ۱: زیر ۰٫۲۰ ناحیهٔ پایین و بالای ۰٫۸۰ ناحیهٔ بالا است؛ اگر مقیاس ۰ تا ۱۰۰ باشد، معادل ۲۰ و ۸۰. با روند اصلی بسنج.";
-    if (key.startsWith("rsi")) return "مقیاس ۰ تا ۱۰۰؛ زیر ۳۰ فروش‌زدگی، ۳۰ تا ۷۰ میانه و بالای ۷۰ خریدزدگیِ احتمالی است. حدی‌شدن به‌تنهایی برگشت را ثابت نمی‌کند.";
-    if (key.startsWith("mfi")) return "مقیاس ۰ تا ۱۰۰؛ زیر ۲۰ ناحیهٔ پایین و بالای ۸۰ ناحیهٔ بالاست. چون حجم را هم می‌سنجد، با جهت قیمت و روند بررسی شود.";
-    if (key.startsWith("cci")) return "حدود ۱۰۰+ و ۱۰۰− مرزهای متداول‌اند؛ بینشان ناحیهٔ میانی است. در روند قوی یا نماد پرنوسان، CCI می‌تواند مدت زیادی بیرون این محدوده بماند.";
-    if (key.startsWith("wr") || key.startsWith("williams")) return "مقیاس ۰ تا ۱۰۰−؛ از ۸۰− تا ۱۰۰− ناحیهٔ پایین، و از ۲۰− تا صفر ناحیهٔ بالا است. ماندن در ناحیهٔ حدی لزوماً برگشت نیست.";
-    if (key.startsWith("so") || key.startsWith("stoch")) return "مقیاس ۰ تا ۱۰۰؛ زیر ۲۰ ناحیهٔ پایین و بالای ۸۰ ناحیهٔ بالاست. تقاطع K و D و جهت روند را هم ببین.";
-    if (key.startsWith("aroon") || key.startsWith("arron")) return "خطوط Up و Down بین ۰ تا ۱۰۰ هستند؛ خط غالبِ بالای ۵۰ و نزدیک ۱۰۰ روند تازه‌تر را نشان می‌دهد. هر دو زیر ۵۰ می‌تواند بازار کم‌روند باشد.";
-    if (key.startsWith("adx")) return "مقیاس ۰ تا ۱۰۰؛ زیر ۲۰ معمولاً روند ضعیف و بالای ۲۵ روند قوی‌تر است. ADX جهت را نمی‌گوید؛ جهت را از قیمت و شاخص‌های دیگر بگیر.";
-    if (key.startsWith("ao")) return "حد ثابت ندارد و حول صفر می‌چرخد؛ بالای صفر یعنی شتاب کوتاه‌مدت قوی‌تر از بلندمدت و زیر صفر برعکس. عبور از صفر و تغییر میله‌ها را ببین.";
-    if (key.startsWith("vmacd")) return "بازهٔ عددی ثابت ندارد؛ خط VMACD را با خط سیگنال و صفر مقایسه کن. بالاتر/روبه‌افزایش بودن، بهبود شتاب حجم را نشان می‌دهد، نه جهت قطعی قیمت.";
-    if (key.startsWith("macd")) return "بازهٔ عددی ثابت ندارد؛ خط MACD بالای خط سیگنال و صفر، زمینهٔ شتاب مثبت‌تری دارد؛ زیر آن‌ها زمینه ضعیف‌تر است. فاصله‌ها را با تاریخچهٔ همان نماد بسنج.";
-    if (key.startsWith("mtm") || key.startsWith("momentum")) return "خط صفر مرجع است: بالای صفر یعنی قیمت از دورهٔ مبنا بالاتر و زیر صفر پایین‌تر است. برای شدت حرکت، مقدار را با تاریخچهٔ همان نماد مقایسه کن.";
-    if (key.startsWith("trend")) return "این مورد برچسب متنی ره‌آورد است، نه عددِ دارای محدوده؛ صعودی، نزولی یا خنثی بودن را همراه سیگنال و روند قیمت بخوان.";
-    if (key.startsWith("ichimoku")) return "برای خود خطوط عدد خوبِ ثابتی نداریم؛ قیمت بالای ابر زمینهٔ صعودی، زیر ابر زمینهٔ نزولی و داخل ابر حالت گذار/خنثی است.";
-    if (key.startsWith("keltner")) return "مقدارها قیمتِ باند بالا، میانی و پایین‌اند و محدودهٔ ثابتی ندارند؛ جای قیمت نسبت به باندها و باز یا بسته‌شدن کانال را بسنج.";
-    if (key.startsWith("bb") || key.startsWith("bollinger")) return "مقدارها باند بالا، میانی و پایین‌اند؛ عدد ثابتِ خوب/بد ندارند. پهن‌شدن یعنی نوسان بیشتر و تماس با باند را همراه روند بخوان.";
-    if (key.startsWith("ema") || key.startsWith("sma")) return "محدودهٔ عددی ثابت ندارد؛ قیمت بالای میانگین معمولاً زمینهٔ مثبت‌تر و زیر آن زمینهٔ ضعیف‌تر است. دوره‌های کوتاه و بلند را با هم مقایسه کن.";
-    if (key.startsWith("pivotpoint") || key.startsWith("pivot")) return "این‌ها سطح قیمت‌اند، نه نمره؛ P نقطهٔ میانی، Rها مقاومت‌های احتمالی و Sها حمایت‌های احتمالی‌اند. نزدیکی به سطح به‌تنهایی واکنش را تضمین نمی‌کند.";
-    if (key.startsWith("rv")) return "برای نسبت حجم، ۱ خط مبناست: بالای ۱ حجم بیشتر از مرجع و زیر ۱ کمتر از مرجع است. افزایش حجم به‌تنهایی صعودی یا نزولی نیست.";
-    if (key.startsWith("sm")) return "برای این شاخص ره‌آورد محدودهٔ عددی عمومیِ قابل اتکایی در دست نیست؛ مقدار و سیگنال رسمی را با روند حجم و قیمت مقایسه کن.";
-    if (key.startsWith("vrsi")) return "در این نسخه آستانهٔ ثابتِ تأییدشده‌ای نداریم؛ تغییرات و سیگنال VRSI را در کنار حجم و روند قیمت بخوان، نه به‌تنهایی.";
-    if (key.startsWith("obv")) return "عدد مطلق محدودهٔ خوب/بد ندارد و انباشته است؛ مهم‌تر از عدد، جهت خط و واگرایی آن با قیمت است.";
-    return "برای این شاخص محدودهٔ عددی ثابتی اعلام نشده؛ مقدار را با خط مبنا، روند یا بازه‌های همان شاخص مقایسه کن.";
+    if (key.startsWith("stochrsi")) return "سرعت حرکت RSI را می‌سنجد و نشان می‌دهد مومنتوم کوتاه‌مدت به ناحیهٔ افراط رسیده یا نه.";
+    if (key.startsWith("rsi")) return "قدرت و سرعت حرکت قیمت را خلاصه می‌کند؛ برای دیدن شتاب و داغ‌شدن حرکت به کار می‌رود.";
+    if (key.startsWith("mfi")) return "فشار خرید و فروش را با ترکیب تغییر قیمت و حجم معاملات نشان می‌دهد.";
+    if (key.startsWith("cci")) return "نشان می‌دهد قیمت چقدر از میانگین معمولش فاصله گرفته و حرکت چقدر قوی شده است.";
+    if (key.startsWith("wr") || key.startsWith("williams")) return "جای قیمت را نسبت به سقف و کف اخیر نشان می‌دهد؛ برای سنجش مومنتوم کوتاه‌مدت است.";
+    if (key.startsWith("so") || key.startsWith("stoch")) return "جای قیمت را در دامنهٔ اخیر و تغییر مومنتوم را با دو خط K و D نشان می‌دهد.";
+    if (key.startsWith("aroon") || key.startsWith("arron")) return "تازگی سقف‌ها و کف‌های اخیر را می‌سنجد تا جهت غالب روند را نشان دهد.";
+    if (key.startsWith("adx")) return "قدرت روند را می‌سنجد، نه جهت آن؛ جهت را باید از قیمت یا شاخص‌های +DI و −DI خواند.";
+    if (key.startsWith("ao")) return "شتاب کوتاه‌مدت بازار را با شتاب بلندمدت مقایسه می‌کند.";
+    if (key.startsWith("vmacd")) return "تغییر شتاب حجم معاملات را نشان می‌دهد؛ جهت قیمت را به‌تنهایی مشخص نمی‌کند.";
+    if (key.startsWith("macd")) return "روند و شتاب قیمت را از مقایسهٔ میانگین‌ها می‌سنجد؛ تقاطع خط‌ها تغییر مومنتوم را نشان می‌دهد.";
+    if (key.startsWith("mtm") || key.startsWith("momentum")) return "میزان و جهت تغییر قیمت را نسبت به چند دورهٔ قبل نشان می‌دهد.";
+    if (key.startsWith("trend")) return "خلاصهٔ جهت روند است: صعودی، نزولی یا خنثی.";
+    if (key.startsWith("ichimoku")) return "روند و محدوده‌های احتمالی حمایت و مقاومت را با خطوط و ابر نشان می‌دهد.";
+    if (key.startsWith("keltner")) return "کانالی پیرامون میانگین قیمت است که دامنهٔ نوسان و جایگاه قیمت را نشان می‌دهد.";
+    if (key.startsWith("bb") || key.startsWith("bollinger")) return "باندهای اطراف میانگین قیمت را نشان می‌دهد؛ باز و بسته‌شدنشان از تغییر نوسان خبر می‌دهد.";
+    if (key.startsWith("ema") || key.startsWith("sma")) return "میانگین قیمت در یک بازه است و برای تشخیص جهت روند و حمایت یا مقاومت پویا استفاده می‌شود.";
+    if (key.startsWith("pivotpoint") || key.startsWith("pivot")) return "سطوح محاسباتی حمایت و مقاومت احتمالی را برای مقایسه با قیمت نشان می‌دهد.";
+    if (key.startsWith("atr")) return "اندازهٔ نوسان قیمت را نشان می‌دهد، نه جهت صعود یا نزول را.";
+    if (key.startsWith("rv")) return "حجم امروز را با حجم معمول مقایسه می‌کند تا میزان مشارکت معامله‌گران مشخص شود.";
+    if (key.startsWith("sm")) return "نمایی از وضعیت حجم و جریان معاملات است؛ برای برداشت جهت، آن را همراه قیمت بخوان.";
+    if (key.startsWith("vrsi")) return "قدرت و شتاب تغییرات حجم معاملات را به شکل یک نوسان‌گر نشان می‌دهد.";
+    if (key.startsWith("obv")) return "حجم را با جهت حرکت قیمت جمع می‌کند تا همراهی یا واگرایی حجم با روند دیده شود.";
+    return "بخشی از روند، مومنتوم، حجم یا نوسان را می‌سنجد؛ آن را همراه قیمت و بقیهٔ شاخص‌ها بخوان.";
   }
 
   function rahavardRecommendationHtml(a) {
@@ -708,7 +709,7 @@
         const rendered = percentValue ? pct(val * 100) : num(val, priceIndicator ? 0 : 2);
         return `<div class="rahavard-indicator-value"><span>${esc(valueNames[key] || part.long_name_en || key)}</span><b>${rendered}</b></div>`;
       }).join("");
-      return `<article class="indicator-card rahavard-indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(groupNames[group] || group)}</small></div><span class="indicator-status ${state}">${esc(signalLabel)}</span></div><div class="rahavard-indicator-values">${values || `<span class="factor-foot">مقداری در پاسخ ره‌آورد نبود.</span>`}</div><p>${esc(indicatorNumericSummary(name, item))}</p><div class="indicator-range-guide"><b>راهنمای محدوده</b><span>${esc(indicatorRangeGuide(name))}</span></div></article>`;
+      return `<article class="indicator-card rahavard-indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(groupNames[group] || group)}</small></div><span class="indicator-status ${state}">${esc(signalLabel)}</span></div><div class="rahavard-indicator-values">${values || `<span class="factor-foot">مقداری در پاسخ ره‌آورد نبود.</span>`}</div><p>${esc(indicatorNumericSummary(name, item))}</p><div class="indicator-range-guide"><b>این شاخص چه می‌گوید؟</b><span>${esc(indicatorPlainMeaning(name))}</span></div></article>`;
     }));
     const gaugeCards = ["main", "pivot", "volume"].map((key) => {
       const gauge = a.site_gauges?.[key];
@@ -720,7 +721,7 @@
     }).join("");
     const score = a.technical_score == null ? "—" : num(a.technical_score, 0);
     const cls = a.signal === "buy" ? "bullish" : a.signal === "sell" ? "bearish" : "";
-    const missing = (a.missing_indicators || []).map((name) => `<article class="indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>در پاسخ نماد منتشر نشده</small></div><span class="indicator-status unknown">موجود نیست</span></div><p>برای این مقدار عدد جایگزین ساخته نشده است.</p><div class="indicator-range-guide"><b>راهنمای محدوده</b><span>${esc(indicatorRangeGuide(name))}</span></div></article>`).join("");
+    const missing = (a.missing_indicators || []).map((name) => `<article class="indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>در پاسخ نماد منتشر نشده</small></div><span class="indicator-status unknown">موجود نیست</span></div><p>برای این مقدار عدد جایگزین ساخته نشده است.</p><div class="indicator-range-guide"><b>این شاخص چه می‌گوید؟</b><span>${esc(indicatorPlainMeaning(name))}</span></div></article>`).join("");
     const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
     return `${overview}${tradePlanHtml(a)}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div>${pivotTable}<div class="indicator-readouts">${gaugeCards}</div><div class="indicator-card-grid">${cards.join("")}${missing}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
@@ -744,7 +745,7 @@
       const name = indicatorFa[key] || (/^(EMA|SMA)\(/.test(key) ? (key.startsWith("EMA") ? "میانگین نمایی" : "میانگین ساده") : key);
       const displayKey = key === "Aroon(25)" ? "ARRON(25)" : key;
       const extra = indicatorExtra(key, value);
-      return `<article class="indicator-card" title="فرمول: ${esc(value.formula || "ثبت نشده")}"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(displayKey)}</small></div><span class="indicator-status ${assessment.state}">${assessment.label}</span></div><div class="indicator-card-value"><strong>${indicatorValueText(key, value)}</strong><span>${key.startsWith("EMA(") || key.startsWith("SMA(") ? "مقدار میانگین" : key === "BB(20)" || key === "KELTNER(16)" ? "خط میانی کانال" : key === "Ichimoku(9,26,52,26)" ? "خط تنکان" : "مقدار فعلی"}</span></div><p>${esc(indicatorNumericSummary(key, value))}</p><div class="indicator-range-guide"><b>راهنمای محدوده</b><span>${esc(indicatorRangeGuide(key))}</span></div>${extra ? `<div class="indicator-extra">${esc(extra)}</div>` : ""}<div class="indicator-previous">مقدار قبلی <b>${value.previous_value == null ? "—" : num(value.previous_value, 3)}</b></div></article>`;
+      return `<article class="indicator-card" title="فرمول: ${esc(value.formula || "ثبت نشده")}"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(displayKey)}</small></div><span class="indicator-status ${assessment.state}">${assessment.label}</span></div><div class="indicator-card-value"><strong>${indicatorValueText(key, value)}</strong><span>${key.startsWith("EMA(") || key.startsWith("SMA(") ? "مقدار میانگین" : key === "BB(20)" || key === "KELTNER(16)" ? "خط میانی کانال" : key === "Ichimoku(9,26,52,26)" ? "خط تنکان" : "مقدار فعلی"}</span></div><p>${esc(indicatorNumericSummary(key, value))}</p><div class="indicator-range-guide"><b>این شاخص چه می‌گوید؟</b><span>${esc(indicatorPlainMeaning(key))}</span></div>${extra ? `<div class="indicator-extra">${esc(extra)}</div>` : ""}<div class="indicator-previous">مقدار قبلی <b>${value.previous_value == null ? "—" : num(value.previous_value, 3)}</b></div></article>`;
     }).join("");
     const pivotTable = pivotTableHtml(a.indicators?.pivots || {}, a.price);
     const ind = all;
