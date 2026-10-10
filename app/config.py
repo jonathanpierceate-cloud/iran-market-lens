@@ -29,7 +29,7 @@ DATA_DIR = Path(os.getenv("DATA_DIR", _default_data_dir)).resolve()
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DATABASE_PATH = Path(os.getenv("DATABASE_PATH", str(DATA_DIR / "market.db"))).resolve()
 REFRESH_INTERVAL_SECONDS = max(60, int(os.getenv("DATA_UPDATE_INTERVAL", "900")))
-_default_http_timeout = "8" if os.getenv("VERCEL") else "15"
+_default_http_timeout = "15"
 HTTP_TIMEOUT_SECONDS = max(3, int(os.getenv("HTTP_TIMEOUT_SECONDS", _default_http_timeout)))
 MAX_STALE_HOURS = max(1, int(os.getenv("MAX_STALE_HOURS", "36")))
 DEFAULT_NEWS_RSS_URLS = [

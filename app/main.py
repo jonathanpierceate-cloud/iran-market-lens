@@ -101,9 +101,15 @@ def _market_quote(symbol: str) -> dict[str, Any]:
     bars = _market_history(symbol, 10000)
     with db.connect() as conn:
         asset = conn.execute("SELECT * FROM assets WHERE symbol=?", (symbol,)).fetchone()
-    if not asset:
+    asset_defaults = {
+        "GOLD": {"name": "طلای جهانی", "source": "Rahavard365", "source_url": RAHAVARD_GOLD_PAGE_URL},
+        "GOLD_18K": {"name": "طلای ۱۸ عیار", "source": "Rahavard365", "source_url": RAHAVARD_GOLD_18K_PAGE_URL},
+        "USD_IR_FREE": {"name": "تتر (معادل دلار آمریکا)", "source": "Rahavard365", "source_url": RAHAVARD_USDT_PAGE_URL},
+        "TEPIX": {"name": "شاخص کل بورس", "source": "Rahavard365", "source_url": RAHAVARD_TEPIX_PAGE_URL},
+    }
+    data = dict(asset) if asset else asset_defaults.get(symbol)
+    if data is None:
         raise HTTPException(status_code=404, detail="دارایی پیدا نشد")
-    data = dict(asset)
     if not bars:
         return {"symbol": symbol, "name": data["name"], "price": None, "history": [],
                 "source": data.get("source"), "source_url": data.get("source_url"),
