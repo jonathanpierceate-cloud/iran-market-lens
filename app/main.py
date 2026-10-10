@@ -364,7 +364,7 @@ def _gold18k_valuation(gold_quote: dict[str, Any], dollar_quote: dict[str, Any],
 
 @app.get("/api/market/summary")
 def market_summary():
-    funds = db.funds(sort="data_timestamp", source="Rahavard365")
+    funds = _exclude_fixed_income_funds(db.funds(sort="data_timestamp", source="Rahavard365"))
     gold_quote = _market_quote("GOLD")
     gold18k_quote = _market_quote("GOLD_18K")
     dollar_quote = _market_quote("USD_IR_FREE")
@@ -470,6 +470,31 @@ def _fund_category_asset_ids(category_id: str) -> set[str]:
     return asset_ids
 
 
+def _exclude_fixed_income_funds(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    try:
+        fixed_income_ids = _fund_category_asset_ids("255")
+    except SourceError:
+        fixed_income_ids = set()
+
+    visible: list[dict[str, Any]] = []
+    for item in items:
+        raw = item.get("raw") if isinstance(item.get("raw"), dict) else {}
+        asset_id = str(raw.get("rahavard_asset_id") or item.get("registration_no") or item.get("symbol") or "").strip()
+        group_ids = (item.get("category_id"), raw.get("groupId"), raw.get("group_id"),
+                     raw.get("category_id"), raw.get("categoryId"))
+        labels = (item.get("category"), item.get("name"), raw.get("category"),
+                  raw.get("category_name"), raw.get("groupName"), raw.get("fund_type"))
+        is_fixed_income = (
+            asset_id in fixed_income_ids
+            or any(str(value or "").strip() == "255" for value in group_ids)
+            or any("درآمد ثابت" in str(value or "").casefold()
+                   or "fixed income" in str(value or "").casefold() for value in labels)
+        )
+        if not is_fixed_income:
+            visible.append(item)
+    return visible
+
+
 def _dedupe_rahavard_funds(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     selected: dict[str, tuple[int, dict[str, Any]]] = {}
     for index, item in enumerate(items):
@@ -484,6 +509,8 @@ def _dedupe_rahavard_funds(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 @app.get("/api/funds")
 def funds(search: str = "", category: str = "", sort: str = "data_timestamp"):
+    if category == "255":
+        return {"items": [], "count": 0, "source": "Rahavard365", "data_status": "available"}
     db_category = "" if category.isdigit() else category
     items = _dedupe_rahavard_funds(db.funds(search=search, category=db_category, sort=sort, source="Rahavard365"))
     if category.isdigit():
@@ -493,6 +520,7 @@ def funds(search: str = "", category: str = "", sort: str = "data_timestamp"):
                      if str(item.get("raw", {}).get("rahavard_asset_id") or item.get("symbol") or "") in allowed_ids]
         except SourceError:
             items = []
+    items = _exclude_fixed_income_funds(items)
     snapshots = db.fund_indicator_snapshots()
     for item in items:
         raw = item.get("raw") if isinstance(item.get("raw"), dict) else {}
@@ -1250,7 +1278,7 @@ def update_setting(data: SettingInput):
 
 @app.get("/api/export/funds.csv")
 def export_funds_csv():
-    items = db.funds(source="Rahavard365")
+    items = _exclude_fixed_income_funds(db.funds(source="Rahavard365"))
     stream = io.StringIO(newline="")
     writer = csv.DictWriter(stream, fieldnames=["symbol", "name", "category", "manager", "aum", "nav", "market_price", "nav_premium_pct", "volume", "value", "data_timestamp"], extrasaction="ignore")
     writer.writeheader()
@@ -1266,7 +1294,7 @@ def export_funds_xlsx():
         from openpyxl.styles import Font, PatternFill
     except ImportError as exc:
         raise HTTPException(status_code=501, detail="برای خروجی Excel، openpyxl را نصب کنید") from exc
-    items = db.funds(source="Rahavard365")
+    items = _exclude_fixed_income_funds(db.funds(source="Rahavard365"))
     columns = [("symbol", "نماد"), ("name", "نام"), ("category", "دسته"), ("manager", "مدیر"),
                ("daily_return", "بازده روزانه"), ("weekly_return", "بازده هفتگی"),
                ("monthly_return", "بازده ماهانه"), ("three_month_return", "بازده ۳ماهه"),
@@ -1290,7 +1318,7 @@ def export_funds_xlsx():
 @app.get("/api/export/funds.json")
 def export_funds_json():
     return {"exported_at": utc_now(), "source": "Rahavard365",
-            "items": db.funds(source="Rahavard365")}
+            "items": _exclude_fixed_income_funds(db.funds(source="Rahavard365"))}
 
 
 @app.get("/api/export/analysis.json")
