@@ -11,8 +11,8 @@ from .indicators import compute_indicators
 # Medium-term AliVest score weights for the four factors shown in the analysis.
 MEDIUM_TERM_SCORE_WEIGHTS = {
     "moving_averages": 0.20,
-    "volume": 0.25,
-    "oscillators": 0.40,
+    "volume": 0.30,
+    "oscillators": 0.35,
     "resistance": 0.15,
 }
 
