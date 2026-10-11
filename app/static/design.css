@@ -972,19 +972,17 @@ body.light-mode #view-funds .table-footer span:last-child { color: #7a918a; }
   #view-funds #fund-table-grid tbody td:first-child::before { display: none; }
   #view-funds #fund-table-grid tbody td:nth-child(2)::before { content: "نوع صندوق"; }
   #view-funds #fund-table-grid tbody td:nth-child(3)::before { content: "امتیاز تکنیکال"; }
-  #view-funds #fund-table-grid tbody td:nth-child(4)::before { content: "ریسک نوسان"; }
-  #view-funds #fund-table-grid tbody td:nth-child(5)::before { content: "قدرت نسبی"; }
-  #view-funds #fund-table-grid tbody td:nth-child(6)::before { content: "قیمت پایانی"; }
-  #view-funds #fund-table-grid tbody td:nth-child(7)::before { content: "خرید در قیمت فعلی؟"; }
-  #view-funds #fund-table-grid tbody td:nth-child(8)::before { content: "تغییر روز"; }
-  #view-funds #fund-table-grid tbody td:nth-child(9)::before { content: "بازده 1 ماهه"; }
-  #view-funds #fund-table-grid tbody td:nth-child(10)::before { content: "بازده 3 ماهه"; }
-  #view-funds #fund-table-grid tbody td:nth-child(11)::before { content: "بازده 6 ماهه"; }
-  #view-funds #fund-table-grid tbody td:nth-child(12)::before { content: "بازده 1 ساله"; }
-  #view-funds #fund-table-grid tbody td:nth-child(13)::before { content: "حجم"; }
-  #view-funds #fund-table-grid tbody td:nth-child(14)::before { content: "ارزش معامله"; }
-  #view-funds #fund-table-grid tbody td:nth-child(15)::before { content: "آخرین به‌روزرسانی"; }
-  #view-funds #fund-table-grid tbody td:nth-child(7) { grid-column: 1 / -1; }
+  #view-funds #fund-table-grid tbody td:nth-child(4)::before { content: "قیمت پایانی"; }
+  #view-funds #fund-table-grid tbody td:nth-child(5)::before { content: "خرید در قیمت فعلی؟"; }
+  #view-funds #fund-table-grid tbody td:nth-child(6)::before { content: "تغییر روز"; }
+  #view-funds #fund-table-grid tbody td:nth-child(7)::before { content: "بازده 1 ماهه"; }
+  #view-funds #fund-table-grid tbody td:nth-child(8)::before { content: "بازده 3 ماهه"; }
+  #view-funds #fund-table-grid tbody td:nth-child(9)::before { content: "بازده 6 ماهه"; }
+  #view-funds #fund-table-grid tbody td:nth-child(10)::before { content: "بازده 1 ساله"; }
+  #view-funds #fund-table-grid tbody td:nth-child(11)::before { content: "حجم"; }
+  #view-funds #fund-table-grid tbody td:nth-child(12)::before { content: "ارزش معامله"; }
+  #view-funds #fund-table-grid tbody td:nth-child(13)::before { content: "آخرین به‌روزرسانی"; }
+  #view-funds #fund-table-grid tbody td:nth-child(5) { grid-column: 1 / -1; }
   #view-funds .fund-table-name { width: 100%; min-width: 0; padding: 11px 12px; }
   #view-funds .fund-table-name strong { font-size: 16px; }
   #view-funds .fund-table-name small { font-size: 11px; }

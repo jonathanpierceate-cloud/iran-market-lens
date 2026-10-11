@@ -1024,8 +1024,6 @@
         technical_score: fundSortState.direction === 1 ? "asc" : "desc",
         buy_suitability_rank: "buy_suitability_rank",
         fund_type_label: fundSortState.direction === 1 ? "type_asc" : "type_desc",
-        risk_score: fundSortState.direction === 1 ? "risk_asc" : "risk_desc",
-        relative_strength_score: fundSortState.direction === 1 ? "relative_asc" : "relative_desc",
       };
       mobileScoreSort.value = values[key] || "";
     }
@@ -1039,7 +1037,7 @@
       const category = $("#fund-category")?.value.trim() || "";
       const filtered = search || category;
       const filterLabel = search || $("#fund-category")?.selectedOptions?.[0]?.textContent?.trim() || "";
-      target.innerHTML = `<tr><td colspan="15"><div class="empty-state fund-empty-state"><span>&#9632;</span><b>${filtered ? "نتیجه‌ای برای فیلتر فعلی پیدا نشد" : "صندوقی از ره‌آورد۳۶۵ دریافت نشده"}</b><small>${filtered ? `فیلتر فعال: ${esc(filterLabel)} · برای نمایش همه صندوق‌ها فیلتر را پاک کنید.` : "وضعیت اتصال ره‌آورد را در صفحه وضعیت سامانه ببینید."}</small>${filtered ? `<button class="button button-quiet fund-clear-filter" type="button" data-clear-fund-filters>پاک کردن فیلترها</button>` : ""}</div></td></tr>`;
+      target.innerHTML = `<tr><td colspan="13"><div class="empty-state fund-empty-state"><span>&#9632;</span><b>${filtered ? "نتیجه‌ای برای فیلتر فعلی پیدا نشد" : "صندوقی از ره‌آورد۳۶۵ دریافت نشده"}</b><small>${filtered ? `فیلتر فعال: ${esc(filterLabel)} · برای نمایش همه صندوق‌ها فیلتر را پاک کنید.` : "وضعیت اتصال ره‌آورد را در صفحه وضعیت سامانه ببینید."}</small>${filtered ? `<button class="button button-quiet fund-clear-filter" type="button" data-clear-fund-filters>پاک کردن فیلترها</button>` : ""}</div></td></tr>`;
       return;
     }
     const amount = (value) => value == null ? "—" : money(value);
@@ -1051,18 +1049,11 @@
       const scoreTone = scoreValue == null || !Number.isFinite(scoreValue) ? "unknown" : scoreValue >= 70 ? "positive" : scoreValue >= 50 ? "neutral" : "negative";
       const scoreTitle = `امتیاز میان‌مدتی AliVest · پوشش داده: ${scoreCoverage != null && Number.isFinite(scoreCoverage) ? `${num(scoreCoverage, 0)}٪` : "نامشخص"}`;
       const scoreCell = scoreValue == null || !Number.isFinite(scoreValue) ? `<span class="technical-score-chip unknown" title="امتیاز هنوز محاسبه نشده">—</span>` : `<span class="technical-score-chip ${scoreTone}" title="${esc(scoreTitle)}">${num(scoreValue, 0)} / 100</span>`;
-      const riskScore = f.risk_score == null ? null : Number(f.risk_score);
-      const riskLevel = f.analysis?.risk_rank?.level;
-      const riskLabels = { low: "پایین", medium: "متوسط", elevated: "بالا", high: "خیلی بالا" };
-      const resolvedRisk = riskLabels[riskLevel] || (riskScore >= 70 ? "خیلی بالا" : riskScore >= 50 ? "بالا" : riskScore >= 30 ? "متوسط" : "پایین");
-      const riskCell = Number.isFinite(riskScore) ? `<span class="fund-metric-chip ${riskScore >= 70 ? "negative" : riskScore >= 50 ? "warning" : "positive"}" title="رتبه ریسک مستقل از امتیاز تکنیکال؛ بالاتر یعنی نوسان بیشتر">${num(riskScore, 0)} · ${resolvedRisk}</span>` : `<span class="fund-metric-chip unknown">—</span>`;
-      const relativeScore = f.relative_strength_score == null ? null : Number(f.relative_strength_score);
-      const relativeCell = Number.isFinite(relativeScore) ? `<span class="fund-metric-chip ${relativeScore >= 60 ? "positive" : relativeScore < 40 ? "negative" : ""}" title="${esc(f.analysis?.relative_strength?.benchmark_symbol ? `مقایسه با ${f.analysis.relative_strength.benchmark_symbol}` : "مقایسه با دادهٔ هم‌گروهی")}">${num(relativeScore, 0)} / 100</span>` : `<span class="fund-metric-chip unknown">—</span>`;
       const typeLabel = f.fund_type_label || f.category || "نامشخص";
       const assessment = f.purchase_assessment || {};
       const assessmentStatus = ["suitable", "wait", "unsuitable"].includes(assessment.status) ? assessment.status : "unknown";
       const assessmentCell = `<div class="fund-purchase-assessment"><span class="fund-purchase-chip ${assessmentStatus}">${esc(assessment.label || "داده کافی نیست")}</span><small>${esc(assessment.reason || "ارزیابی پس از دریافت دادهٔ تکنیکال نمایش داده می‌شود.")}</small></div>`;
-      return `<tr><td><button class="row-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><strong>${esc(f.name)}</strong><small class="fund-symbol">شناسه ره‌آورد: ${esc(id)}</small></span></button></td><td><span class="fund-type-chip">${esc(typeLabel)}</span></td><td class="fund-technical-score">${scoreCell}</td><td>${riskCell}</td><td>${relativeCell}</td><td>${amount(price)}</td><td class="fund-buy-cell">${assessmentCell}</td><td><span class="${changeClass(f.daily_return)}">${pct(f.daily_return)}</span></td><td>${pct(f.monthly_return)}</td><td>${pct(f.three_month_return)}</td><td>${pct(f.six_month_return)}</td><td>${pct(f.one_year_return)}</td><td>${amount(f.volume)}</td><td>${amount(f.value)}</td><td class="fund-update-time">${esc(formatDate(f.updated_at))}</td></tr>`;
+      return `<tr><td><button class="row-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><strong>${esc(f.name)}</strong><small class="fund-symbol">شناسه ره‌آورد: ${esc(id)}</small></span></button></td><td><span class="fund-type-chip">${esc(typeLabel)}</span></td><td class="fund-technical-score">${scoreCell}</td><td>${amount(price)}</td><td class="fund-buy-cell">${assessmentCell}</td><td><span class="${changeClass(f.daily_return)}">${pct(f.daily_return)}</span></td><td>${pct(f.monthly_return)}</td><td>${pct(f.three_month_return)}</td><td>${pct(f.six_month_return)}</td><td>${pct(f.one_year_return)}</td><td>${amount(f.volume)}</td><td>${amount(f.value)}</td><td class="fund-update-time">${esc(formatDate(f.updated_at))}</td></tr>`;
     }).join("");
     updateFundSortIndicators();
   }
@@ -1515,8 +1506,6 @@
       desc: ["technical_score", -1], asc: ["technical_score", 1],
       buy_suitability_rank: ["buy_suitability_rank", -1],
       type_asc: ["fund_type_label", 1], type_desc: ["fund_type_label", -1],
-      risk_asc: ["risk_score", 1], risk_desc: ["risk_score", -1],
-      relative_desc: ["relative_strength_score", -1], relative_asc: ["relative_strength_score", 1],
     };
     const selected = sortKeyByOption[event.target.value];
     [fundSortState.key, fundSortState.direction] = selected || ["data_timestamp", -1];
