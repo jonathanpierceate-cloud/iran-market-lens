@@ -918,7 +918,7 @@
   }
 
   function analysisHtml(a) {
-    if (a?.source === "Rahavard365") return rahavardAnalysisHtml(a);
+    if (a?.source === "Rahavard365" && a?.score_method !== "dashboard_five_family_medium_term_v1") return rahavardAnalysisHtml(a);
     if (!a || a.technical_score == null) return `<div class="empty-state compact"><b>داده کافی برای محاسبه امتیاز موجود نیست</b><small>مدل فقط داده ذخیره‌شده از منبع را تحلیل می‌کند.</small></div>`;
     const all = a.indicators?.indicators || {};
     const seen = new Set();
