@@ -122,7 +122,7 @@ button, a, .market-card, .panel, input, select { transition: background-color .1
 .asset-comparison-heading h2 { margin: 3px 0 0; color: #e5efec; font-size: 18px; }
 .asset-comparison-heading>small { color: #8fa8ab; font-size: 11px; }
 .asset-comparison-scroll { width: 100%; overflow-x: auto; }
-.asset-comparison-table { width: 100%; min-width: 650px; border-collapse: collapse; }
+.asset-comparison-table { width: 100%; min-width: 940px; border-collapse: collapse; }
 .asset-comparison-table th, .asset-comparison-table td { padding: 11px 12px; border-bottom: 1px solid rgba(112,157,157,.16); text-align: right; white-space: nowrap; }
 .asset-comparison-table thead th { color: #91aaa9; font-size: 11px; font-weight: 600; }
 .asset-comparison-table tbody th { color: #dce9e6; font-size: 12px; font-weight: 650; }
@@ -132,11 +132,13 @@ button, a, .market-card, .panel, input, select { transition: background-color .1
 .asset-comparison-tag.bullish { color: #73d7b0; border-color: rgba(66,183,141,.32); }
 .asset-comparison-tag.bearish { color: #f0929d; border-color: rgba(220,105,119,.34); }
 .asset-comparison-tag.neutral, .asset-comparison-tag.unavailable { color: #d0b978; border-color: rgba(216,167,78,.3); }
+.asset-comparison-summary { margin: 10px 0 0; padding: 10px 12px; border: 1px solid rgba(112,157,157,.18); border-radius: 9px; color: #9eb5b4; background: rgba(8,20,27,.35); font-size: 11px; line-height: 1.9; }
 .light-mode .asset-comparison-heading h2, .light-mode .asset-comparison-table tbody th { color: #29453e; }
 .light-mode .asset-comparison-heading>small, .light-mode .asset-comparison-table thead th { color: #647b75; }
 .light-mode .asset-comparison-table th, .light-mode .asset-comparison-table td { border-color: #e3ece7; }
 .light-mode .asset-comparison-table tbody td { color: #3e5a52; }
 .light-mode .asset-comparison-tag { background: #f5f8f6; }
+.light-mode .asset-comparison-summary { color: #536c65; border-color: #e3ece7; background: #f7faf8; }
 .market-card, .panel {
   background: linear-gradient(145deg, #1a2931, #17252d);
   border: 1px solid #2d4148;
