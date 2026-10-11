@@ -436,14 +436,12 @@
       momentum: ["مومنتوم و قدرت روند", "شتاب حرکت و قدرت روند؛ همراه با سنجش اشباع"],
       volume_confirmation: ["تأیید حجم معاملات", "جهت جریان و نسبت حجم معاملات"],
       support_resistance: ["حمایت و مقاومت", "موقعیت قیمت میان پیوت‌ها و فاصله تا سطوح نزدیک"],
-      relative_strength: ["قدرت نسبی", "عملکرد ۶۰ و ۱۲۰ روزه در برابر شاخص و هم‌گروه‌ها"],
       entry_quality: ["کیفیت نقطه ورود", "موقعیت در باندها، فاصله EMA50 و نوسان قیمت"],
       nav_pricing: ["قیمت بازار نسبت به NAV", "میزان حباب یا تخفیف با توجه به تازگی NAV"]
     };
     if (fixedIncomeProfile) {
       labels.momentum[1] = "اثر کمترِ نوسان‌گرهای سهامی در ارزیابی صندوق درآمد ثابت";
       labels.volume_confirmation[1] = "ارزش معامله نسبت به هم‌گروه‌ها و تأیید حجم";
-      labels.relative_strength[1] = "بازده و جایگاه صندوق در مقایسه با هم‌گروه‌ها";
       labels.entry_quality[1] = "نوسان قیمت و کیفیت نقطه ورود با حساسیت کمتر به نوسان‌های معمول";
     }
     const bandLabels = {
@@ -471,10 +469,6 @@
       if (key === "support_resistance") {
         if (family.nearest_support != null) extras.push(`حمایت نزدیک: ${money(family.nearest_support)}${family.support_distance_pct != null ? ` · ${num(family.support_distance_pct, 2)}٪ فاصله` : ""}`);
         if (family.nearest_resistance != null) extras.push(`مقاومت نزدیک: ${money(family.nearest_resistance)}${family.resistance_distance_pct != null ? ` · ${num(family.resistance_distance_pct, 2)}٪ فاصله` : ""}`);
-      } else if (key === "relative_strength") {
-        if (family.excess_60d_pct != null) extras.push(`مازاد بازده ۶۰روزه ${num(family.excess_60d_pct, 2)}٪`);
-        if (family.excess_120d_pct != null) extras.push(`مازاد بازده ۱۲۰روزه ${num(family.excess_120d_pct, 2)}٪`);
-        if (family.peer_percentile != null) extras.push(`رتبه هم‌گروهی ${num(family.peer_percentile, 0)}٪`);
       } else if (key === "entry_quality" && family.realized_volatility_pct != null) {
         extras.push(`نوسان سالانه‌شده ۲۰روزه ${num(family.realized_volatility_pct, 1)}٪`);
       } else if (key === "nav_pricing" && family.premium_pct != null) {
@@ -494,15 +488,9 @@
     const coverage = a.data_coverage_pct == null ? NaN : Number(a.data_coverage_pct);
     const familyWeight = a.available_family_weight_pct == null ? NaN : Number(a.available_family_weight_pct);
     const nav = a.nav_assessment || {};
-    const relative = a.relative_strength || {};
     const navText = nav.premium_pct != null && Number.isFinite(Number(nav.premium_pct))
       ? `حباب/تخفیف بازار نسبت به NAV: ${num(nav.premium_pct, 2)}٪`
       : "مقایسه با NAV تازه در این محاسبه موجود نیست";
-    const relativeText = relative.peer_percentile != null && Number.isFinite(Number(relative.peer_percentile))
-      ? `جایگاه بازده میان‌مدت در ${num(relative.peer_percentile, 0)}٪ بالایی صندوق‌های هم‌گروه`
-      : relative.excess_60d_pct != null && Number.isFinite(Number(relative.excess_60d_pct))
-      ? `مازاد بازده ۶۰روزه نسبت به شاخص مرجع: ${num(relative.excess_60d_pct, 2)}٪`
-      : "بازده نسبی در نبود دادهٔ کافی محاسبه نشده است";
     const factors = a.top_factors || {};
     const positiveFactor = factors.positive;
     const negativeFactor = factors.negative;
@@ -535,7 +523,7 @@
       </div>
       <div class="fund-family-score-grid">${familyCards}</div>
       ${factorSummary}
-      <div class="fund-model-context"><span>${relativeText}</span><span>${navText}</span></div>
+      <div class="fund-model-context"><span>${navText}</span></div>
       <div class="fund-score-changes"><b>تغییر امتیاز در روزهای معاملاتی گذشته</b>${changeChip("۵ روز", a.score_change_5d)}${changeChip("۲۰ روز", a.score_change_20d)}</div>
       <div class="fund-model-disclaimer"><b>نحوهٔ خواندن امتیاز</b><span>${modelNote} وزن‌ها نسخهٔ اولیه‌اند و هنوز با بک‌تست تاریخی اعتبارسنجی نشده‌اند؛ تغییر امتیاز وقتی نمایش داده می‌شود که سابقهٔ کافی از روزهای معاملاتی گذشته ذخیره شده باشد.</span></div>
     </section>`;
@@ -603,7 +591,7 @@
     if (a?.score_method === "dashboard_four_factor_medium_term_v1") {
       return dashboardModelRecommendationHtml(a);
     }
-    if (a?.score_method === "fund_seven_family_initial_v1" && a.family_scores) {
+    if (a?.score_method === "fund_six_family_no_relative_initial_v1" && a.family_scores) {
       return fundModelRecommendationHtml(a);
     }
     const gauge = a.site_gauges?.main || {};
@@ -1169,7 +1157,6 @@
               listed.purchase_assessment = result.purchase_assessment;
               listed.buy_suitability_rank = result.buy_suitability_rank;
               listed.risk_score = result.risk_score;
-              listed.relative_strength_score = result.relative_strength_score;
               listed.score_change_5d = result.score_change_5d;
               listed.score_change_20d = result.score_change_20d;
             }
@@ -1226,7 +1213,6 @@
           listedFund.technical_score = Number(a.technical_score);
           listedFund.data_coverage_pct = a.data_coverage_pct;
           listedFund.risk_score = a.risk_rank?.score;
-          listedFund.relative_strength_score = a.family_scores?.relative_strength?.score;
           listedFund.score_change_5d = a.score_change_5d;
           listedFund.score_change_20d = a.score_change_20d;
           listedFund.medium_term_exit_price = a.medium_term_exit_price;

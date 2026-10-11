@@ -1,4 +1,4 @@
-"""Initial seven-family, medium-term technical score for Rahavard ETF data.
+"""Initial six-family, medium-term technical score for Rahavard ETF data.
 
 Weights are configurable proposals from the product specification. They have
 not been optimized or backtested. Unknown vendor formulas are deliberately
@@ -12,23 +12,22 @@ from typing import Any
 
 
 FAMILY_WEIGHTS = {
-    "trend_structure": 0.30,
+    "trend_structure": 0.40,
     "momentum": 0.20,
     "volume_confirmation": 0.15,
     "support_resistance": 0.10,
-    "relative_strength": 0.10,
     "entry_quality": 0.10,
     "nav_pricing": 0.05,
 }
 
 # Fixed-income ETFs have different return and risk drivers. Keep the same
-# seven explainable families, but reduce stock-oscillator influence and give
-# liquidity, peer returns, realized volatility, and fresh NAV more weight.
+# six explainable families, but reduce stock-oscillator influence and give
+# liquidity, realized volatility, and fresh NAV more weight. These rounded
+# weights proportionally redistribute the removed relative-strength weight.
 FAMILY_WEIGHTS_BY_TYPE = {
     "fixed_income": {
-        "trend_structure": 0.20, "momentum": 0.05, "volume_confirmation": 0.20,
-        "support_resistance": 0.05, "relative_strength": 0.15,
-        "entry_quality": 0.15, "nav_pricing": 0.20,
+        "trend_structure": 0.24, "momentum": 0.06, "volume_confirmation": 0.23,
+        "support_resistance": 0.06, "entry_quality": 0.17, "nav_pricing": 0.24,
     },
 }
 
@@ -67,7 +66,6 @@ INDICATOR_WEIGHTS = {
         "woodie": 0.15, "demark": 0.15,
     },
     "entry_quality": {"bb20": 0.30, "keltner16": 0.30, "atr_or_realized": 0.20, "ema50_distance": 0.20},
-    "relative_strength": {"excess_60d": 0.40, "excess_120d": 0.35, "peer_percentile": 0.25},
     "nav_pricing": {"nav_premium": 1.0},
 }
 
@@ -522,41 +520,6 @@ def _realized_volatility_pct(bars: Any, lookback: int = 20) -> float | None:
     return math.sqrt(variance * 252.0) * 100.0
 
 
-def _relative_strength_score(context: dict[str, Any]) -> dict[str, Any]:
-    weights = INDICATOR_WEIGHTS["relative_strength"]
-    relative = context.get("relative_strength") if isinstance(context.get("relative_strength"), dict) else {}
-    fund_bars = context.get("fund_history")
-    benchmark_bars = context.get("benchmark_history")
-    excess_60 = _number(relative.get("excess_60d_pct"))
-    excess_120 = _number(relative.get("excess_120d_pct"))
-    if excess_60 is None:
-        fund_return = _history_return(fund_bars, 60)
-        benchmark_return = _history_return(benchmark_bars, 60)
-        if fund_return is not None and benchmark_return is not None:
-            excess_60 = fund_return - benchmark_return
-    if excess_120 is None:
-        fund_return = _history_return(fund_bars, 120)
-        benchmark_return = _history_return(benchmark_bars, 120)
-        if fund_return is not None and benchmark_return is not None:
-            excess_120 = fund_return - benchmark_return
-    peer = _number(relative.get("peer_percentile", context.get("peer_percentile")))
-    rows = []
-    if excess_60 is not None:
-        rows.append(("excess_60d", _direction_score(excess_60 / 100.0, 0.10), weights["excess_60d"]))
-    if excess_120 is not None:
-        rows.append(("excess_120d", _direction_score(excess_120 / 100.0, 0.10), weights["excess_120d"]))
-    if peer is not None and 0 <= peer <= 100:
-        rows.append(("peer_percentile", peer, weights["peer_percentile"]))
-    result = _weighted(rows, sum(weights.values()))
-    available = {name for name, _, _ in rows}
-    result["missing_indicators"] = [key for key in weights if key not in available]
-    result["excess_60d_pct"] = round(excess_60, 2) if excess_60 is not None else None
-    result["excess_120d_pct"] = round(excess_120, 2) if excess_120 is not None else None
-    result["peer_percentile"] = round(peer, 1) if peer is not None else None
-    result["benchmark_symbol"] = context.get("benchmark_symbol")
-    return result
-
-
 def _type(context: dict[str, Any]) -> str | None:
     category_id = str(context.get("category_id") or "").strip()
     if category_id in FUND_TYPE_BY_CATEGORY_ID:
@@ -700,7 +663,6 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     family["momentum"] = _momentum_score(rows, price, family["trend_structure"].get("score"))
     family["volume_confirmation"] = _volume_score(rows, price, context, kind)
     family["support_resistance"] = _pivot_score(rows, price)
-    family["relative_strength"] = _relative_strength_score(context)
     family["entry_quality"] = _entry_quality_score(rows, price, context)
     family["nav_pricing"] = _nav_score(price, context)
 
@@ -748,11 +710,11 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     top_negative = min(scored_families, key=lambda row: row[1]) if scored_families else None
     return {
         "technical_score": round(final_score, 1) if final_score is not None else None,
-        "score_method": "fund_seven_family_initial_v1",
+        "score_method": "fund_six_family_no_relative_initial_v1",
         "score_weights": {key: round(weight * 100) for key, weight in family_weights.items()},
         "fund_type": kind,
         "fund_type_label": FUND_TYPE_LABELS.get(kind, "نامشخص"),
-        "model_profile": "fixed_income_specialized_v1" if kind == "fixed_income" else "medium_term_balanced_v1",
+        "model_profile": "fixed_income_six_family_v1" if kind == "fixed_income" else "medium_term_six_family_v1",
         "family_scores": family,
         "data_coverage_pct": round(coverage, 1),
         "available_family_weight_pct": round(available_family_weight * 100, 1),
@@ -762,7 +724,6 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
                       "level": risk_level,
                       "basis": "annualized_20d_realized_volatility_with_type_specific_scale",
                       "fund_type": kind, "type_adjusted": kind in VOLATILITY_SCALE_PCT},
-        "relative_strength": family["relative_strength"],
         "nav_assessment": family["nav_pricing"],
         "top_factors": {
             "positive": ({"family": top_positive[0], "score": round(top_positive[1], 1)}

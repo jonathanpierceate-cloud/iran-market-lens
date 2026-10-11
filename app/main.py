@@ -559,31 +559,13 @@ def _fund_model_context(fund: dict[str, Any], *, category_id: str | None = None,
         except Exception:
             context["fund_history"] = []
 
-    benchmark_symbol = "TEPIX" if kind in {"equity", "index", "leveraged"} else "GOLD_18K" if kind == "gold" else None
-    context["benchmark_symbol"] = benchmark_symbol
-    if benchmark_symbol:
-        try:
-            context["benchmark_history"] = _market_history(benchmark_symbol, 150)
-        except Exception:
-            context["benchmark_history"] = []
-
     if peer_items:
         key = str(fund.get("fund_key") or "")
-        peers: list[tuple[str, float]] = []
         liquidity: list[tuple[str, float]] = []
         for item in peer_items:
-            value = _watchlist_number(item.get("three_month_return"))
-            if value is not None:
-                peers.append((str(item.get("fund_key") or ""), value))
             traded_value = _watchlist_number(item.get("value"))
             if traded_value is not None and traded_value >= 0:
                 liquidity.append((str(item.get("fund_key") or ""), traded_value))
-        current = next((value for peer_key, value in peers if peer_key == key),
-                       _watchlist_number(fund.get("three_month_return")))
-        if current is not None and len(peers) >= 5:
-            below = sum(value < current for _, value in peers)
-            equal = sum(value == current for _, value in peers)
-            context["peer_percentile"] = round((below + equal / 2) / len(peers) * 100, 1)
         current_liquidity = next((value for peer_key, value in liquidity if peer_key == key),
                                  _watchlist_number(fund.get("value")))
         if current_liquidity is not None and len(liquidity) >= 5:
@@ -777,7 +759,6 @@ def funds(search: str = "", category: str = "", sort: str = "data_timestamp"):
         item["technical_score"] = result.get("technical_score") if result else None
         item["data_coverage_pct"] = result.get("data_coverage_pct") if result else None
         item["risk_score"] = (result.get("risk_rank") or {}).get("score") if result else None
-        item["relative_strength_score"] = (((result.get("family_scores") or {}).get("relative_strength") or {}).get("score") if result else None)
         item["score_change_5d"] = result.get("score_change_5d") if result else None
         item["score_change_20d"] = result.get("score_change_20d") if result else None
         item["medium_term_exit_price"] = result.get("medium_term_exit_price") if result else None
@@ -859,7 +840,6 @@ async def fund_score_batch(payload: FundScoreBatchInput):
                         "buy_suitability_rank": purchase_assessment["rank"],
                         "data_coverage_pct": analysis_result.get("data_coverage_pct"),
                         "risk_score": (analysis_result.get("risk_rank") or {}).get("score"),
-                        "relative_strength_score": (((analysis_result.get("family_scores") or {}).get("relative_strength") or {}).get("score")),
                         "score_change_5d": analysis_result.get("score_change_5d"),
                         "score_change_20d": analysis_result.get("score_change_20d"),
                         "fund_type_key": analysis_result.get("fund_type"),
