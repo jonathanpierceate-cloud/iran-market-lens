@@ -1,7 +1,7 @@
 (() => {
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-  const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], watchlist: [], watchlistDrafts: new Map(), watchlistStorage: null, currentView: "overview", watchlistRefreshTimer: null, watchlistRefreshSeconds: 900 };
+  const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], watchlist: [], currentView: "overview", watchlistRefreshTimer: null, watchlistRefreshSeconds: 900 };
   const fundSortState = { key: "data_timestamp", direction: -1 };
   let fundScoreFillRunning = false;
   const fundScoreAttemptedKeys = new Set();
@@ -1325,35 +1325,11 @@
     }
   }
 
-  const numericInputValue = (value) => value == null || !Number.isFinite(Number(value)) ? "" : String(Number(value));
   function watchlistLevelsHtml(levels) {
     return levels?.length ? `<div class="watch-level-list">${levels.map((level) => `<span class="watch-level"><b>${money(level.price)}</b><small>${esc(level.label)}</small></span>`).join("")}</div>` : `<span class="watch-muted">سطحی نزدیک قیمت پیدا نشد</span>`;
   }
   function renderPersonalWatchlist(items, totals = {}) {
     const body = $("#watchlist-items");
-    items = items.map((item) => {
-      const draft = state.watchlistDrafts.get(item.fund_key);
-      if (!draft) return item;
-      const merged = { ...item, ...draft, profit: null };
-      const price = Number(merged.price);
-      const breakEven = Number(merged.break_even_price);
-      const units = Number(merged.units);
-      if (merged.price != null && merged.break_even_price != null && merged.units != null && Number.isFinite(price) && Number.isFinite(breakEven) && breakEven > 0 && Number.isFinite(units)) {
-        const perUnit = price - breakEven;
-        merged.profit = { per_unit: perUnit, pct: perUnit / breakEven * 100, total: perUnit * units };
-      }
-      return merged;
-    });
-    if (state.watchlistDrafts.size) {
-      const positions = items.filter((item) => Number(item.units) > 0);
-      const hasCost = positions.length > 0 && positions.every((item) => item.break_even_price != null && Number.isFinite(Number(item.break_even_price)));
-      const hasPrice = positions.length > 0 && positions.every((item) => item.price != null && Number.isFinite(Number(item.price)));
-      const costBasis = hasCost ? positions.reduce((sum, item) => sum + Number(item.units) * Number(item.break_even_price), 0) : null;
-      const marketValue = hasPrice ? positions.reduce((sum, item) => sum + Number(item.units) * Number(item.price), 0) : null;
-      const pnl = costBasis !== null && marketValue !== null ? marketValue - costBasis : null;
-      totals = { units: items.reduce((sum, item) => sum + (Number(item.units) || 0), 0), cost_basis: costBasis,
-        market_value: marketValue, pnl, pnl_pct: pnl !== null && costBasis ? pnl / costBasis * 100 : null };
-    }
     $("#watchlist-count").textContent = `${nf.format(items.length)} صندوق`;
     const totalNode = $("#watchlist-totals");
     if (totalNode) {
@@ -1367,7 +1343,6 @@
     }
     if (!items.length) {
       body.innerHTML = `<div class="empty-state watchlist-empty"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b><small>از کادر بالا یک صندوق ره‌آورد را با نام یا شناسه‌اش اضافه کن.</small></div>`;
-      updateWatchlistSaveState();
       return;
     }
     body.innerHTML = items.map((item) => {
@@ -1377,7 +1352,7 @@
       const profit = item.profit || {};
       const profitTone = Number(profit.total) > 0 ? "positive" : Number(profit.total) < 0 ? "negative" : "";
       const profitSummaryHtml = profit.total == null
-        ? `<div class="watch-profit-summary"><b class="watch-muted">—</b><small>برای محاسبه، قیمت سر‌به‌سر و تعداد را وارد کنید</small></div>`
+        ? `<div class="watch-profit-summary"><b class="watch-muted">—</b><small>قیمت سر‌به‌سر یا تعداد برای محاسبهٔ سود ثبت نشده است</small></div>`
         : `<div class="watch-profit-summary ${profitTone}"><div class="watch-profit-main"><b>${Number(profit.total) > 0 ? "+" : ""}${money(profit.total)} ریال</b><span>${pct(profit.pct)}</span></div><small>هر واحد: ${Number(profit.per_unit) > 0 ? "+" : ""}${money(profit.per_unit)} ریال · نسبت به سر‌به‌سر</small></div>`;
       const distance = item.distance_to_exit;
       const distanceValue = distance?.value == null ? null : Number(distance.value);
@@ -1393,16 +1368,16 @@
       };
       const cachedPriceNote = item.price_is_cached ? `<small class="watch-price-note">${esc(item.price_note || "آخرین قیمت ذخیره‌شده")}</small>` : "";
       const dailyChange = item.daily_return == null ? "تغییر روزانه موجود نیست" : `تغییر روزانه <b class="${Number(item.daily_return) >= 0 ? "positive" : "negative"}">${pct(item.daily_return)}</b>`;
-      return `<article data-watch-row="${esc(item.fund_key)}" class="watch-item-card ${state.watchlistDrafts.has(item.fund_key) ? "watch-dirty" : ""}">
+      return `<article class="watch-item-card">
         <header class="watch-item-head">
           <button class="watch-fund-open${isCustomSymbol ? " watch-fund-open-unavailable" : ""}" type="button" ${watchOpenAttrs} aria-label="${isCustomSymbol ? "دادهٔ تحلیلی موجود نیست" : "مشاهده تحلیل"} ${esc(item.name)}"><span class="watch-fund-mark">${isCustomSymbol ? "نماد" : "ETF"}</span><span><strong>${esc(item.name)}</strong><small>${symbolMeta}</small></span>${isCustomSymbol ? "" : `<span class="watch-open-arrow">مشاهده تحلیل ←</span>`}</button>
           <div class="watch-current-quote"><span>قیمت فعلی</span><strong>${money(item.price)} <small>ریال</small></strong><div>${dailyChange}</div>${cachedPriceNote}</div>
           <button class="watch-remove" type="button" data-watch-remove="${esc(item.fund_key)}" aria-label="حذف ${esc(item.name)} از دیده‌بان"><span aria-hidden="true">×</span> حذف</button>
         </header>
         <div class="watch-item-panels">
-          <section class="watch-item-panel watch-position-panel"><div class="watch-item-panel-head"><span>اطلاعات خرید</span><small>قابل ویرایش</small></div><div class="watch-input-grid">
-            <label class="watch-input-field"><span>قیمت سر‌به‌سر</span><span class="watch-input-wrap"><input class="watch-input" type="number" min="0" step="any" inputmode="decimal" aria-label="قیمت سر‌به‌سر ${esc(item.name)} به ریال" placeholder="قیمت خرید" data-watch-field="break_even_price" value="${numericInputValue(item.break_even_price)}"><small>ریال</small></span></label>
-            <label class="watch-input-field"><span>تعداد واحد</span><span class="watch-input-wrap"><input class="watch-input watch-units" type="number" min="0" step="any" inputmode="decimal" aria-label="تعداد واحد ${esc(item.name)}" placeholder="تعداد" data-watch-field="units" value="${numericInputValue(item.units)}"><small>واحد</small></span></label>
+          <section class="watch-item-panel watch-position-panel"><div class="watch-item-panel-head"><span>اطلاعات خرید</span><small>فقط‌خواندنی</small></div><div class="watch-position-values">
+            <div class="watch-position-value"><span>قیمت سر‌به‌سر</span><b>${money(item.break_even_price)} <small>ریال</small></b></div>
+            <div class="watch-position-value"><span>تعداد واحد</span><b>${num(item.units, 2)} <small>واحد</small></b></div>
           </div></section>
           <section class="watch-item-panel watch-result-panel"><div class="watch-item-panel-head"><span>سود و زیان</span><small>بر اساس قیمت فعلی</small></div>${profitSummaryHtml}</section>
           <section class="watch-item-panel watch-exit-panel"><div class="watch-item-panel-head"><span>خروج میان‌مدت</span><small>مدل AliVest</small></div><div class="watch-exit-price"><b>${money(item.medium_term_exit_price)} <small>ریال</small></b></div>${exitDistanceHtml}</section>
@@ -1410,29 +1385,6 @@
         <div class="watch-item-decisions"><section class="watch-decision-block"><span>نگهداری یا فروش</span>${decisionHtml(item.holding_decision)}</section><section class="watch-decision-block"><span>افزایش حجم</span>${decisionHtml(item.add_position_decision)}</section></div>
       </article>`;
     }).join("");
-    updateWatchlistSaveState();
-  }
-  function updateWatchlistSaveState() {
-    const button = $("#watchlist-save");
-    const status = $("#watchlist-storage-status");
-    if (button) {
-      const count = state.watchlistDrafts.size;
-      button.disabled = !count || button.dataset.saving === "true";
-      button.textContent = button.dataset.saving === "true" ? "در حال ذخیره…" : count ? `ذخیره تغییرات (${nf.format(count)})` : "ذخیره تغییرات";
-    }
-    if (status && state.watchlistStorage) {
-      const storage = state.watchlistStorage;
-      status.className = `watchlist-storage-status ${storage.persistent ? "is-persistent" : "is-temporary"}`;
-      const detailsWereOpen = Boolean(status.querySelector(".watchlist-storage-details")?.open);
-      const storageLabel = storage.shared ? "ذخیرهٔ پایدار و مشترک" : storage.mode === "local-sqlite" ? "ذخیره روی همین سرور" : "ذخیرهٔ موقت · فقط روی نمونهٔ جاری";
-      const draftNote = state.watchlistDrafts.size ? ` · ${nf.format(state.watchlistDrafts.size)} تغییر ذخیره‌نشده` : "";
-      status.innerHTML = `<span>${storageLabel}${draftNote}</span><details class="watchlist-storage-details"><summary>جزئیات</summary><p>${esc(storage.message || "وضعیت ذخیره‌سازی دیده‌بان")}</p></details>`;
-      if (detailsWereOpen) status.querySelector(".watchlist-storage-details").open = true;
-    }
-  }
-  function watchlistInputNumber(input) {
-    const raw = input?.value?.trim() ?? "";
-    return raw === "" ? null : Number(raw);
   }
   async function loadWatchlist() {
     const body = $("#watchlist-items");
@@ -1443,7 +1395,6 @@
         state.funds.length ? Promise.resolve({ items: state.funds }) : api("/api/funds")
       ]);
       state.watchlist = data.items || [];
-      state.watchlistStorage = data.storage || null;
       state.funds = fundsData.items || [];
       const seenAssetIds = new Set();
       $("#watchlist-symbol-options").innerHTML = state.funds.map((fund) => {
@@ -1630,22 +1581,7 @@
       await loadWatchlist();
     } catch (err) { toast(`افزودن صندوق انجام نشد: ${err.message}`, true); }
   });
-  $("#watchlist-items").addEventListener("input", (event) => {
-    const input = event.target.closest("[data-watch-field]");
-    if (!input) return;
-    const row = input.closest("[data-watch-row]");
-    const breakEven = row.querySelector('[data-watch-field="break_even_price"]');
-    const units = row.querySelector('[data-watch-field="units"]');
-    const fields = { break_even_price: watchlistInputNumber(breakEven), units: watchlistInputNumber(units) };
-    if (Object.values(fields).some((value) => value !== null && (!Number.isFinite(value) || value < 0))) {
-      toast("مقدار باید عددی و صفر یا بزرگ‌تر باشد", true);
-      return;
-    }
-    state.watchlistDrafts.set(row.dataset.watchRow, fields);
-    row.classList.add("watch-dirty");
-    updateWatchlistSaveState();
-  });
- $("#watchlist-items").addEventListener("click", async (event) => {
+  $("#watchlist-items").addEventListener("click", async (event) => {
     const open = event.target.closest("[data-watch-open]");
     if (open) {
       await openView("funds");
@@ -1656,31 +1592,9 @@
    if (!button) return;
     try {
       await api(`/api/watchlist/${encodeURIComponent(button.dataset.watchRemove)}`, { method: "DELETE" });
-      state.watchlistDrafts.delete(button.dataset.watchRemove);
       toast("صندوق از دیده‌بان حذف شد");
       await loadWatchlist();
     } catch (err) { toast(`حذف صندوق انجام نشد: ${err.message}`, true); }
-  });
-  $("#watchlist-save").addEventListener("click", async (event) => {
-    if (!state.watchlistDrafts.size) return;
-    const button = event.currentTarget;
-    button.dataset.saving = "true";
-    updateWatchlistSaveState();
-    const items = [...state.watchlistDrafts.entries()].map(([fund_key, fields]) => ({ fund_key, ...fields }));
-    try {
-      const result = await api("/api/watchlist", { method: "PUT", body: JSON.stringify({ items }) });
-      state.watchlistDrafts.clear();
-      state.watchlistStorage = result.storage || state.watchlistStorage;
-      updateWatchlistSaveState();
-      if (state.watchlistStorage?.persistent) toast("تغییرات دیده‌بان ذخیره شد");
-      else toast("تغییرات فعلاً ذخیره شد؛ همگام‌سازی پایدار پس از اتصال پایگاه‌داده فعال می‌شود");
-      await loadWatchlist();
-    } catch (err) {
-      toast(`ذخیره تغییرات انجام نشد: ${err.message}`, true);
-    } finally {
-      delete button.dataset.saving;
-      updateWatchlistSaveState();
-    }
   });
   $("#watchlist-refresh").addEventListener("click", async (event) => {
     const button = event.currentTarget;

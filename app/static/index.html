@@ -11,7 +11,7 @@
   <link rel="manifest" href="/static/manifest.webmanifest">
   <title>AliVest | تحلیل سرمایه‌گذاری</title>
   <link rel="stylesheet" href="/static/app.css?v=market-summary-20261007">
-  <link rel="stylesheet" href="/static/analysis.css?v=watchlist-cards-v2-20261011">
+  <link rel="stylesheet" href="/static/analysis.css?v=watchlist-readonly-v1-20261011">
   <link rel="stylesheet" href="/static/design.css?v=four-asset-score-comparison-20261011">
 </head>
 <body>
@@ -130,7 +130,7 @@
       </section>
 
       <section class="view" id="view-watchlist">
-        <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span>صندوق‌های منتخب من</div><h1>دیده‌بان شخصی</h1><p>صندوق‌های ره‌آورد را اضافه کن؛ قیمت، تحلیل و برنامه معاملاتی هر نماد را با کلیک ببین.</p></div><div class="heading-actions"><button class="button button-primary" id="watchlist-save" type="button" disabled>ذخیره تغییرات</button><button class="button button-quiet" id="watchlist-refresh" type="button"><span>⟳</span> تازه‌سازی قیمت و تحلیل</button></div></div>
+        <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span>صندوق‌های منتخب من</div><h1>دیده‌بان شخصی</h1><p>صندوق‌های ره‌آورد را اضافه کن؛ قیمت، تحلیل و برنامه معاملاتی هر نماد را با کلیک ببین.</p></div><div class="heading-actions"><button class="button button-quiet" id="watchlist-refresh" type="button"><span>⟳</span> تازه‌سازی قیمت و تحلیل</button></div></div>
         <div class="panel watchlist-panel">
           <div class="watchlist-toolbar">
             <form id="watchlist-add-form" class="watchlist-add-form">
@@ -139,9 +139,8 @@
               <datalist id="watchlist-symbol-options"></datalist>
               <button class="button button-primary" type="submit">＋ افزودن به دیده‌بان</button>
             </form>
-            <p>قیمت خرید و تعداد واحدها را وارد کن؛ افزودن و حذف فوری است و ویرایش‌ها با دکمهٔ ذخیره ثبت می‌شوند.</p>
+            <p>قیمت سربه‌سر و تعداد در این صفحه فقط‌خواندنی هستند؛ برای تغییرشان مقدار جدید را به من بگو.</p>
           </div>
-          <div id="watchlist-storage-status" class="watchlist-storage-status" role="status" aria-live="polite"></div>
           <section class="watchlist-overview" aria-label="خلاصه دیده‌بان">
             <div class="watchlist-overview-head"><div><span class="watchlist-section-kicker">نمای کلی</span><h2>خلاصهٔ سبد</h2></div><span id="watchlist-count" class="watchlist-count">۰ صندوق</span></div>
             <div id="watchlist-totals" class="watchlist-totals"></div>
@@ -163,6 +162,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=watchlist-cards-v2-20261011"></script>
+  <script src="/static/app.js?v=watchlist-readonly-v1-20261011"></script>
 </body>
 </html>

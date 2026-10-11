@@ -47,21 +47,6 @@ class WatchlistAddInput(BaseModel):
     symbol: str = Field(min_length=1, max_length=120)
 
 
-class WatchlistUpdateInput(BaseModel):
-    break_even_price: float | None = Field(default=None, ge=0)
-    units: float | None = Field(default=None, ge=0)
-
-
-class WatchlistBulkItemInput(BaseModel):
-    fund_key: str = Field(min_length=1, max_length=160)
-    break_even_price: float | None = Field(default=None, ge=0)
-    units: float | None = Field(default=None, ge=0)
-
-
-class WatchlistBulkUpdateInput(BaseModel):
-    items: list[WatchlistBulkItemInput] = Field(min_length=1, max_length=300)
-
-
 class FundScoreBatchInput(BaseModel):
     fund_keys: list[str] = Field(default_factory=list, max_length=4)
     category_id: str = Field(default="", max_length=24)
@@ -1274,39 +1259,6 @@ def add_watchlist_item(data: WatchlistAddInput):
         record = db.add_watchlist_item(fund["fund_key"])
     return {"item": record, "fund": {"name": fund["name"], "symbol": fund["symbol"]},
             "created": not existed}
-
-
-@app.put("/api/watchlist")
-def save_watchlist(data: WatchlistBulkUpdateInput):
-    items = [item.model_dump() if hasattr(item, "model_dump") else item.dict() for item in data.items]
-    keys = [item["fund_key"] for item in items]
-    if len(keys) != len(set(keys)):
-        raise HTTPException(status_code=422, detail="هر نماد باید فقط یک‌بار در درخواست ذخیره باشد")
-    if any(not math.isfinite(value) for item in items
-           for value in (item.get("break_even_price"), item.get("units")) if value is not None):
-        raise HTTPException(status_code=422, detail="مقدار باید یک عدد معتبر و صفر یا بزرگ‌تر باشد")
-    try:
-        saved = db.update_watchlist_items(items)
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail="فهرست تغییرات معتبر نیست") from exc
-    if saved is None:
-        raise HTTPException(status_code=409, detail="فهرست دیده‌بان تغییر کرده؛ آن را تازه‌سازی و دوباره ذخیره کن")
-    return {"saved": len(saved), "items": saved, "storage": db.watchlist_storage_status()}
-
-
-@app.put("/api/watchlist/{fund_key}")
-def update_watchlist_item(fund_key: str, data: WatchlistUpdateInput):
-    if not any(row["fund_key"] == fund_key for row in db.watchlist_items()):
-        raise HTTPException(status_code=404, detail="این صندوق در دیده‌بان نیست")
-    fields = data.model_dump(exclude_unset=True) if hasattr(data, "model_dump") else data.dict(exclude_unset=True)
-    if not fields:
-        raise HTTPException(status_code=422, detail="مقداری برای ذخیره ارسال نشده است")
-    if any(value is not None and not math.isfinite(value) for value in fields.values()):
-        raise HTTPException(status_code=422, detail="مقدار باید یک عدد معتبر و مثبت باشد")
-    updated = db.update_watchlist_item(fund_key, fields)
-    if not updated:
-        raise HTTPException(status_code=404, detail="این صندوق در دیده‌بان نیست")
-    return {"item": updated}
 
 
 @app.delete("/api/watchlist/{fund_key}")
