@@ -1330,7 +1330,7 @@
     return levels?.length ? `<div class="watch-level-list">${levels.map((level) => `<span class="watch-level"><b>${money(level.price)}</b><small>${esc(level.label)}</small></span>`).join("")}</div>` : `<span class="watch-muted">سطحی نزدیک قیمت پیدا نشد</span>`;
   }
   function renderPersonalWatchlist(items, totals = {}) {
-    const body = $("#watchlist-table-body");
+    const body = $("#watchlist-items");
     items = items.map((item) => {
       const draft = state.watchlistDrafts.get(item.fund_key);
       if (!draft) return item;
@@ -1366,7 +1366,7 @@
       ].map(([label, value, cls]) => `<div class="watch-total-card ${cls}"><span>${label}</span><b>${value}</b></div>`).join("");
     }
     if (!items.length) {
-      body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b><small>از کادر بالا یک صندوق ره‌آورد را با نام یا شناسه‌اش اضافه کن.</small></div></td></tr>`;
+      body.innerHTML = `<div class="empty-state watchlist-empty"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b><small>از کادر بالا یک صندوق ره‌آورد را با نام یا شناسه‌اش اضافه کن.</small></div>`;
       updateWatchlistSaveState();
       return;
     }
@@ -1388,20 +1388,27 @@
         : `<small class="watch-exit-distance ${exitDistanceClass}">${exitDistanceLabel}: ${money(Math.abs(distanceValue))} ریال · ${pct(Math.abs(Number(distance.pct)))} از قیمت فعلی</small>`;
       const decisionHtml = (decision) => {
         const tone = ["positive", "negative", "neutral"].includes(decision?.tone) ? decision.tone : "unknown";
-        return `<div class="watch-decision ${tone}"><b>${esc(decision?.label || "داده کافی نیست")}</b><small>${esc(decision?.reason || "اطلاعات تحلیلی کافی نیست.")}</small></div>`;
+        const reason = decision?.reason || "اطلاعات تحلیلی کافی نیست.";
+        return `<div class="watch-decision ${tone}"><b>${esc(decision?.label || "داده کافی نیست")}</b><small title="${esc(reason)}">${esc(reason)}</small></div>`;
       };
       const cachedPriceNote = item.price_is_cached ? `<small class="watch-price-note">${esc(item.price_note || "آخرین قیمت ذخیره‌شده")}</small>` : "";
-      return `<tr data-watch-row="${esc(item.fund_key)}" class="${state.watchlistDrafts.has(item.fund_key) ? "watch-dirty" : ""}">
-        <td class="watch-fund-cell" data-label="صندوق / نماد"><button class="watch-fund-open${isCustomSymbol ? " watch-fund-open-unavailable" : ""}" type="button" ${watchOpenAttrs} aria-label="${isCustomSymbol ? "دادهٔ تحلیلی موجود نیست" : "مشاهده تحلیل"} ${esc(item.name)}"><span class="watch-fund-mark">${isCustomSymbol ? "نماد" : "ETF"}</span><span><strong>${esc(item.name)}</strong><small>${symbolMeta}</small></span>${isCustomSymbol ? "" : `<span class="watch-open-arrow">←</span>`}</button></td>
-        <td class="watch-price" data-label="قیمت فعلی (ریال)"><b>${money(item.price)}</b>${item.daily_return == null ? "" : `<small class="${Number(item.daily_return) >= 0 ? "positive" : "negative"}">${pct(item.daily_return)}</small>`}${cachedPriceNote}</td>
-        <td data-label="قیمت سر به سر (ریال)"><input class="watch-input" type="number" min="0" step="any" inputmode="decimal" aria-label="قیمت سر به سر ${esc(item.name)} به ریال" placeholder="قیمت خرید" data-watch-field="break_even_price" value="${numericInputValue(item.break_even_price)}"></td>
-        <td data-label="تعداد واحد من"><input class="watch-input watch-units" type="number" min="0" step="any" inputmode="decimal" aria-label="تعداد واحد ${esc(item.name)}" placeholder="تعداد" data-watch-field="units" value="${numericInputValue(item.units)}"></td>
-        <td class="watch-pnl-cell" data-label="سود / زیان و بازده">${profitSummaryHtml}</td>
-        <td class="watch-exit-cell" data-label="خروج میان‌مدت و فاصله تا آن"><div class="watch-exit-price"><b>${money(item.medium_term_exit_price)} ریال</b><small>حد خروج · مدل AliVest</small></div>${exitDistanceHtml}</td>
-        <td data-label="نگهداری یا فروش">${decisionHtml(item.holding_decision)}</td>
-        <td data-label="افزایش حجم">${decisionHtml(item.add_position_decision)}</td>
-        <td data-label="مدیریت"><button class="watch-remove" type="button" data-watch-remove="${esc(item.fund_key)}" aria-label="حذف ${esc(item.name)} از دیده‌بان">حذف</button></td>
-      </tr>`;
+      const dailyChange = item.daily_return == null ? "تغییر روزانه موجود نیست" : `تغییر روزانه <b class="${Number(item.daily_return) >= 0 ? "positive" : "negative"}">${pct(item.daily_return)}</b>`;
+      return `<article data-watch-row="${esc(item.fund_key)}" class="watch-item-card ${state.watchlistDrafts.has(item.fund_key) ? "watch-dirty" : ""}">
+        <header class="watch-item-head">
+          <button class="watch-fund-open${isCustomSymbol ? " watch-fund-open-unavailable" : ""}" type="button" ${watchOpenAttrs} aria-label="${isCustomSymbol ? "دادهٔ تحلیلی موجود نیست" : "مشاهده تحلیل"} ${esc(item.name)}"><span class="watch-fund-mark">${isCustomSymbol ? "نماد" : "ETF"}</span><span><strong>${esc(item.name)}</strong><small>${symbolMeta}</small></span>${isCustomSymbol ? "" : `<span class="watch-open-arrow">مشاهده تحلیل ←</span>`}</button>
+          <div class="watch-current-quote"><span>قیمت فعلی</span><strong>${money(item.price)} <small>ریال</small></strong><div>${dailyChange}</div>${cachedPriceNote}</div>
+          <button class="watch-remove" type="button" data-watch-remove="${esc(item.fund_key)}" aria-label="حذف ${esc(item.name)} از دیده‌بان"><span aria-hidden="true">×</span> حذف</button>
+        </header>
+        <div class="watch-item-panels">
+          <section class="watch-item-panel watch-position-panel"><div class="watch-item-panel-head"><span>اطلاعات خرید</span><small>قابل ویرایش</small></div><div class="watch-input-grid">
+            <label class="watch-input-field"><span>قیمت سر‌به‌سر</span><span class="watch-input-wrap"><input class="watch-input" type="number" min="0" step="any" inputmode="decimal" aria-label="قیمت سر‌به‌سر ${esc(item.name)} به ریال" placeholder="قیمت خرید" data-watch-field="break_even_price" value="${numericInputValue(item.break_even_price)}"><small>ریال</small></span></label>
+            <label class="watch-input-field"><span>تعداد واحد</span><span class="watch-input-wrap"><input class="watch-input watch-units" type="number" min="0" step="any" inputmode="decimal" aria-label="تعداد واحد ${esc(item.name)}" placeholder="تعداد" data-watch-field="units" value="${numericInputValue(item.units)}"><small>واحد</small></span></label>
+          </div></section>
+          <section class="watch-item-panel watch-result-panel"><div class="watch-item-panel-head"><span>سود و زیان</span><small>بر اساس قیمت فعلی</small></div>${profitSummaryHtml}</section>
+          <section class="watch-item-panel watch-exit-panel"><div class="watch-item-panel-head"><span>خروج میان‌مدت</span><small>مدل AliVest</small></div><div class="watch-exit-price"><b>${money(item.medium_term_exit_price)} <small>ریال</small></b></div>${exitDistanceHtml}</section>
+        </div>
+        <div class="watch-item-decisions"><section class="watch-decision-block"><span>نگهداری یا فروش</span>${decisionHtml(item.holding_decision)}</section><section class="watch-decision-block"><span>افزایش حجم</span>${decisionHtml(item.add_position_decision)}</section></div>
+      </article>`;
     }).join("");
     updateWatchlistSaveState();
   }
@@ -1424,8 +1431,8 @@
     return raw === "" ? null : Number(raw);
   }
   async function loadWatchlist() {
-    const body = $("#watchlist-table-body");
-    if (!state.watchlist.length) body.innerHTML = `<tr><td colspan="9"><div class="empty-state compact"><b>در حال دریافت قیمت و تحلیل ره‌آورد…</b></div></td></tr>`;
+    const body = $("#watchlist-items");
+    if (!state.watchlist.length) body.innerHTML = `<div class="empty-state compact watchlist-empty"><b>در حال دریافت قیمت و تحلیل ره‌آورد…</b></div>`;
     try {
       const [data, fundsData] = await Promise.all([
         api("/api/watchlist"),
@@ -1445,7 +1452,7 @@
       }).join("");
       renderPersonalWatchlist(state.watchlist, data.totals || {});
     } catch (err) {
-      body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><b>دیده‌بان بارگیری نشد</b><small>${esc(err.message)}</small></div></td></tr>`;
+      body.innerHTML = `<div class="empty-state watchlist-empty"><b>دیده‌بان بارگیری نشد</b><small>${esc(err.message)}</small></div>`;
       toast(`دیده‌بان بارگیری نشد: ${err.message}`, true);
     }
   }
@@ -1619,7 +1626,7 @@
       await loadWatchlist();
     } catch (err) { toast(`افزودن صندوق انجام نشد: ${err.message}`, true); }
   });
-  $("#watchlist-table-body").addEventListener("input", (event) => {
+  $("#watchlist-items").addEventListener("input", (event) => {
     const input = event.target.closest("[data-watch-field]");
     if (!input) return;
     const row = input.closest("[data-watch-row]");
@@ -1634,7 +1641,7 @@
     row.classList.add("watch-dirty");
     updateWatchlistSaveState();
   });
- $("#watchlist-table-body").addEventListener("click", async (event) => {
+ $("#watchlist-items").addEventListener("click", async (event) => {
     const open = event.target.closest("[data-watch-open]");
     if (open) {
       await openView("funds");

@@ -11,7 +11,7 @@
   <link rel="manifest" href="/static/manifest.webmanifest">
   <title>AliVest | تحلیل سرمایه‌گذاری</title>
   <link rel="stylesheet" href="/static/app.css?v=market-summary-20261007">
-  <link rel="stylesheet" href="/static/analysis.css?v=three-group-dashboard-scoring-20261011">
+  <link rel="stylesheet" href="/static/analysis.css?v=watchlist-cards-20261011">
   <link rel="stylesheet" href="/static/design.css?v=four-asset-score-comparison-20261011">
 </head>
 <body>
@@ -139,17 +139,15 @@
               <datalist id="watchlist-symbol-options"></datalist>
               <button class="button button-primary" type="submit">＋ افزودن به دیده‌بان</button>
             </form>
-            <p>ویرایش قیمت سر‌به‌سر و تعداد را انجام بده و «ذخیره تغییرات» را بزن. افزودن و حذف نماد بلافاصله ثبت می‌شود.</p>
+            <p>قیمت خرید و تعداد واحدها را وارد کن؛ افزودن و حذف فوری است و ویرایش‌ها با دکمهٔ ذخیره ثبت می‌شوند.</p>
           </div>
           <div id="watchlist-storage-status" class="watchlist-storage-status" role="status" aria-live="polite"></div>
-          <div class="table-scroll watchlist-scroll">
-                        <table class="watchlist-table">
-              <thead><tr><th>صندوق / نماد</th><th>قیمت فعلی (ریال)</th><th>قیمت سر‌به‌سر (ریال)</th><th>واحدهای من</th><th>سود / زیان (ریال) و بازده (%)</th><th>خروج میان‌مدت و فاصله تا آن</th><th>نگهداری یا فروش</th><th>افزایش حجم</th><th>مدیریت</th></tr></thead>
-              <tbody id="watchlist-table-body"><tr><td colspan="9"><div class="empty-state"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b><small>از کادر بالا یک صندوق ره‌آورد را با نام یا شناسه‌اش اضافه کن.</small></div></td></tr></tbody>
-            </table>
+          <section class="watchlist-overview" aria-label="خلاصه دیده‌بان">
+            <div class="watchlist-overview-head"><div><span class="watchlist-section-kicker">نمای کلی</span><h2>خلاصهٔ سبد</h2></div><span id="watchlist-count" class="watchlist-count">۰ صندوق</span></div>
+            <div id="watchlist-totals" class="watchlist-totals"></div>
           </div>
-          <div id="watchlist-totals" class="watchlist-totals"></div>
-          <div class="table-footer watchlist-footer"><span id="watchlist-count">0 صندوق</span><span>مدل داخلی AliVest: زیر حد خروج = فروش/کاهش؛ امتیاز زیر ۴۰ = کاهش ریسک؛ افزایش حجم فقط با امتیاز ۷۰+ و بدون مقاومت نزدیک.</span></div>
+          <div id="watchlist-items" class="watchlist-items" aria-live="polite"><div class="empty-state"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b><small>از کادر بالا یک صندوق را با نام یا شناسهٔ ره‌آورد اضافه کن.</small></div></div>
+          <div class="table-footer watchlist-footer"><span>سود و زیان بر اساس قیمت سر‌به‌سر و تعداد ثبت‌شده محاسبه می‌شود.</span><span>تصمیم‌ها برآورد مدل AliVest هستند و جایگزین بررسی شخصی نیستند.</span></div>
         </div>
       </section>
 
@@ -165,6 +163,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=three-group-dashboard-scoring-20261011"></script>
+  <script src="/static/app.js?v=watchlist-cards-20261011"></script>
 </body>
 </html>
