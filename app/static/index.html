@@ -11,7 +11,7 @@
   <link rel="manifest" href="/static/manifest.webmanifest">
   <title>AliVest | تحلیل سرمایه‌گذاری</title>
   <link rel="stylesheet" href="/static/app.css?v=market-summary-20261007">
-  <link rel="stylesheet" href="/static/analysis.css?v=four-asset-five-family-score-20261011">
+  <link rel="stylesheet" href="/static/analysis.css?v=watchlist-persistent-save-20261011">
   <link rel="stylesheet" href="/static/design.css?v=four-asset-score-comparison-20261011">
 </head>
 <body>
@@ -129,7 +129,7 @@
       </section>
 
       <section class="view" id="view-watchlist">
-        <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span>صندوق‌های منتخب من</div><h1>دیده‌بان شخصی</h1><p>صندوق‌های ره‌آورد را اضافه کن؛ قیمت، تحلیل و برنامه معاملاتی هر نماد را با کلیک ببین.</p></div><div class="heading-actions"><button class="button button-quiet" id="watchlist-refresh" type="button"><span>⟳</span> تازه‌سازی قیمت و تحلیل</button></div></div>
+        <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span>صندوق‌های منتخب من</div><h1>دیده‌بان شخصی</h1><p>صندوق‌های ره‌آورد را اضافه کن؛ قیمت، تحلیل و برنامه معاملاتی هر نماد را با کلیک ببین.</p></div><div class="heading-actions"><button class="button button-primary" id="watchlist-save" type="button" disabled>ذخیره تغییرات</button><button class="button button-quiet" id="watchlist-refresh" type="button"><span>⟳</span> تازه‌سازی قیمت و تحلیل</button></div></div>
         <div class="panel watchlist-panel">
           <div class="watchlist-toolbar">
             <form id="watchlist-add-form" class="watchlist-add-form">
@@ -138,8 +138,9 @@
               <datalist id="watchlist-symbol-options"></datalist>
               <button class="button button-primary" type="submit">＋ افزودن به دیده‌بان</button>
             </form>
-            <p>قیمت سر‌به‌سر و تعداد واحدها برای هر نماد ذخیره می‌شوند. سود و زیان با آخرین قیمت جاری یا آخرین قیمت ذخیره‌شده قبل از شروع معاملات محاسبه می‌شود.</p>
+            <p>ویرایش قیمت سر‌به‌سر و تعداد را انجام بده و «ذخیره تغییرات» را بزن. افزودن و حذف نماد بلافاصله ثبت می‌شود.</p>
           </div>
+          <div id="watchlist-storage-status" class="watchlist-storage-status" role="status" aria-live="polite"></div>
           <div class="table-scroll watchlist-scroll">
                         <table class="watchlist-table">
               <thead><tr><th>صندوق / نماد</th><th>قیمت فعلی (ریال)</th><th>قیمت سر‌به‌سر (ریال)</th><th>واحدهای من</th><th>سود / زیان (ریال) و بازده (%)</th><th>خروج میان‌مدت و فاصله تا آن</th><th>نگهداری یا فروش</th><th>افزایش حجم</th><th>مدیریت</th></tr></thead>
@@ -163,6 +164,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=dashboard-renderer-fix-20261011"></script>
+  <script src="/static/app.js?v=watchlist-persistent-save-20261011"></script>
 </body>
 </html>

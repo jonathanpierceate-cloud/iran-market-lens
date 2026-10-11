@@ -28,6 +28,14 @@ _default_data_dir = "/tmp/iran-market-lens-data" if os.getenv("VERCEL") else str
 DATA_DIR = Path(os.getenv("DATA_DIR", _default_data_dir)).resolve()
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 DATABASE_PATH = Path(os.getenv("DATABASE_PATH", str(DATA_DIR / "market.db"))).resolve()
+# Optional durable shared store for the public watchlist. Set this to a
+# PostgreSQL connection string in the hosting provider's secret environment.
+WATCHLIST_DATABASE_URL = (
+    os.getenv("WATCHLIST_DATABASE_URL")
+    or os.getenv("POSTGRES_URL_NON_POOLING")
+    or os.getenv("POSTGRES_URL")
+    or ""
+).strip()
 REFRESH_INTERVAL_SECONDS = max(60, int(os.getenv("DATA_UPDATE_INTERVAL", "900")))
 _default_http_timeout = "15"
 HTTP_TIMEOUT_SECONDS = max(3, int(os.getenv("HTTP_TIMEOUT_SECONDS", _default_http_timeout)))

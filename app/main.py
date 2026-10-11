@@ -52,6 +52,16 @@ class WatchlistUpdateInput(BaseModel):
     units: float | None = Field(default=None, ge=0)
 
 
+class WatchlistBulkItemInput(BaseModel):
+    fund_key: str = Field(min_length=1, max_length=160)
+    break_even_price: float | None = Field(default=None, ge=0)
+    units: float | None = Field(default=None, ge=0)
+
+
+class WatchlistBulkUpdateInput(BaseModel):
+    items: list[WatchlistBulkItemInput] = Field(min_length=1, max_length=300)
+
+
 class FundScoreBatchInput(BaseModel):
     fund_keys: list[str] = Field(default_factory=list, max_length=4)
     category_id: str = Field(default="", max_length=24)
@@ -942,7 +952,6 @@ def _watchlist_find_fund(identifier: str) -> dict[str, Any] | None:
     return next(iter(unique.values()), None)
 
 
-_DEFAULT_WATCHLIST_SETTING = "watchlist_default_portfolio_v2"
 _DEFAULT_WATCHLIST_ITEMS = [
     ("آلتون", 6000, 73837),
     ("دارونو", 3500, 34822),
@@ -979,36 +988,6 @@ def _ensure_default_watchlist_fund(symbol: str) -> dict[str, Any] | None:
 
 
 def _seed_default_watchlist() -> None:
-    settings = db.get_settings()
-    if settings.get(_DEFAULT_WATCHLIST_SETTING):
-        # A morning refresh can temporarily omit a fund from Rahavard's live list.
-        # Repair a manual placeholder as soon as that fund appears again, while
-        # preserving the user's saved units and break-even price.
-        records = db.watchlist_items()
-        for symbol, units, break_even_price in _DEFAULT_WATCHLIST_ITEMS:
-            manual_key = f"manual:{symbol}"
-            existing = next((row for row in records if row["fund_key"] == manual_key), None)
-            if not existing:
-                continue
-            try:
-                fund = _watchlist_find_fund(symbol)
-            except HTTPException:
-                fund = None
-            if fund is None:
-                fund = _ensure_default_watchlist_fund(symbol)
-            if not fund:
-                continue
-            target_key = fund["fund_key"]
-            if any(row["fund_key"] == target_key for row in records):
-                db.remove_watchlist_item(manual_key)
-                continue
-            record = db.add_watchlist_item(target_key)
-            db.update_watchlist_item(target_key, {
-                "units": existing.get("units") if existing.get("units") is not None else units,
-                "break_even_price": existing.get("break_even_price") if existing.get("break_even_price") is not None else break_even_price,
-            })
-            db.remove_watchlist_item(manual_key)
-        return
     records = db.watchlist_items()
     desired_keys: set[str] = set()
     for symbol, units, break_even_price in _DEFAULT_WATCHLIST_ITEMS:
@@ -1036,15 +1015,16 @@ def _seed_default_watchlist() -> None:
             old_key = existing["fund_key"]
             record = db.add_watchlist_item(target_key)
             db.update_watchlist_item(target_key, {
-                "units": units if existing.get("units") is None else existing.get("units"),
-                "break_even_price": break_even_price if existing.get("break_even_price") is None else existing.get("break_even_price"),
+                "units": existing.get("units"),
+                "break_even_price": existing.get("break_even_price"),
             })
             db.remove_watchlist_item(old_key)
             existing = {**record, "fund_key": target_key}
             records = [row for row in records if row["fund_key"] != old_key]
             records.append(existing)
         elif existing:
-            db.update_watchlist_item(existing["fund_key"], {"units": units, "break_even_price": break_even_price})
+            # Keep saved values exactly as entered, including an intentional blank.
+            pass
         else:
             record = db.add_watchlist_item(target_key)
             db.update_watchlist_item(target_key, {"units": units, "break_even_price": break_even_price})
@@ -1064,9 +1044,6 @@ def _seed_default_watchlist() -> None:
         }
         if _LEGACY_WATCHLIST_SYMBOLS.intersection(saved_symbols):
             db.remove_watchlist_item(record["fund_key"])
-
-    db.save_setting(_DEFAULT_WATCHLIST_SETTING, "1")
-
 
 def _watchlist_levels(indicator_data: dict[str, Any] | None,
                       price: float | None) -> dict[str, list[dict[str, Any]]]:
@@ -1282,7 +1259,8 @@ async def get_watchlist():
         "pnl": pnl,
         "pnl_pct": (pnl / cost_basis * 100) if pnl is not None and cost_basis else None,
     }
-    return {"items": items, "count": len(records), "source": "Rahavard365", "totals": totals}
+    return {"items": items, "count": len(records), "source": "Rahavard365", "totals": totals,
+            "storage": db.watchlist_storage_status()}
 
 
 @app.post("/api/watchlist")
@@ -1301,6 +1279,24 @@ def add_watchlist_item(data: WatchlistAddInput):
         record = db.add_watchlist_item(fund["fund_key"])
     return {"item": record, "fund": {"name": fund["name"], "symbol": fund["symbol"]},
             "created": not existed}
+
+
+@app.put("/api/watchlist")
+def save_watchlist(data: WatchlistBulkUpdateInput):
+    items = [item.model_dump() if hasattr(item, "model_dump") else item.dict() for item in data.items]
+    keys = [item["fund_key"] for item in items]
+    if len(keys) != len(set(keys)):
+        raise HTTPException(status_code=422, detail="هر نماد باید فقط یک‌بار در درخواست ذخیره باشد")
+    if any(not math.isfinite(value) for item in items
+           for value in (item.get("break_even_price"), item.get("units")) if value is not None):
+        raise HTTPException(status_code=422, detail="مقدار باید یک عدد معتبر و صفر یا بزرگ‌تر باشد")
+    try:
+        saved = db.update_watchlist_items(items)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="فهرست تغییرات معتبر نیست") from exc
+    if saved is None:
+        raise HTTPException(status_code=409, detail="فهرست دیده‌بان تغییر کرده؛ آن را تازه‌سازی و دوباره ذخیره کن")
+    return {"saved": len(saved), "items": saved, "storage": db.watchlist_storage_status()}
 
 
 @app.put("/api/watchlist/{fund_key}")

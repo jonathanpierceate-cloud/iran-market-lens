@@ -1,7 +1,7 @@
 (() => {
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-  const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], watchlist: [], currentView: "overview", watchlistRefreshTimer: null, watchlistRefreshSeconds: 900 };
+  const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], watchlist: [], watchlistDrafts: new Map(), watchlistStorage: null, currentView: "overview", watchlistRefreshTimer: null, watchlistRefreshSeconds: 900 };
   const fundSortState = { key: "data_timestamp", direction: -1 };
   let fundScoreFillRunning = false;
   const fundScoreAttemptedKeys = new Set();
@@ -1290,6 +1290,29 @@
   }
   function renderPersonalWatchlist(items, totals = {}) {
     const body = $("#watchlist-table-body");
+    items = items.map((item) => {
+      const draft = state.watchlistDrafts.get(item.fund_key);
+      if (!draft) return item;
+      const merged = { ...item, ...draft, profit: null };
+      const price = Number(merged.price);
+      const breakEven = Number(merged.break_even_price);
+      const units = Number(merged.units);
+      if (merged.price != null && merged.break_even_price != null && merged.units != null && Number.isFinite(price) && Number.isFinite(breakEven) && breakEven > 0 && Number.isFinite(units)) {
+        const perUnit = price - breakEven;
+        merged.profit = { per_unit: perUnit, pct: perUnit / breakEven * 100, total: perUnit * units };
+      }
+      return merged;
+    });
+    if (state.watchlistDrafts.size) {
+      const positions = items.filter((item) => Number(item.units) > 0);
+      const hasCost = positions.length > 0 && positions.every((item) => item.break_even_price != null && Number.isFinite(Number(item.break_even_price)));
+      const hasPrice = positions.length > 0 && positions.every((item) => item.price != null && Number.isFinite(Number(item.price)));
+      const costBasis = hasCost ? positions.reduce((sum, item) => sum + Number(item.units) * Number(item.break_even_price), 0) : null;
+      const marketValue = hasPrice ? positions.reduce((sum, item) => sum + Number(item.units) * Number(item.price), 0) : null;
+      const pnl = costBasis !== null && marketValue !== null ? marketValue - costBasis : null;
+      totals = { units: items.reduce((sum, item) => sum + (Number(item.units) || 0), 0), cost_basis: costBasis,
+        market_value: marketValue, pnl, pnl_pct: pnl !== null && costBasis ? pnl / costBasis * 100 : null };
+    }
     $("#watchlist-count").textContent = `${nf.format(items.length)} صندوق`;
     const totalNode = $("#watchlist-totals");
     if (totalNode) {
@@ -1303,6 +1326,7 @@
     }
     if (!items.length) {
       body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b><small>از کادر بالا یک صندوق ره‌آورد را با نام یا شناسه‌اش اضافه کن.</small></div></td></tr>`;
+      updateWatchlistSaveState();
       return;
     }
     body.innerHTML = items.map((item) => {
@@ -1326,7 +1350,7 @@
         return `<div class="watch-decision ${tone}"><b>${esc(decision?.label || "داده کافی نیست")}</b><small>${esc(decision?.reason || "اطلاعات تحلیلی کافی نیست.")}</small></div>`;
       };
       const cachedPriceNote = item.price_is_cached ? `<small class="watch-price-note">${esc(item.price_note || "آخرین قیمت ذخیره‌شده")}</small>` : "";
-      return `<tr data-watch-row="${esc(item.fund_key)}">
+      return `<tr data-watch-row="${esc(item.fund_key)}" class="${state.watchlistDrafts.has(item.fund_key) ? "watch-dirty" : ""}">
         <td class="watch-fund-cell" data-label="صندوق / نماد"><button class="watch-fund-open${isCustomSymbol ? " watch-fund-open-unavailable" : ""}" type="button" ${watchOpenAttrs} aria-label="${isCustomSymbol ? "دادهٔ تحلیلی موجود نیست" : "مشاهده تحلیل"} ${esc(item.name)}"><span class="watch-fund-mark">${isCustomSymbol ? "نماد" : "ETF"}</span><span><strong>${esc(item.name)}</strong><small>${symbolMeta}</small></span>${isCustomSymbol ? "" : `<span class="watch-open-arrow">←</span>`}</button></td>
         <td class="watch-price" data-label="قیمت فعلی (ریال)"><b>${money(item.price)}</b>${item.daily_return == null ? "" : `<small class="${Number(item.daily_return) >= 0 ? "positive" : "negative"}">${pct(item.daily_return)}</small>`}${cachedPriceNote}</td>
         <td data-label="قیمت سر به سر (ریال)"><input class="watch-input" type="number" min="0" step="any" inputmode="decimal" aria-label="قیمت سر به سر ${esc(item.name)} به ریال" placeholder="قیمت خرید" data-watch-field="break_even_price" value="${numericInputValue(item.break_even_price)}"></td>
@@ -1338,16 +1362,36 @@
         <td data-label="مدیریت"><button class="watch-remove" type="button" data-watch-remove="${esc(item.fund_key)}" aria-label="حذف ${esc(item.name)} از دیده‌بان">حذف</button></td>
       </tr>`;
     }).join("");
+    updateWatchlistSaveState();
+  }
+  function updateWatchlistSaveState() {
+    const button = $("#watchlist-save");
+    const status = $("#watchlist-storage-status");
+    if (button) {
+      const count = state.watchlistDrafts.size;
+      button.disabled = !count || button.dataset.saving === "true";
+      button.textContent = button.dataset.saving === "true" ? "در حال ذخیره…" : count ? `ذخیره تغییرات (${nf.format(count)})` : "ذخیره تغییرات";
+    }
+    if (status && state.watchlistStorage) {
+      const storage = state.watchlistStorage;
+      status.className = `watchlist-storage-status ${storage.persistent ? "is-persistent" : "is-temporary"}`;
+      status.textContent = `${storage.label} · ${storage.message}${state.watchlistDrafts.size ? ` · ${nf.format(state.watchlistDrafts.size)} نماد ویرایش‌نشده` : ""}`;
+    }
+  }
+  function watchlistInputNumber(input) {
+    const raw = input?.value?.trim() ?? "";
+    return raw === "" ? null : Number(raw);
   }
   async function loadWatchlist() {
     const body = $("#watchlist-table-body");
-    body.innerHTML = `<tr><td colspan="9"><div class="empty-state compact"><b>در حال دریافت قیمت و تحلیل ره‌آورد…</b></div></td></tr>`;
+    if (!state.watchlist.length) body.innerHTML = `<tr><td colspan="9"><div class="empty-state compact"><b>در حال دریافت قیمت و تحلیل ره‌آورد…</b></div></td></tr>`;
     try {
       const [data, fundsData] = await Promise.all([
         api("/api/watchlist"),
         state.funds.length ? Promise.resolve({ items: state.funds }) : api("/api/funds")
       ]);
       state.watchlist = data.items || [];
+      state.watchlistStorage = data.storage || null;
       state.funds = fundsData.items || [];
       const seenAssetIds = new Set();
       $("#watchlist-symbol-options").innerHTML = state.funds.map((fund) => {
@@ -1534,23 +1578,20 @@
       await loadWatchlist();
     } catch (err) { toast(`افزودن صندوق انجام نشد: ${err.message}`, true); }
   });
-  $("#watchlist-table-body").addEventListener("change", async (event) => {
+  $("#watchlist-table-body").addEventListener("input", (event) => {
     const input = event.target.closest("[data-watch-field]");
     if (!input) return;
     const row = input.closest("[data-watch-row]");
-    const raw = input.value.trim();
-    const value = raw === "" ? null : Number(raw);
-    if (value !== null && (!Number.isFinite(value) || value < 0)) {
+    const breakEven = row.querySelector('[data-watch-field="break_even_price"]');
+    const units = row.querySelector('[data-watch-field="units"]');
+    const fields = { break_even_price: watchlistInputNumber(breakEven), units: watchlistInputNumber(units) };
+    if (Object.values(fields).some((value) => value !== null && (!Number.isFinite(value) || value < 0))) {
       toast("مقدار باید عددی و صفر یا بزرگ‌تر باشد", true);
       return;
     }
-    try {
-      await api(`/api/watchlist/${encodeURIComponent(row.dataset.watchRow)}`, {
-        method: "PUT", body: JSON.stringify({ [input.dataset.watchField]: value })
-      });
-      toast("اطلاعات دیده‌بان ذخیره شد");
-      await loadWatchlist();
-    } catch (err) { toast(`ذخیره مقدار انجام نشد: ${err.message}`, true); }
+    state.watchlistDrafts.set(row.dataset.watchRow, fields);
+    row.classList.add("watch-dirty");
+    updateWatchlistSaveState();
   });
  $("#watchlist-table-body").addEventListener("click", async (event) => {
     const open = event.target.closest("[data-watch-open]");
@@ -1563,9 +1604,31 @@
    if (!button) return;
     try {
       await api(`/api/watchlist/${encodeURIComponent(button.dataset.watchRemove)}`, { method: "DELETE" });
+      state.watchlistDrafts.delete(button.dataset.watchRemove);
       toast("صندوق از دیده‌بان حذف شد");
       await loadWatchlist();
     } catch (err) { toast(`حذف صندوق انجام نشد: ${err.message}`, true); }
+  });
+  $("#watchlist-save").addEventListener("click", async (event) => {
+    if (!state.watchlistDrafts.size) return;
+    const button = event.currentTarget;
+    button.dataset.saving = "true";
+    updateWatchlistSaveState();
+    const items = [...state.watchlistDrafts.entries()].map(([fund_key, fields]) => ({ fund_key, ...fields }));
+    try {
+      const result = await api("/api/watchlist", { method: "PUT", body: JSON.stringify({ items }) });
+      state.watchlistDrafts.clear();
+      state.watchlistStorage = result.storage || state.watchlistStorage;
+      updateWatchlistSaveState();
+      if (state.watchlistStorage?.persistent) toast("تغییرات دیده‌بان ذخیره شد");
+      else toast("تغییرات فعلاً ذخیره شد؛ همگام‌سازی پایدار پس از اتصال پایگاه‌داده فعال می‌شود");
+      await loadWatchlist();
+    } catch (err) {
+      toast(`ذخیره تغییرات انجام نشد: ${err.message}`, true);
+    } finally {
+      delete button.dataset.saving;
+      updateWatchlistSaveState();
+    }
   });
   $("#watchlist-refresh").addEventListener("click", async (event) => {
     const button = event.currentTarget;

@@ -8,7 +8,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from typing import Any
 
-from .config import DATABASE_PATH
+from .config import DATABASE_PATH, WATCHLIST_DATABASE_URL
 
 
 def utc_now() -> str:
@@ -33,6 +33,16 @@ class Database:
             raise
         finally:
             conn.close()
+
+    @contextmanager
+    def connect_watchlist(self):
+        """Use PostgreSQL for the shared watchlist when configured."""
+        import psycopg
+        from psycopg.rows import dict_row
+
+        with psycopg.connect(WATCHLIST_DATABASE_URL, connect_timeout=10,
+                             row_factory=dict_row) as conn:
+            yield conn
 
     def init(self) -> None:
         schema = """
@@ -200,6 +210,32 @@ class Database:
                     "INSERT OR IGNORE INTO assets(symbol,name,asset_type,currency,unit,source,source_url) VALUES(?,?,?,?,?,?,?)",
                     row,
                 )
+        if WATCHLIST_DATABASE_URL:
+            with self.connect() as sqlite_conn:
+                old_watchlist = [dict(row) for row in sqlite_conn.execute(
+                    "SELECT * FROM watchlist_items ORDER BY added_at, fund_key").fetchall()]
+            with self.connect_watchlist() as conn:
+                conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_items (
+                    fund_key TEXT PRIMARY KEY,
+                    break_even_price DOUBLE PRECISION,
+                    units DOUBLE PRECISION,
+                    added_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                )""")
+                conn.execute("""CREATE TABLE IF NOT EXISTS watchlist_meta (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )""")
+                imported = conn.execute("SELECT 1 FROM watchlist_meta WHERE key=%s", ("sqlite_import_v1",)).fetchone()
+                if not imported:
+                    for row in old_watchlist:
+                        conn.execute("""INSERT INTO watchlist_items
+                            (fund_key,break_even_price,units,added_at,updated_at)
+                            VALUES(%s,%s,%s,%s,%s) ON CONFLICT(fund_key) DO NOTHING""",
+                            (row["fund_key"], row.get("break_even_price"), row.get("units"),
+                             row["added_at"], row["updated_at"]))
+                    conn.execute("INSERT INTO watchlist_meta(key,value) VALUES(%s,%s) ON CONFLICT(key) DO NOTHING",
+                                 ("sqlite_import_v1", "1"))
 
     @staticmethod
     def _move_watchlist_fund_key(conn: sqlite3.Connection, old_key: str, new_key: str) -> None:
@@ -515,12 +551,22 @@ class Database:
         return item
 
     def watchlist_items(self) -> list[dict[str, Any]]:
+        if WATCHLIST_DATABASE_URL:
+            with self.connect_watchlist() as conn:
+                rows = conn.execute("SELECT * FROM watchlist_items ORDER BY added_at, fund_key").fetchall()
+            return [dict(row) for row in rows]
         with self.connect() as conn:
             rows = conn.execute("SELECT * FROM watchlist_items ORDER BY added_at, fund_key").fetchall()
         return [dict(row) for row in rows]
 
     def add_watchlist_item(self, fund_key: str) -> dict[str, Any]:
         now = utc_now()
+        if WATCHLIST_DATABASE_URL:
+            with self.connect_watchlist() as conn:
+                conn.execute("INSERT INTO watchlist_items(fund_key,added_at,updated_at) VALUES(%s,%s,%s) ON CONFLICT(fund_key) DO NOTHING",
+                             (fund_key, now, now))
+                row = conn.execute("SELECT * FROM watchlist_items WHERE fund_key=%s", (fund_key,)).fetchone()
+            return dict(row)
         with self.connect() as conn:
             conn.execute("INSERT OR IGNORE INTO watchlist_items(fund_key,added_at,updated_at) VALUES(?,?,?)",
                          (fund_key, now, now))
@@ -532,6 +578,15 @@ class Database:
         updates = {key: value for key, value in fields.items() if key in allowed}
         if not updates:
             return None
+        if WATCHLIST_DATABASE_URL:
+            assignments = ",".join(f"{key}=%s" for key in updates)
+            values = list(updates.values()) + [utc_now(), fund_key]
+            with self.connect_watchlist() as conn:
+                cursor = conn.execute(f"UPDATE watchlist_items SET {assignments},updated_at=%s WHERE fund_key=%s", values)
+                if not cursor.rowcount:
+                    return None
+                row = conn.execute("SELECT * FROM watchlist_items WHERE fund_key=%s", (fund_key,)).fetchone()
+            return dict(row)
         assignments = ",".join(f"{key}=?" for key in updates)
         values = list(updates.values()) + [utc_now(), fund_key]
         with self.connect() as conn:
@@ -541,10 +596,64 @@ class Database:
             row = conn.execute("SELECT * FROM watchlist_items WHERE fund_key=?", (fund_key,)).fetchone()
         return dict(row)
 
+    def update_watchlist_items(self, updates: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
+        """Save all edited watchlist rows atomically; return None if any key is missing."""
+        keys = [item["fund_key"] for item in updates]
+        if len(set(keys)) != len(keys):
+            raise ValueError("duplicate watchlist fund_key")
+        now = utc_now()
+        if WATCHLIST_DATABASE_URL:
+            with self.connect_watchlist() as conn:
+                existing = {row["fund_key"] for row in conn.execute(
+                    "SELECT fund_key FROM watchlist_items WHERE fund_key = ANY(%s)", (keys,)
+                ).fetchall()} if keys else set()
+                if existing != set(keys):
+                    return None
+                for item in updates:
+                    conn.execute("""UPDATE watchlist_items
+                        SET break_even_price=%s, units=%s, updated_at=%s WHERE fund_key=%s""",
+                        (item.get("break_even_price"), item.get("units"), now, item["fund_key"]))
+                rows = conn.execute("SELECT * FROM watchlist_items WHERE fund_key = ANY(%s)", (keys,)).fetchall() if keys else []
+            by_key = {row["fund_key"]: dict(row) for row in rows}
+            return [by_key[key] for key in keys]
+        with self.connect() as conn:
+            existing = {row["fund_key"] for row in conn.execute(
+                f"SELECT fund_key FROM watchlist_items WHERE fund_key IN ({','.join('?' for _ in keys)})", keys
+            ).fetchall()} if keys else set()
+            if existing != set(keys):
+                return None
+            conn.executemany("""UPDATE watchlist_items
+                SET break_even_price=?, units=?, updated_at=? WHERE fund_key=?""",
+                [(item.get("break_even_price"), item.get("units"), now, item["fund_key"]) for item in updates])
+            rows = conn.execute(
+                f"SELECT * FROM watchlist_items WHERE fund_key IN ({','.join('?' for _ in keys)})", keys
+            ).fetchall() if keys else []
+        by_key = {row["fund_key"]: dict(row) for row in rows}
+        return [by_key[key] for key in keys]
+
     def remove_watchlist_item(self, fund_key: str) -> bool:
+        if WATCHLIST_DATABASE_URL:
+            with self.connect_watchlist() as conn:
+                cursor = conn.execute("DELETE FROM watchlist_items WHERE fund_key=%s", (fund_key,))
+            return bool(cursor.rowcount)
         with self.connect() as conn:
             cursor = conn.execute("DELETE FROM watchlist_items WHERE fund_key=?", (fund_key,))
         return bool(cursor.rowcount)
+
+    @staticmethod
+    def watchlist_storage_status() -> dict[str, Any]:
+        if WATCHLIST_DATABASE_URL:
+            return {"persistent": True, "shared": True, "mode": "postgres",
+                    "label": "ذخیرهٔ پایدار و مشترک",
+                    "message": "دیده‌بان عمومی است و تغییرات برای همهٔ بازدیدکنندگان و دستگاه‌ها ذخیره می‌شود."}
+        import os
+        if os.getenv("VERCEL"):
+            return {"persistent": False, "shared": False, "mode": "vercel-ephemeral",
+                    "label": "ذخیرهٔ موقت Vercel",
+                    "message": "فعلاً فقط روی نمونهٔ جاری ذخیره می‌شود؛ برای همگام‌سازی عمومی، پایگاه‌دادهٔ PostgreSQL را با متغیر WATCHLIST_DATABASE_URL وصل کن."}
+        return {"persistent": True, "shared": False, "mode": "local-sqlite",
+                "label": "ذخیره روی همین سرور",
+                "message": "دیده‌بان روی همین سرور ماندگار است؛ برای اشتراک بین چند نمونه یا دستگاه، PostgreSQL مشترک وصل کن."}
 
     def source_status(self) -> list[dict[str, Any]]:
         with self.connect() as conn:

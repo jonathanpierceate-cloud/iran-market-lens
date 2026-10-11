@@ -264,6 +264,13 @@
 #view-funds .fund-analysis-full .indicator-workbench{margin:17px 0 0;padding:16px}
 
 #view-watchlist .watchlist-panel{padding:0;overflow:hidden}
+.watchlist-storage-status{margin:13px 22px 0;padding:10px 13px;border:1px solid #344960;border-radius:9px;background:rgba(21,39,59,.7);color:#b6c5d3;font-size:12px;line-height:1.8}
+.watchlist-storage-status.is-persistent{border-color:rgba(66,181,145,.35);background:rgba(27,94,75,.13);color:#a9dbc9}
+.watchlist-storage-status.is-temporary{border-color:rgba(223,174,88,.38);background:rgba(112,78,30,.14);color:#e6c88c}
+.watchlist-table tr.watch-dirty td{background:rgba(224,174,83,.035)}
+.watchlist-table tr.watch-dirty td:first-child{box-shadow:inset -2px 0 #d9aa51}
+.watch-input:focus{border-color:#d2a14b;box-shadow:0 0 0 3px rgba(210,161,75,.12)}
+.button:disabled{opacity:.48;cursor:not-allowed;box-shadow:none}
 .watchlist-toolbar{padding:20px 22px 14px;border-bottom:1px solid var(--line-soft)}
 .watchlist-add-form{display:grid;grid-template-columns:auto minmax(220px,1fr) auto;align-items:center;gap:12px}
 .watchlist-add-form label{font-size:14px;font-weight:600;color:#c5d2e2;white-space:nowrap}
@@ -361,7 +368,7 @@
 .light-mode .watch-decision.negative b{background:#fff2f3;border-color:#efd0d5;color:#b33d4d}
 .light-mode .watch-decision.neutral b{background:#fff8e8;border-color:#ebdcae;color:#8b6a21}
 .light-mode .watch-remove{background:#fff3f4;border-color:#edcbd0;color:#a84050}
-@media(max-width:720px){.watchlist-toolbar{padding:15px}.watchlist-add-form{grid-template-columns:1fr;gap:8px}.watchlist-add-form label{white-space:normal}.watchlist-add-form .button{justify-content:center}.watchlist-scroll{max-height:calc(100vh - 300px)}.watchlist-footer{padding:10px 12px}.scenario-grid{grid-template-columns:1fr}.watchlist-totals{grid-template-columns:repeat(2,minmax(0,1fr));padding:12px}.watch-total-card b{font-size:14px}}
+@media(max-width:720px){.watchlist-toolbar{padding:15px}.watchlist-storage-status{margin:12px 15px 0}.watchlist-add-form{grid-template-columns:1fr;gap:8px}.watchlist-add-form label{white-space:normal}.watchlist-add-form .button{justify-content:center}.watchlist-scroll{max-height:calc(100vh - 300px)}.watchlist-footer{padding:10px 12px}.scenario-grid{grid-template-columns:1fr}.watchlist-totals{grid-template-columns:repeat(2,minmax(0,1fr));padding:12px}.watch-total-card b{font-size:14px}.heading-actions{flex-wrap:wrap}.heading-actions .button{flex:1 1 auto;justify-content:center}}
 
 /* Compact, readable pivot levels on narrow screens */
 .rahavard-pivot-empty{padding:18px;text-align:center;color:#95a7bc;font-size:13px}
