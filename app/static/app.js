@@ -1213,7 +1213,7 @@
       ].map(([label, value, cls]) => `<div class="watch-total-card ${cls}"><span>${label}</span><b>${value}</b></div>`).join("");
     }
     if (!items.length) {
-      body.innerHTML = `<tr><td colspan="10"><div class="empty-state"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b><small>از کادر بالا یک صندوق ره‌آورد را با نام یا شناسه‌اش اضافه کن.</small></div></td></tr>`;
+      body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b><small>از کادر بالا یک صندوق ره‌آورد را با نام یا شناسه‌اش اضافه کن.</small></div></td></tr>`;
       return;
     }
     body.innerHTML = items.map((item) => {
@@ -1222,12 +1222,9 @@
       const symbolMeta = isCustomSymbol ? "قیمت و تحلیل ره‌آورد در دسترس نیست" : `${esc(item.symbol || `شناسه ${item.rahavard_asset_id || "—"}`)} · ره‌آورد۳۶۵`;
       const profit = item.profit || {};
       const profitTone = Number(profit.total) > 0 ? "positive" : Number(profit.total) < 0 ? "negative" : "";
-      const profitAmountHtml = profit.total == null
-        ? `<div class="watch-profit-value"><b class="watch-muted">—</b><small>قیمت سر‌به‌سر و تعداد را وارد کنید</small></div>`
-        : `<div class="watch-profit-value ${profitTone}"><b>${Number(profit.total) > 0 ? "+" : ""}${money(profit.total)} ریال</b><small>هر واحد: ${Number(profit.per_unit) > 0 ? "+" : ""}${money(profit.per_unit)} ریال</small></div>`;
-      const profitPercentHtml = profit.total == null
-        ? `<div class="watch-profit-percent"><b class="watch-muted">—</b><small>بازده نسبت به سر‌به‌سر</small></div>`
-        : `<div class="watch-profit-percent ${profitTone}"><b>${pct(profit.pct)}</b><small>نسبت به سر‌به‌سر</small></div>`;
+      const profitSummaryHtml = profit.total == null
+        ? `<div class="watch-profit-summary"><b class="watch-muted">—</b><small>برای محاسبه، قیمت سر‌به‌سر و تعداد را وارد کنید</small></div>`
+        : `<div class="watch-profit-summary ${profitTone}"><div class="watch-profit-main"><b>${Number(profit.total) > 0 ? "+" : ""}${money(profit.total)} ریال</b><span>${pct(profit.pct)}</span></div><small>هر واحد: ${Number(profit.per_unit) > 0 ? "+" : ""}${money(profit.per_unit)} ریال · نسبت به سر‌به‌سر</small></div>`;
       const distance = item.distance_to_exit;
       const distanceValue = distance?.value == null ? null : Number(distance.value);
       const exitDistanceClass = distanceValue == null ? "unknown" : distanceValue > 0 ? "positive" : "negative";
@@ -1245,8 +1242,7 @@
         <td class="watch-price" data-label="قیمت فعلی (ریال)"><b>${money(item.price)}</b>${item.daily_return == null ? "" : `<small class="${Number(item.daily_return) >= 0 ? "positive" : "negative"}">${pct(item.daily_return)}</small>`}${cachedPriceNote}</td>
         <td data-label="قیمت سر به سر (ریال)"><input class="watch-input" type="number" min="0" step="any" inputmode="decimal" aria-label="قیمت سر به سر ${esc(item.name)} به ریال" placeholder="قیمت خرید" data-watch-field="break_even_price" value="${numericInputValue(item.break_even_price)}"></td>
         <td data-label="تعداد واحد من"><input class="watch-input watch-units" type="number" min="0" step="any" inputmode="decimal" aria-label="تعداد واحد ${esc(item.name)}" placeholder="تعداد" data-watch-field="units" value="${numericInputValue(item.units)}"></td>
-        <td data-label="سود / زیان (ریال)">${profitAmountHtml}</td>
-        <td data-label="بازده نسبت به سر‌به‌سر (%)">${profitPercentHtml}</td>
+        <td class="watch-pnl-cell" data-label="سود / زیان و بازده">${profitSummaryHtml}</td>
         <td class="watch-exit-cell" data-label="خروج میان‌مدت و فاصله تا آن"><div class="watch-exit-price"><b>${money(item.medium_term_exit_price)} ریال</b><small>حد خروج · مدل AliVest</small></div>${exitDistanceHtml}</td>
         <td data-label="نگهداری یا فروش">${decisionHtml(item.holding_decision)}</td>
         <td data-label="افزایش حجم">${decisionHtml(item.add_position_decision)}</td>
@@ -1256,7 +1252,7 @@
   }
   async function loadWatchlist() {
     const body = $("#watchlist-table-body");
-    body.innerHTML = `<tr><td colspan="10"><div class="empty-state compact"><b>در حال دریافت قیمت و تحلیل ره‌آورد…</b></div></td></tr>`;
+    body.innerHTML = `<tr><td colspan="9"><div class="empty-state compact"><b>در حال دریافت قیمت و تحلیل ره‌آورد…</b></div></td></tr>`;
     try {
       const [data, fundsData] = await Promise.all([
         api("/api/watchlist"),
@@ -1275,7 +1271,7 @@
       }).join("");
       renderPersonalWatchlist(state.watchlist, data.totals || {});
     } catch (err) {
-      body.innerHTML = `<tr><td colspan="10"><div class="empty-state"><b>دیده‌بان بارگیری نشد</b><small>${esc(err.message)}</small></div></td></tr>`;
+      body.innerHTML = `<tr><td colspan="9"><div class="empty-state"><b>دیده‌بان بارگیری نشد</b><small>${esc(err.message)}</small></div></td></tr>`;
       toast(`دیده‌بان بارگیری نشد: ${err.message}`, true);
     }
   }
