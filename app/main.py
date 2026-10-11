@@ -405,12 +405,12 @@ def market_summary():
 
 @app.get("/api/gold")
 def gold():
-    return _market_quote("GOLD")
+    return _market_quote("GOLD", DASHBOARD_SCORE_WEIGHTS)
 
 
 @app.get("/api/gold-18k")
 def gold_18k():
-    return _market_quote("GOLD_18K")
+    return _market_quote("GOLD_18K", DASHBOARD_SCORE_WEIGHTS)
 
 
 @app.get("/api/gold/history")
@@ -426,12 +426,12 @@ def gold_history(limit: int = Query(default=1000, ge=1, le=5000)):
 
 @app.get("/api/dollar")
 def dollar():
-    return _market_quote("USD_IR_FREE")
+    return _market_quote("USD_IR_FREE", DASHBOARD_SCORE_WEIGHTS)
 
 
 @app.get("/api/tepix")
 def tepix():
-    return _market_quote("TEPIX")
+    return _market_quote("TEPIX", DASHBOARD_SCORE_WEIGHTS)
 
 
 @app.get("/api/dollar/history")
