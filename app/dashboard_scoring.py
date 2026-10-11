@@ -3,14 +3,14 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from .indicators import compute_indicators
+from .indicators import compute_indicators, pivot_points
 
 
 DASHBOARD_SCORE_WEIGHTS = {
-    "trend_structure": 0.40,
-    "momentum": 0.30,
+    "moving_averages": 0.35,
+    "oscillators": 0.35,
+    "volume": 0.15,
     "support_resistance": 0.15,
-    "entry_quality": 0.15,
 }
 
 
@@ -92,445 +92,345 @@ def _support_resistance_levels(bars: list[dict[str, Any]], tech: dict[str, Any],
 
 
 def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]]) -> dict[str, Any]:
-    """Price-only, four-family medium-term model for the dashboard assets."""
+    """AliVest medium-term score using the four requested indicator families."""
     bars = bars or []
-    # Strip volume before computing indicators so it cannot affect either the
-    # score or any returned dashboard indicator.
-    price_bars = [{key: item for key, item in bar.items() if key != "volume"} for bar in bars]
-    tech = compute_indicators(price_bars)
+    tech = compute_indicators(bars)
     indicators = tech.get("indicators", {})
     current = _number(tech.get("latest"))
+    closes = [_number(row.get("close")) for row in bars]
+    closes = [value for value in closes if value is not None and value > 0]
+    volumes = [max(0.0, _number(row.get("volume")) or 0.0) for row in bars]
+    weights = {
+        "moving_averages": {
+            "EMA(50)": .16, "EMA(20)": .14, "Ichimoku(9,26,52,26)": .14,
+            "EMA(100)": .12, "BB(20)": .10, "SMA(50)": .08, "SMA(20)": .06,
+            "EMA(10)": .06, "SMA(100)": .04, "KELTNER(16)": .04, "EMA(30)": .02,
+            "SMA(10)": .02, "SMA(30)": .01, "EMA(5)": .005, "SMA(5)": .005,
+        },
+        "oscillators": {
+            "MACD(26)": .22, "RSI(14)": .20, "MFI(14)": .16, "ADX(14)": .12,
+            "StochRSI(14)": .08, "Trend": .06, "AO(5,34)": .05, "SO(14)": .04,
+            "AROON(25)": .03, "CCI(14)": .02, "MTM(6)": .01, "WR(14)": .01,
+        },
+        "volume": {
+            "OBV(20)": .30, "SM(15)": .22, "RV(30)": .18, "RV(90)": .12,
+            "VMACD(26)": .08, "VRSI(14)": .06, "RV(15)": .04,
+        },
+        "support_resistance": {
+            "PivotPointFibonacci(30)": .32, "PivotPointClassic(30)": .26,
+            "PivotPointCamarilla(30)": .20, "PivotPointWoodie(30)": .14,
+            "PivotPointDeMark(30)": .08,
+        },
+    }
+    names = {"moving_averages": "میانگین متحرک", "oscillators": "نوسان‌گر",
+             "volume": "حجم", "support_resistance": "حمایت و مقاومت"}
 
-    def value(key: str, field: str = "value") -> float | None:
-        item = indicators.get(key)
-        return _number(item.get(field)) if isinstance(item, dict) else None
+    def ind(key: str) -> dict[str, Any]:
+        found = indicators.get(key)
+        return found if isinstance(found, dict) else {}
 
-    # Trend and structure: EMA/SMA readings are paired by horizon so duplicates
-    # do not get independent votes. Long horizons and broad alignment matter more.
-    horizon_weights = {20: 0.10, 50: 0.20, 100: 0.30, 200: 0.40}
-    ma_levels: dict[int, float] = {}
-    ma_position_rows: list[tuple[float | None, float]] = []
-    ma_used: list[str] = []
-    for period, weight in horizon_weights.items():
-        readings = [value(f"{kind}({period})") for kind in ("EMA", "SMA")]
-        readings = [reading for reading in readings if reading is not None and reading > 0]
-        if current is None or current <= 0 or not readings:
-            continue
-        level = sum(readings) / len(readings)
-        ma_levels[period] = level
-        ma_position_rows.append((_signed_score((current - level) / level, 0.07), weight))
-        ma_used.append(f"EMA/SMA({period})" if len(readings) == 2 else
-                       f"EMA({period})" if value(f"EMA({period})") is not None else f"SMA({period})")
-    ma_position = _weighted(ma_position_rows)
-    ma_position_coverage = sum(weight for _, weight in ma_position_rows)
-    alignment_weights = {(20, 50): 0.15, (50, 100): 0.30, (100, 200): 0.55}
-    alignment_rows = [
-        (_signed_score((ma_levels[shorter] - ma_levels[longer]) / current, 0.04), weight)
-        for (shorter, longer), weight in alignment_weights.items()
-        if current is not None and current > 0 and shorter in ma_levels and longer in ma_levels
-    ]
-    alignment = _weighted(alignment_rows)
-    alignment_coverage = sum(weight for _, weight in alignment_rows)
-    ma_score = _weighted([(ma_position, 0.70), (alignment, 0.30)])
-    ma_coverage = 0.70 * ma_position_coverage + 0.30 * alignment_coverage
-    ma_names = ma_used + (["چیدمان میانگین‌ها"] if alignment is not None else [])
+    def val(key: str, field: str = "value") -> float | None:
+        return _number(ind(key).get(field))
 
-    ichi = indicators.get("Ichimoku(9,26,52,26)", {})
-    cloud_a = _number(ichi.get("senkou_a_at_current")) if isinstance(ichi, dict) else None
-    cloud_b = _number(ichi.get("senkou_b_at_current")) if isinstance(ichi, dict) else None
-    tenkan = _number(ichi.get("tenkan")) if isinstance(ichi, dict) else None
-    kijun = _number(ichi.get("kijun")) if isinstance(ichi, dict) else None
-    cloud_score = None
-    cloud_thickness_pct = None
-    if current is not None and current > 0 and cloud_a is not None and cloud_b is not None:
-        # Position within the cloud is neutral; above/below it is scored smoothly.
-        cloud_low, cloud_high = min(cloud_a, cloud_b), max(cloud_a, cloud_b)
-        cloud_thickness_pct = (cloud_high - cloud_low) / current * 100
-        if current > cloud_high:
-            cloud_score = 50 + 50 * math.tanh((current - cloud_high) / current / 0.04)
-        elif current < cloud_low:
-            cloud_score = 50 - 50 * math.tanh((cloud_low - current) / current / 0.04)
-        else:
-            cloud_position = (current - cloud_low) / (cloud_high - cloud_low) if cloud_high > cloud_low else 0.5
-            cloud_score = 45 + 10 * cloud_position
-    tenkan_kijun_score = (_signed_score((tenkan - kijun) / current, 0.02)
-                          if current and current > 0 and tenkan is not None and kijun is not None else None)
-    ichi_score = _weighted([(cloud_score, 0.70), (tenkan_kijun_score, 0.30)])
-    ichi_coverage = 0.70 * (1.0 if cloud_score is not None else 0.0) + 0.30 * (1.0 if tenkan_kijun_score is not None else 0.0)
-    trend_score = _weighted([(ma_score, 0.75), (ichi_score, 0.25)])
-    trend_conflict = (ma_score is not None and ichi_score is not None and abs(ma_score - ichi_score) >= 30)
-    if trend_score is not None and trend_conflict:
-        trend_score = 50 + (trend_score - 50) * 0.80
-    trend_coverage = 0.75 * ma_coverage + 0.25 * ichi_coverage
-    trend_used = ma_names + (["موقعیت قیمت نسبت به ابر کومو"] if cloud_score is not None else []) + (["تنکان نسبت به کیجون"] if tenkan_kijun_score is not None else [])
-    trend_expected = [f"EMA/SMA({period})" for period in horizon_weights] + [
-        "چیدمان میانگین‌ها", "موقعیت قیمت نسبت به ابر کومو", "تنکان نسبت به کیجون"
-    ]
+    def row(family: str, key: str, score: float | None, value: Any = None, note: str = "") -> dict[str, Any]:
+        return {"name": key, "score": round(score, 1) if score is not None else None,
+                "weight_pct": round(weights[family][key]*100, 1), "value": value, "note": note}
 
-    # Momentum: bounded oscillators are one cluster; MACD, directional movement,
-    # Aroon, and AO/Momentum are separate groups to reduce duplicate voting.
-    osc_weights = {"RSI(14)": 0.40, "CCI(14)": 0.25, "StochRSI(14)": 0.20, "WR(14)": 0.15}
-    osc_scores: list[tuple[float | None, float]] = []
-    momentum_used: list[str] = []
-    rsi = value("RSI(14)")
-    if rsi is not None:
-        # Above 70 remains strong; the level alone is not treated as a reversal.
-        osc_scores.append((_clamp(50 + (rsi - 50) * 0.90), osc_weights["RSI(14)"]))
-        momentum_used.append("RSI(14)")
-    cci = value("CCI(14)")
-    if cci is not None:
-        osc_scores.append((_signed_score(cci, 150), osc_weights["CCI(14)"]))
-        momentum_used.append("CCI(14)")
-    stoch = value("StochRSI(14)")
-    if stoch is not None:
-        osc_scores.append((_clamp(50 + (stoch - 50) * 0.55), osc_weights["StochRSI(14)"]))
-        momentum_used.append("StochRSI(14)")
-    wr = value("WR(14)")
-    if wr is not None:
-        osc_scores.append((_clamp(50 + ((wr + 100) - 50) * 0.55), osc_weights["WR(14)"]))
-        momentum_used.append("WR(14)")
-    osc_score = _weighted(osc_scores)
-    osc_coverage = sum(weight for _, weight in osc_scores)
+    rows: dict[str, list[dict[str, Any]]] = {key: [] for key in weights}
 
-    macd_line = value("MACD(12,26,9)")
-    macd_hist = value("MACD(12,26,9)", "histogram")
-    macd_signal = value("MACD(12,26,9)", "signal_line")
-    macd_rows: list[tuple[float | None, float]] = []
-    if macd_line is not None and current is not None and current > 0:
-        macd_rows.append((_signed_score(macd_line / current, 0.01), 0.50))
-    macd_difference = macd_line - macd_signal if macd_line is not None and macd_signal is not None else macd_hist
-    if macd_difference is not None and current is not None and current > 0:
-        # Histogram and (MACD - signal) encode the same difference; count it once.
-        macd_rows.append((_signed_score(macd_difference / current, 0.003), 0.50))
-    macd_score = _weighted(macd_rows)
-    macd_coverage = sum(weight for _, weight in macd_rows)
-    if macd_rows:
-        momentum_used.append("MACD(12,26,9)")
+    # Moving averages and bands
+    family = "moving_averages"
+    for key in weights[family]:
+        score, raw, note = None, None, ""
+        if key.startswith(("EMA(", "SMA(")):
+            raw = val(key)
+            if current and raw and current > 0:
+                score = _signed_score((current-raw)/current, .025)
+        elif key == "Ichimoku(9,26,52,26)":
+            item = ind(key)
+            ca, cb = _number(item.get("senkou_a_at_current")), _number(item.get("senkou_b_at_current"))
+            tenkan, kijun = _number(item.get("tenkan")), _number(item.get("kijun"))
+            cloud_score = None
+            if current and ca is not None and cb is not None:
+                lo, hi = min(ca, cb), max(ca, cb)
+                cloud_score = (_signed_score((current-hi)/current, .04) if current > hi else
+                               _signed_score((current-lo)/current, .04) if current < lo else
+                               45+10*(current-lo)/max(hi-lo, current*1e-9))
+            cross = _signed_score((tenkan-kijun)/current, .02) if current and tenkan is not None and kijun is not None else None
+            score = _weighted([(cloud_score, .70), (cross, .30)])
+            raw, note = {"cloud": item.get("price_vs_cloud"), "tenkan": tenkan, "kijun": kijun}, "موقعیت نسبت به ابر و تنکان/کیجون"
+        elif key in ("BB(20)", "KELTNER(16)"):
+            item = ind(key)
+            middle = _number(item.get("middle", item.get("value")))
+            upper, lower = _number(item.get("upper")), _number(item.get("lower"))
+            if current and middle and current > 0:
+                score = _signed_score((current-middle)/current, .025)
+                if upper is not None and current > upper:
+                    score = min(score, 65)
+                elif lower is not None and current < lower:
+                    score = max(score, 35)
+            raw, note = {"middle": middle, "upper": upper, "lower": lower}, "جایگاه نسبت به خط میانی؛ خروج از باند به‌تنهایی سیگنال خرید نیست"
+        rows[family].append(row(family, key, score, raw, note))
 
-    adx_item = indicators.get("ADX(14)", {})
-    adx = value("ADX(14)")
-    plus_di = _number(adx_item.get("plus_di")) if isinstance(adx_item, dict) else None
-    minus_di = _number(adx_item.get("minus_di")) if isinstance(adx_item, dict) else None
-    dmi_score = None
-    dmi_coverage = 0.0
-    if plus_di is not None and minus_di is not None:
-        diff = (plus_di - minus_di) / max(plus_di + minus_di, 1.0)
-        dmi_score = _clamp(50 + diff * 45)
-        dmi_coverage = 1.0
-        momentum_used.append("جهت DI+/DI−")
-    aroon_item = indicators.get("Aroon(25)", {})
-    aroon_up = _number(aroon_item.get("up")) if isinstance(aroon_item, dict) else None
-    aroon_down = _number(aroon_item.get("down")) if isinstance(aroon_item, dict) else None
-    aroon_score = _clamp(50 + (aroon_up - aroon_down) * 0.45) if aroon_up is not None and aroon_down is not None else None
-    if aroon_score is not None:
-        momentum_used.append("Aroon(25)")
-    directional_score = _weighted([(dmi_score, 0.65), (aroon_score, 0.35)])
-    directional_coverage = 0.65 * dmi_coverage + 0.35 * (1.0 if aroon_score is not None else 0.0)
+    # Oscillators: RSI is one bounded vote, never the sole buy criterion.
+    family = "oscillators"
+    rsi, mfi, stoch = val("RSI(14)"), val("MFI(14)"), val("StochRSI(14)")
+    so, cci, wr = val("SO(14)"), val("CCI(14)"), val("WR(14)")
+    macd, hist = val("MACD(12,26,9)"), val("MACD(12,26,9)", "histogram")
+    macd_signal = val("MACD(12,26,9)", "signal_line")
+    macd_diff = macd-macd_signal if macd is not None and macd_signal is not None else hist
+    macd_score = None
+    if current and current > 0 and macd is not None:
+        pieces = [(_signed_score(macd/current, .01), .50)]
+        if macd_diff is not None:
+            pieces.append((_signed_score(macd_diff/current, .003), .50))
+        macd_score = _weighted(pieces)
+    adx, pdi, mdi = val("ADX(14)"), val("ADX(14)", "plus_di"), val("ADX(14)", "minus_di")
+    adx_score = None
+    if pdi is not None and mdi is not None:
+        direction = (pdi-mdi)/max(pdi+mdi, 1)
+        strength = _clamp(((adx or 0)-10)/25, 0, 1)
+        adx_score = _clamp(50+direction*45*strength)
+    elif adx is not None:
+        adx_score = 50
+    up, down = val("Aroon(25)", "up"), val("Aroon(25)", "down")
+    aroon_score = _clamp(50+(up-down)*.45) if up is not None and down is not None else None
+    sample = closes[-20:]
+    trend_score = None
+    if len(sample) >= 10:
+        logs = [math.log(price) for price in sample]
+        xm, ym = (len(logs)-1)/2, sum(logs)/len(logs)
+        denom = sum((i-xm)**2 for i in range(len(logs)))
+        slope = sum((i-xm)*(v-ym) for i, v in enumerate(logs))/denom
+        trend_score = _signed_score(slope, .004)
+    return20 = closes[-1]/closes[-21]-1 if len(closes) >= 21 else None
+    vrsi = val("VRSI(14)")
+    vrsi_score = _clamp(50+(vrsi-50)*.45*(1 if return20 is None or return20 >= 0 else -1)) if vrsi is not None else None
 
-    ao = value("AO(5,34)")
-    mtm = value("MTM(6)")
-    impulse_rows: list[tuple[float | None, float]] = []
-    if ao is not None and current is not None and current > 0:
-        impulse_rows.append((_signed_score(ao / current, 0.003), 0.50))
-        momentum_used.append("AO(5,34)")
-    if mtm is not None and current is not None and current > 0:
-        impulse_rows.append((_signed_score(mtm / current, 0.003), 0.50))
-        momentum_used.append("Momentum(6)")
-    impulse_score = _weighted(impulse_rows)
-    impulse_coverage = sum(weight for _, weight in impulse_rows)
+    def osc(value: float | None, high: float, low: float) -> float | None:
+        if value is None:
+            return None
+        score = _clamp(50+(value-50)*.70)
+        if value > high:
+            score -= min(20, (value-high)*.80)
+        if value < low:
+            score += min(8, (low-value)*.30)
+        return _clamp(score)
 
-    momentum_groups = [(osc_score, 0.40), (macd_score, 0.25),
-                       (directional_score, 0.25), (impulse_score, 0.10)]
-    momentum_score = _weighted(momentum_groups)
-    momentum_coverage = (0.40 * osc_coverage + 0.25 * macd_coverage
-                         + 0.25 * directional_coverage + 0.10 * impulse_coverage)
-    momentum_expected = list(osc_weights) + ["MACD(12,26,9)", "جهت DI+/DI−",
-                                              "Aroon(25)", "AO(5,34)", "Momentum(6)"]
+    osc_data = {
+        "MACD(26)": (macd_score, macd, "MACD ۱۲/۲۶ و خط سیگنال"),
+        "RSI(14)": (osc(rsi, 70, 30), rsi, "مومنتوم نسبی؛ اشباع به‌تنهایی سیگنال خرید نیست"),
+        "MFI(14)": (osc(mfi, 80, 20), mfi, "مومنتوم قیمت و جریان حجم"),
+        "ADX(14)": (adx_score, {"ADX": adx, "+DI": pdi, "-DI": mdi}, "قدرت روند همراه جهت DI"),
+        "StochRSI(14)": (osc(stoch, 80, 20), stoch, "شتاب RSI؛ مقدار افراطی رأی مستقل خرید نیست"),
+        "Trend": (trend_score, return20, "شیب قیمت در حدود ۲۰ کندل اخیر"),
+        "AO(5,34)": (_signed_score(val("AO(5,34)")/current, .003) if val("AO(5,34)") is not None and current else None,
+                     val("AO(5,34)"), "شتاب میانگین‌های ۵ و ۳۴ دوره"),
+        "SO(14)": (osc(so, 80, 20), so, "موقعیت قیمت در دامنه ۱۴ دوره"),
+        "AROON(25)": (aroon_score, {"up": up, "down": down}, "تازگی سقف و کف ۲۵ دوره"),
+        "CCI(14)": (_signed_score(cci, 180) if cci is not None else None, cci, "فاصله از میانگین؛ اثر افراط محدود است"),
+        "MTM(6)": (_signed_score(val("MTM(6)")/current, .025) if val("MTM(6)") is not None and current else None,
+                   val("MTM(6)"), "تغییر قیمت در ۶ دوره"),
+        "WR(14)": (osc(wr+50, 80, 20) if wr is not None else None, wr, "جایگاه بسته‌شدن در دامنه ۱۴ دوره"),
+    }
+    for key, (score, raw, note) in osc_data.items():
+        rows[family].append(row(family, key, score, raw, note))
+
+    # Volume: RV means relative volume here; historical price volatility stays separate.
+    family = "volume"
+    obv, obv_average = val("OBV(20)"), val("OBV(20)", "obv_sma20")
+    avgvol = sum(volumes[-21:-1])/len(volumes[-21:-1]) if len(volumes) > 1 else 0
+    obv_score = _signed_score((obv-obv_average)/max(avgvol, 1), 1.5) if obv is not None and obv_average is not None and avgvol > 0 else None
+    vmacd = val("VMACD(12,26)")
+    vmacd_score = _signed_score(vmacd/max(avgvol, 1), .20) if vmacd is not None and avgvol > 0 else None
+    volume_data = {
+        "OBV(20)": (obv_score, {"OBV": obv, "SMA20": obv_average}, "OBV نسبت به میانگین ۲۰ دوره"),
+        "SM(15)": (None, None, "فرمول محاسباتی قابل اتکای SM در داده‌های فعلی موجود نیست"),
+        "VMACD(26)": (vmacd_score, vmacd, "MACD حجم ۱۲/۲۶"),
+        "VRSI(14)": (vrsi_score, vrsi, "RSI حجم با جهت بازده ۲۰ دوره‌ای"),
+    }
+    relative_volumes = {}
+    for period in (30, 90, 15):
+        ratio, score = None, None
+        if len(volumes) > period and volumes[-1] > 0:
+            mean = sum(volumes[-period-1:-1])/period
+            if mean > 0 and len(closes) > period:
+                ratio = volumes[-1]/mean
+                period_return = closes[-1]/closes[-period-1]-1
+                score = _clamp(50+40*math.tanh(period_return/.05)*min(2, max(.5, ratio)))
+        relative_volumes[period] = {"ratio": ratio, "score": score}
+        volume_data[f"RV({period})"] = (
+            score, {"relative_volume": ratio},
+            f"حجم آخرین کندل نسبت به میانگین {period} کندل، همراه با جهت بازده دوره",
+        )
+    for key in weights[family]:
+        score, raw, note = volume_data[key]
+        rows[family].append(row(family, key, score, raw, note))
+
+    # Support/resistance: pivot calculations use the previous 30 completed bars.
+    family = "support_resistance"
+    schemes = {
+        "PivotPointFibonacci(30)": "Fibonacci", "PivotPointClassic(30)": "Classic",
+        "PivotPointCamarilla(30)": "Camarilla", "PivotPointWoodie(30)": "Woodie",
+        "PivotPointDeMark(30)": "DeMark",
+    }
+    pivot_sets = {}
+    if current is not None and len(bars) >= 31:
+        window = bars[-31:-1]
+        highs = [_number(item.get("high", item.get("close"))) for item in window]
+        lows = [_number(item.get("low", item.get("close"))) for item in window]
+        prior_close = _number(window[-1].get("close"))
+        prior_open = _number(window[-1].get("open", prior_close))
+        if all(value is not None for value in highs+lows) and prior_close is not None and prior_open is not None:
+            pivot_sets = pivot_points(max(highs), min(lows), prior_close, prior_open)
+    atr = val("ATR(14)")
+    scale = atr if atr is not None and atr > 0 else (current*.03 if current else 1)
+    for key, scheme in schemes.items():
+        levels = pivot_sets.get(scheme, {})
+        pivot = _number(levels.get("pivot")) if levels else None
+        score, raw = None, None
+        if current is not None and pivot is not None and pivot > 0:
+            position = _signed_score((current-pivot)/max(scale, current*.01), 1)
+            r1, s1 = _number(levels.get("R1")), _number(levels.get("S1"))
+            headroom = (65+20*math.tanh((current-r1)/scale) if current >= r1 else
+                        50+25*math.tanh((r1-current)/(2*scale))) if r1 is not None else 50
+            support = _clamp(78-max(0, (current-s1)/scale-.5)*10, 38, 78) if s1 is not None and current >= s1 else 50
+            score = _clamp(.55*position+.25*headroom+.20*support)
+            raw = {"pivot": pivot, "S1": s1, "R1": r1}
+        rows[family].append(row(family, key, score, raw, "پیوت ۳۰ کندل کامل‌شده؛ موقعیت قیمت نسبت به سطوح"))
+
+    family_scores = {}
+    for family, family_weights in weights.items():
+        valid = [item for item in rows[family] if item["score"] is not None]
+        weight_sum = sum(family_weights[item["name"]] for item in valid)
+        score = sum(item["score"]*family_weights[item["name"]] for item in valid)/weight_sum if weight_sum else None
+        family_scores[family] = {
+            "score": round(score, 1) if score is not None else None,
+            "coverage_pct": round(weight_sum*100, 1), "indicators": rows[family],
+            "missing_indicators": [key for key in family_weights if key not in {item["name"] for item in valid}],
+        }
+    valid_groups = [(family_scores[key]["score"], DASHBOARD_SCORE_WEIGHTS[key])
+                    for key in DASHBOARD_SCORE_WEIGHTS if family_scores[key]["score"] is not None]
+    available_weight = sum(weight for _, weight in valid_groups)
+    total = sum(score*weight for score, weight in valid_groups)/available_weight if available_weight else None
+    effective = {key: round(DASHBOARD_SCORE_WEIGHTS[key]/available_weight*100, 1)
+                 for key in DASHBOARD_SCORE_WEIGHTS if family_scores[key]["score"] is not None} if available_weight else {}
+    coverage = sum(DASHBOARD_SCORE_WEIGHTS[key]*family_scores[key]["coverage_pct"]/100
+                   for key in DASHBOARD_SCORE_WEIGHTS)*100
+    direction = "unavailable" if total is None else "bullish" if total >= 56 else "bearish" if total <= 44 else "neutral"
+    band = ("unavailable" if total is None else "very_strong" if total >= 80 else "strong" if total >= 70
+            else "relatively_positive" if total >= 60 else "neutral" if total >= 45 else "weak" if total >= 30 else "very_weak")
 
     levels = _support_resistance_levels(bars, tech, current)
-    supports = [row for row in levels if row["kind"] == "support"]
-    resistances = [row for row in levels if row["kind"] == "resistance"]
-    nearest_support = max(supports, key=lambda row: row["midpoint"], default=None)
-    nearest_resistance = min(resistances, key=lambda row: row["midpoint"], default=None)
-    atr = value("ATR(14)")
-    sr_rows: list[tuple[float | None, float]] = []
-    sr_used: list[str] = []
-    if nearest_support and current is not None and current > 0:
-        distance = ((current - nearest_support["midpoint"]) / atr if atr and atr > 0
-                    else (current - nearest_support["midpoint"]) / current / 0.03)
-        sr_rows.append((_clamp(82 - max(0.0, distance) * 16, 25, 82), 0.40))
-        sr_used.append("حمایت معتبر نزدیک")
-    if nearest_resistance and current is not None and current > 0:
-        distance = ((nearest_resistance["midpoint"] - current) / atr if atr and atr > 0
-                    else (nearest_resistance["midpoint"] - current) / current / 0.03)
-        sr_rows.append((_clamp(22 + max(0.0, distance) * 18, 20, 80), 0.40))
-        sr_used.append("مقاومت پیش‌رو")
-    classic = tech.get("pivots", {}).get("Classic", {}) if isinstance(tech.get("pivots"), dict) else {}
-    pivot = _number(classic.get("pivot")) if isinstance(classic, dict) else None
-    if current is not None and current > 0 and pivot is not None:
-        sr_rows.append((_signed_score((current - pivot) / current, 0.025), 0.20))
-        sr_used.append("پیوت مرکزی کلاسیک روز قبل")
-    support_resistance_score = _weighted(sr_rows)
-    support_resistance_coverage = sum(weight for _, weight in sr_rows)
-    support_distance = ((current - nearest_support["midpoint"]) / current * 100
-                        if nearest_support and current else None)
-    resistance_distance = ((nearest_resistance["midpoint"] - current) / current * 100
-                           if nearest_resistance and current else None)
+    supports = [item for item in levels if item["kind"] == "support"]
+    resistances = [item for item in levels if item["kind"] == "resistance"]
+    near_support = max(supports, key=lambda item: item["midpoint"], default=None)
+    near_resistance = min(resistances, key=lambda item: item["midpoint"], default=None)
+    support_distance = (current-near_support["midpoint"])/current*100 if current and near_support else None
+    resistance_distance = (near_resistance["midpoint"]-current)/current*100 if current and near_resistance else None
+    entry = ("unavailable" if total is None else "suitable" if total >= 65 and
+             (resistance_distance is None or resistance_distance >= 2) else
+             "confirmation" if total >= 48 else "unsuitable")
 
-    # Entry quality scores location and volatility; band width is shown as a
-    # measured value but not called a squeeze without its historical baseline.
-    bb = indicators.get("BB(20)", {})
-    bb_pct_b = _number(bb.get("%B")) if isinstance(bb, dict) else None
-    bb_width = _number(bb.get("band_width")) if isinstance(bb, dict) else None
-    keltner = indicators.get("KELTNER(16)", {})
-    k_mid = _number(keltner.get("middle")) if isinstance(keltner, dict) else None
-    k_upper = _number(keltner.get("upper")) if isinstance(keltner, dict) else None
-    k_lower = _number(keltner.get("lower")) if isinstance(keltner, dict) else None
-    ema50 = value("EMA(50)")
-    ema50_distance_atr = None
-    entry_rows: list[tuple[float | None, float]] = []
-    entry_used: list[str] = []
-    if current is not None and current > 0 and ema50 is not None:
-        if atr is not None and atr > 0:
-            ema50_distance_atr = abs(current - ema50) / atr
-            extension_score = _clamp(100 - max(0.0, ema50_distance_atr - 0.5) * 18, 10, 100)
-        else:
-            extension_score = _clamp(100 - abs(current - ema50) / current * 800, 20, 100)
-        entry_rows.append((extension_score, 0.25))
-        entry_used.append("فاصله از EMA50")
-    if bb_pct_b is not None:
-        entry_rows.append((_clamp(100 - abs(bb_pct_b - 0.5) * 70, 20, 100), 0.20))
-        entry_used.append("موقعیت در باند بولینگر")
-    if current is not None and k_mid is not None and k_upper is not None and k_lower is not None and k_upper > k_lower:
-        half_width = (k_upper - k_lower) / 2
-        location = (current - k_mid) / half_width if half_width else 0
-        abs_location = abs(location)
-        keltner_score = 80 - 15 * abs_location if abs_location <= 1 else 65 - 20 * (abs_location - 1)
-        entry_rows.append((_clamp(keltner_score, 15, 80), 0.20))
-        entry_used.append("موقعیت در کانال کلتنر")
+    # Keep historical realized volatility for risk only (the app's legacy RV(30)).
+    realized_volatility = val("RV(30)")
+    risk_value = realized_volatility if realized_volatility is not None else (
+        atr/current*100*math.sqrt(252) if atr and current else None)
+    risk = "unavailable" if risk_value is None else "low" if risk_value < 15 else "medium" if risk_value <= 30 else "high"
+    adx_value = val("ADX(14)")
+    strength = "unavailable" if adx_value is None else "strong" if adx_value >= 25 else "medium" if adx_value >= 20 else "weak"
+    daily = closes[-1]/closes[-2]-1 if len(closes) > 1 else None
+    ema20, ema50, ema100 = val("EMA(20)"), val("EMA(50)"), val("EMA(100)")
+    sma50, sma100 = val("SMA(50)"), val("SMA(100)")
+    immediate = sma50 or ema50 or (near_support["midpoint"] if near_support else None)
+    structural = sma100 or ema100 or (near_support["midpoint"] if near_support else None)
+    medium_exit = round(immediate*.995) if immediate else None
+    structural_exit = round(structural*.998) if structural else None
+    if medium_exit and structural_exit and structural_exit >= medium_exit:
+        structural_exit = round(medium_exit*.985)
 
-    rv30 = value("RV(30)")
-    atr_pct = atr / current * 100 if atr is not None and current is not None and current > 0 else None
-    risk_metric = rv30 if rv30 is not None else (atr_pct * math.sqrt(252) if atr_pct is not None else None)
-    risk_basis = ("نوسان تحقق‌یافتهٔ ۳۰روزهٔ سالانه‌شده" if rv30 is not None else
-                  "تقریب سالانه از ATR نسبی؛ جایگزین نوسان تحقق‌یافته" if atr_pct is not None else None)
-    risk_score = _clamp(risk_metric / 50 * 100) if risk_metric is not None else None
-    if risk_score is not None:
-        entry_rows.append((100 - risk_score, 0.25))
-        entry_used.append("ATR نسبی / نوسان تحقق‌یافته")
-    # No relative band-width history is available to decide whether this is a squeeze.
-    entry_coverage = sum(weight for _, weight in entry_rows)
-    entry_score = _weighted(entry_rows)
-    entry_expected = ["فاصله از EMA50", "موقعیت در باند بولینگر", "موقعیت در کانال کلتنر",
-                      "ATR نسبی / نوسان تحقق‌یافته", "پهنای باند در مقایسه با تاریخچه"]
-
-    family_data = {
-        "trend_structure": (trend_score, trend_coverage, trend_used),
-        "momentum": (momentum_score, momentum_coverage, momentum_used),
-        "support_resistance": (support_resistance_score, support_resistance_coverage, sr_used),
-        "entry_quality": (entry_score, entry_coverage, entry_used),
-    }
-    family_expected = {
-        "trend_structure": trend_expected,
-        "momentum": momentum_expected,
-        "support_resistance": ["حمایت معتبر نزدیک", "مقاومت پیش‌رو", "پیوت مرکزی کلاسیک روز قبل"],
-        "entry_quality": entry_expected,
-    }
-    family_scores: dict[str, dict[str, Any]] = {}
-    for key, (score, coverage, used) in family_data.items():
-        family_scores[key] = {
-            "score": round(score, 1) if score is not None else None,
-            "coverage_pct": round(coverage * 100, 1),
-            "indicators": used,
-            "missing_indicators": [name for name in family_expected[key] if name not in used],
-        }
-
-    valid_families = [(key, score, DASHBOARD_SCORE_WEIGHTS[key])
-                      for key, (score, _, _) in family_data.items() if score is not None]
-    valid_weight = sum(weight for _, _, weight in valid_families)
-    technical_score = (sum(score * weight for _, score, weight in valid_families) / valid_weight
-                       if valid_weight else None)
-    effective_weights = ({key: round(weight / valid_weight * 100, 1)
-                          for key, _, weight in valid_families} if valid_weight else {})
-    data_coverage = sum(DASHBOARD_SCORE_WEIGHTS[key] * family_data[key][1]
-                        for key in DASHBOARD_SCORE_WEIGHTS) * 100
-    direction_score = _weighted([(trend_score, 0.65), (momentum_score, 0.35)])
-    if direction_score is None:
-        direction = "unavailable"
-    elif direction_score >= 56:
-        direction = "bullish"
-    elif direction_score <= 44:
-        direction = "bearish"
-    else:
-        direction = "neutral"
-
-    if technical_score is None:
-        score_band = "unavailable"
-    elif technical_score >= 80:
-        score_band = "very_strong"
-    elif technical_score >= 70:
-        score_band = "strong"
-    elif technical_score >= 60:
-        score_band = "relatively_positive"
-    elif technical_score >= 45:
-        score_band = "neutral"
-    elif technical_score >= 30:
-        score_band = "weak"
-    else:
-        score_band = "very_weak"
-
-    if risk_metric is None:
-        risk = "unavailable"
-    elif risk_metric < 15:
-        risk = "low"
-    elif risk_metric <= 30:
-        risk = "medium"
-    else:
-        risk = "high"
-    risk_label = {"low": "کم", "medium": "متوسط", "high": "بالا", "unavailable": "نامشخص"}[risk]
-    if adx is not None:
-        trend_strength = "strong" if adx >= 25 else "medium" if adx >= 20 else "weak"
-    elif alignment_rows:
-        aligned = [score for score, _ in alignment_rows if score is not None and
-                   (score >= 60 if direction == "bullish" else score <= 40 if direction == "bearish" else False)]
-        agreement = len(aligned) / len(alignment_rows)
-        trend_strength = "strong" if len(alignment_rows) >= 3 and agreement >= 0.8 else "medium" if agreement >= 0.6 else "weak"
-    else:
-        trend_strength = "unavailable"
-
-    entry_status = ("unavailable" if entry_score is None else "suitable" if entry_score >= 70
-                    else "confirmation" if entry_score >= 45 else "unsuitable")
-    entry_label = {"suitable": "مساعد", "confirmation": "نیازمند اصلاح و تثبیت",
-                   "unsuitable": "نامساعد", "unavailable": "داده کافی نیست"}[entry_status]
-    # Confidence describes data coverage and internal consistency, not success
-    # odds. Volume absence limits breakout confirmation separately.
-    confidence = data_coverage
-    confidence_level = "high" if confidence >= 75 else "medium" if confidence >= 50 else "low"
-    if trend_conflict:
-        confidence_level = {"high": "medium", "medium": "low", "low": "low"}[confidence_level]
-    confidence_label = {"high": "بالا", "medium": "متوسط", "low": "پایین"}[confidence_level]
-
-    family_names = {"trend_structure": "روند و ساختار قیمت", "momentum": "مومنتوم و قدرت روند",
-                    "support_resistance": "حمایت، مقاومت و موقعیت قیمت",
-                    "entry_quality": "نوسان و کیفیت نقطه ورود"}
-    score_rows = [(key, float(score)) for key, score, _ in valid_families]
-    positive_evidence = [{"family": key, "name": family_names[key], "score": round(score, 1)}
-                         for key, score in sorted(score_rows, key=lambda row: row[1], reverse=True) if score >= 60][:2]
-    negative_evidence = [{"family": key, "name": family_names[key], "score": round(score, 1)}
-                         for key, score in sorted(score_rows, key=lambda row: row[1]) if score <= 40][:2]
-    factors = [{"name": key, "score": round(float(score), 1), "weight": DASHBOARD_SCORE_WEIGHTS[key],
-                "evidence": ", ".join(family_data[key][2])}
-               for key, score, _ in valid_families]
-
-    daily_return_pct = None
-    if current is not None and len(bars) > 1:
-        previous_close = _number(bars[-2].get("close"))
-        if previous_close is not None and previous_close > 0:
-            daily_return_pct = (current / previous_close - 1) * 100
-    levels_support = [row for row in supports if row.get("midpoint") is not None]
-    levels_resistance = [row for row in resistances if row.get("midpoint") is not None]
-    sma50, sma100, ema100 = value("SMA(50)"), value("SMA(100)"), value("EMA(100)")
-    immediate_exit_base = sma50 or ema50 or (nearest_support["midpoint"] if nearest_support else None)
-    structural_exit_base = sma100 or ema100 or (nearest_support["midpoint"] if nearest_support else None)
-    medium_exit = round(immediate_exit_base * 0.995) if immediate_exit_base is not None else None
-    structural_exit = round(structural_exit_base * 0.998) if structural_exit_base is not None else None
-    if medium_exit is not None and structural_exit is not None and structural_exit >= medium_exit:
-        structural_exit = round(medium_exit * 0.985)
-
+    positive = [{"family": key, "name": names[key], "score": family_scores[key]["score"]}
+                for key in sorted(family_scores, key=lambda k: family_scores[k]["score"] or -1, reverse=True)
+                if family_scores[key]["score"] is not None and family_scores[key]["score"] >= 60][:2]
+    negative = [{"family": key, "name": names[key], "score": family_scores[key]["score"]}
+                for key in sorted(family_scores, key=lambda k: family_scores[k]["score"] or 101)
+                if family_scores[key]["score"] is not None and family_scores[key]["score"] <= 40][:2]
+    factors = [{"name": key, "score": family_scores[key]["score"], "weight": DASHBOARD_SCORE_WEIGHTS[key],
+                "evidence": ", ".join(item["name"] for item in rows[key] if item["score"] is not None)}
+               for key in DASHBOARD_SCORE_WEIGHTS if family_scores[key]["score"] is not None]
+    missing = [f"{names[family]}: {key}" for family in weights for key in family_scores[family]["missing_indicators"]]
     limitations = [
-        "مدل عمداً حجم و جریان معاملات را وارد امتیاز نمی‌کند؛ شکست قیمت بدون تأیید حجم اطمینان کمتری دارد.",
-        "از یک تصویر روزانه نمی‌توان شیب خطوط، واگرایی یا وقوع کراس تأییدشده را نتیجه گرفت.",
-        "پهنای فعلی باند بولینگر موجود است، اما بدون سابقهٔ آن نمی‌توان فشردگی یا انبساط را قطعی نامید.",
+        "این امتیاز محاسبهٔ اختصاصی AliVest است، نه امتیاز رسمی ره‌آورد یا احتمال آماری موفقیت.",
+        "وزن شاخص‌های بدون داده در همان گروه متناسب می‌شود؛ در نبود کامل یک گروه، وزن گروه‌های دیگر متناسب می‌شود و پوشش نمایش داده می‌شود.",
+        "RSI یکی از ۱۲ شاخص نوسان‌گر و ۷٪ از وزن پایهٔ کل است؛ خرید بر پایه برآیند هر چهار گروه ارزیابی می‌شود.",
+        "RV در گروه حجم نسبت حجم آخرین کندل به میانگین همان دوره است؛ RV تاریخیِ درصدی فقط برای سنجش ریسک استفاده می‌شود.",
     ]
-    if support_resistance_score is None:
-        limitations.append("سطح معتبر حمایت، مقاومت یا پیوت روز قبل در دادهٔ موجود نیست؛ این خانواده از امتیاز حذف شد.")
-    if rv30 is None and atr_pct is not None:
-        limitations.append("ریسک نوسان با تقریب سالانه از ATR نسبی سنجیده شد، چون نوسان تحقق‌یافتهٔ ۳۰روزه موجود نبود.")
-
-    # Hide volume-derived fields from the dashboard analysis payload as well as
-    # excluding them from all model scores.
-    volume_indicator_keys = {"MFI(14)", "OBV(20)", "VMACD(12,26)", "VRSI(14)"}
+    if missing:
+        limitations.append("شاخص‌های فاقد داده یا فرمول قابل اتکا حذف شدند: "+"، ".join(missing))
+    coverage_by_family = {key: family_scores[key]["coverage_pct"] for key in family_scores}
+    breakdown = {key: family_scores[key]["score"] for key in family_scores}
+    breakdown.update({
+        "family_coverage_pct": coverage_by_family, "available_weight": round(available_weight*100, 1),
+        "direction_score": round(total, 1) if total is not None else None,
+        "rsi": rsi, "adx": adx_value, "realized_volatility_pct": realized_volatility,
+        "support_distance_pct": round(support_distance, 2) if support_distance is not None else None,
+        "resistance_distance_pct": round(resistance_distance, 2) if resistance_distance is not None else None,
+        "front_resistance_count": len(resistances),
+        "near_resistance_count": sum(1 for item in resistances if current and (item["midpoint"]-current)/current <= .10),
+    })
+    dashboard_indicators = dict(indicators)
+    for period, data in relative_volumes.items():
+        historical = dashboard_indicators.pop(f"RV({period})", None)
+        if historical is not None:
+            dashboard_indicators[f"HV({period})"] = historical
+        ratio = data["ratio"]
+        dashboard_indicators[f"RV({period})"] = {
+            "value": ratio, "previous_value": None,
+            "signal": "HighVolume" if ratio is not None and ratio >= 1 else "LowVolume" if ratio is not None else "unavailable",
+            "interpretation": "Relative volume versus preceding lookback average",
+            "formula": "current volume / average volume over preceding period",
+            "parameters": {"period": period},
+        }
     dashboard_tech = dict(tech)
-    dashboard_tech["indicators"] = {key: item for key, item in indicators.items()
-                                    if key not in volume_indicator_keys}
-    dashboard_tech.pop("volume_analysis", None)
+    dashboard_tech["indicators"] = dashboard_indicators
     return {
-        "symbol": symbol,
-        "data_timestamp": bars[-1].get("timestamp") if bars else None,
-        "price": current,
-        "daily_return_pct": daily_return_pct,
-        "medium_term_exit_price": medium_exit,
-        "structural_exit_price": structural_exit,
-        "medium_term_exit": {
-            "price": medium_exit,
-            "trigger": "تثبیت قیمت زیر SMA(50) یا حمایت معتبر نزدیک",
-            "action": "این سطح یک هشدار تکنیکال است؛ شکست را با دادهٔ بسته‌شدن کندل بررسی کن.",
-            "structural_price": structural_exit,
-            "structural_trigger": "شکست و تثبیت زیر SMA(100) یا حمایت ساختاری موجود",
-        },
-        "trend": direction,
-        "short_term_trend": ("unavailable" if current is None or value("EMA(20)") is None else
-                              "bullish" if current > value("EMA(20)") else "bearish" if current < value("EMA(20)") else "neutral"),
-        "medium_term_trend": direction,
-        "long_term_trend": ("unavailable" if current is None or value("EMA(200)") is None else
-                             "bullish" if current > value("EMA(200)") else "bearish" if current < value("EMA(200)") else "neutral"),
-        "trend_direction_score": round(direction_score, 1) if direction_score is not None else None,
-        "trend_strength": trend_strength,
-        "technical_score": round(technical_score, 1) if technical_score is not None else None,
-        "score_method": "dashboard_four_family_midterm_no_volume_v1",
-        "score_origin": "AliVest",
-        "score_profile": "four_assets_midterm_price_only",
-        "score_weights": {key: round(weight * 100) for key, weight in DASHBOARD_SCORE_WEIGHTS.items()},
-        "effective_score_weights": effective_weights,
-        "family_scores": family_scores,
-        "score_band": score_band,
-        "score_validation": "initial_unbacktested",
-        "score_breakdown": {
-            **{key: data[0] for key, data in family_data.items()},
-            "family_coverage_pct": {key: round(data[1] * 100, 1) for key, data in family_data.items()},
-            "available_weight": round(valid_weight * 100, 1),
-            "direction_score": round(direction_score, 1) if direction_score is not None else None,
-            "rsi": rsi,
-            "adx": adx,
-            "atr_pct": round(atr_pct, 3) if atr_pct is not None else None,
-            "realized_volatility_pct": rv30,
-            "ema50_distance_atr": round(ema50_distance_atr, 2) if ema50_distance_atr is not None else None,
-            "bollinger_band_width": bb_width,
-            "ichimoku_cloud_thickness_pct": round(cloud_thickness_pct, 3) if cloud_thickness_pct is not None else None,
-            "trend_structure_conflict": trend_conflict,
-            "support_distance_pct": round(support_distance, 2) if support_distance is not None else None,
-            "resistance_distance_pct": round(resistance_distance, 2) if resistance_distance is not None else None,
-            "front_resistance_count": len(resistances),
-            "near_resistance_count": sum(1 for row in resistances if current and (row["midpoint"] - current) / current <= 0.10),
-        },
-        "data_coverage_pct": round(data_coverage, 1),
-        "available_family_weight_pct": round(valid_weight * 100, 1),
-        "confidence": round(confidence, 1),
-        "confidence_score": round(confidence, 1),
-        "confidence_level": confidence_level,
-        "confidence_label": confidence_label,
-        "confidence_basis": "اطمینان از پوشش داده و سازگاری ساختار میانگین‌ها با ایچیموکو به‌دست می‌آید و احتمال موفقیت معامله نیست. به دلیل نبود حجم، اطمینان به تأیید شکست‌های قیمتی محدود است.",
-        "breakout_confidence": "limited_without_volume",
-        "breakout_confidence_label": "محدود؛ حجم در مدل لحاظ نمی‌شود",
-        "risk": risk,
-        "risk_score": round(risk_score, 1) if risk_score is not None else None,
-        "risk_label": risk_label,
-        "risk_basis": risk_basis,
-        "entry_quality": {"score": round(entry_score, 1) if entry_score is not None else None,
-                          "status": entry_status, "label": entry_label},
-        "signal": direction,
-        "factors": factors,
-        "positive_evidence": positive_evidence,
-        "negative_evidence": negative_evidence,
-        "explanation": [f"{family_names[item['name']]}: {item['evidence']}" for item in factors],
-        "breakout_confirmation_note": "حجم در مدل لحاظ نمی‌شود؛ از تأیید شکست بر اساس حجم یا ورود پول ادعا نمی‌شود.",
-        "data_limitations": limitations + (["ساختار میانگین‌ها و ایچیموکو هم‌جهت نیستند؛ امتیاز روند به سمت خنثی تعدیل و اطمینان کاهش داده شد."] if trend_conflict else []),
-        "indicators": dashboard_tech,
-        "support_resistance": levels,
-        "support_levels": levels_support,
-        "resistance_levels": levels_resistance,
-        "nearest_support": nearest_support,
-        "nearest_resistance": nearest_resistance,
-        "structural_invalidation_level": nearest_support.get("midpoint") if nearest_support else None,
-        "decision_support": "این امتیاز جمع‌بندی تکنیکال میان‌مدت بر پایهٔ قیمت است؛ پیش‌بینی قطعی یا توصیهٔ خرید و فروش نیست.",
+        "symbol": symbol, "data_timestamp": bars[-1].get("timestamp") if bars else None,
+        "price": current, "daily_return_pct": daily*100 if daily is not None else None,
+        "medium_term_exit_price": medium_exit, "structural_exit_price": structural_exit,
+        "medium_term_exit": {"price": medium_exit, "trigger": "تثبیت زیر SMA(50) یا حمایت نزدیک",
+                             "action": "سطح هشدار تکنیکال است؛ شکست را با بسته‌شدن کندل بررسی کن.",
+                             "structural_price": structural_exit, "structural_trigger": "شکست و تثبیت زیر SMA(100) یا حمایت ساختاری"},
+        "trend": direction, "medium_term_trend": direction,
+        "short_term_trend": "unavailable" if current is None or ema20 is None else "bullish" if current > ema20 else "bearish" if current < ema20 else "neutral",
+        "long_term_trend": "unavailable" if current is None or ema100 is None else "bullish" if current > ema100 else "bearish" if current < ema100 else "neutral",
+        "trend_direction_score": round(total, 1) if total is not None else None,
+        "trend_strength": strength, "technical_score": round(total, 1) if total is not None else None,
+        "score_method": "dashboard_rahavard_four_group_weighted_v1",
+        "score_origin": "AliVest", "score_profile": "four_group_midterm_custom",
+        "score_weights": {key: round(value*100) for key, value in DASHBOARD_SCORE_WEIGHTS.items()},
+        "indicator_weights": {family: {key: round(value*100, 1) for key, value in values.items()}
+                              for family, values in weights.items()},
+        "effective_score_weights": effective, "family_scores": family_scores, "score_band": band,
+        "score_validation": "initial_unbacktested", "score_breakdown": breakdown,
+        "data_coverage_pct": round(coverage, 1), "available_family_weight_pct": round(available_weight*100, 1),
+        "confidence": round(coverage, 1), "confidence_score": round(coverage, 1),
+        "confidence_level": "high" if coverage >= 75 else "medium" if coverage >= 50 else "low",
+        "confidence_label": "بالا" if coverage >= 75 else "متوسط" if coverage >= 50 else "پایین",
+        "confidence_basis": "پوشش دادهٔ قابل محاسبه؛ این عدد احتمال موفقیت معامله نیست.",
+        "breakout_confidence": "volume_included" if family_scores["volume"]["score"] is not None else "limited_without_volume",
+        "breakout_confidence_label": "حجم در امتیاز لحاظ شده" if family_scores["volume"]["score"] is not None else "دادهٔ حجم کافی نیست",
+        "risk": risk, "risk_score": round(risk_value, 1) if risk_value is not None else None,
+        "risk_label": {"low":"کم","medium":"متوسط","high":"بالا","unavailable":"نامشخص"}[risk],
+        "risk_basis": "نوسان تاریخی RV(30)، و در نبود آن تخمین از ATR(14).",
+        "entry_quality": {"score": round(total, 1) if total is not None else None, "status": entry,
+                          "label": {"suitable":"مناسب","confirmation":"نیازمند تأیید",
+                                    "unsuitable":"نامناسب","unavailable":"داده کافی نیست"}[entry]},
+        "signal": direction, "factors": factors, "positive_evidence": positive, "negative_evidence": negative,
+        "explanation": [f"{names[item['name']]}: {item['evidence']}" for item in factors],
+        "breakout_confirmation_note": "شاخص‌های فاقد داده امتیاز جایگزین نمی‌گیرند.",
+        "data_limitations": limitations, "indicators": dashboard_tech,
+        "support_resistance": levels, "support_levels": supports, "resistance_levels": resistances,
+        "nearest_support": near_support, "nearest_resistance": near_resistance,
+        "structural_invalidation_level": near_support.get("midpoint") if near_support else None,
+        "decision_support": "امتیاز برآیند وزنی میانگین متحرک، نوسان‌گر، حجم و حمایت/مقاومت است؛ توصیه قطعی خرید یا فروش نیست.",
     }

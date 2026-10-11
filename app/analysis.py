@@ -14,7 +14,7 @@ MEDIUM_TERM_SCORE_WEIGHTS = DASHBOARD_SCORE_WEIGHTS
 
 def analyze(symbol: str, bars: list[dict[str, Any]],
             weights: dict[str, float] | None = None) -> dict[str, Any]:
-    # The dashboard assets use the dedicated four-family price-only model.
+    # The dashboard assets use the dedicated four-group medium-term model.
     # `weights` remains in the signature for callers on older app versions;
     # the canonical model weights are intentionally fixed in dashboard_scoring.
     return analyze_dashboard_asset(symbol, bars)
@@ -172,55 +172,23 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
                           for key, value in (indicator_data.get(str(item.get("short_name_en") or item.get("name_en") or ""), {})).items()
                           if key.casefold().startswith("r")})
 
-    def signal_score(item: dict[str, Any]) -> float | None:
-        raw = str(item.get("signal") or "").strip().casefold()
-        key = re.sub(r"[^a-z]", "", raw)
-        if key in {"buy", "strongbuy", "bullish", "support"}:
-            return 100.0
-        if key in {"sell", "strongsell", "bearish", "resistance"}:
-            return 0.0
-        if key == "overbought":
-            return 30.0
-        if key == "oversold":
-            return 70.0
-        if key in {"neutral", "hold", "highvolume", "lowvolume"}:
-            return 50.0
-        return None
-
-    def group_score(group_name: str) -> float | None:
-        values = [signal_score(item) for item in groups.get(group_name, []) if isinstance(item, dict)]
-        values = [value for value in values if value is not None]
-        return round(sum(values) / len(values), 1) if values else None
-
     rsi = find_values("RSI").get("rsi")
-    moving_average_score = group_score("moving_averages")
-    volume_score = group_score("volumes")
-    oscillator_score = group_score("oscillators")
-    # RSI over 70 caps the oscillator factor at 40; over 80 caps it at 20.
-    # This prevents a neutral/bullish text label from hiding numeric overbought risk.
-    if oscillator_score is not None and rsi is not None:
-        if rsi >= 80:
-            oscillator_score = min(oscillator_score, 20.0)
-        elif rsi >= 70:
-            oscillator_score = min(oscillator_score, 40.0)
+    family_scores = fund_model.get("family_scores") if isinstance(fund_model.get("family_scores"), dict) else {}
+    moving_average_score = (family_scores.get("moving_averages") or {}).get("score")
+    oscillator_score = (family_scores.get("oscillators") or {}).get("score")
+    volume_score = (family_scores.get("volume") or {}).get("score")
+    resistance_score = (family_scores.get("support_resistance") or {}).get("score")
     front_resistances = [value for value in resistances if price is not None and value > price]
     near_resistances = [value for value in front_resistances if (value - price) / price <= 0.10] if price else []
     nearest_front_resistance = min(front_resistances) if front_resistances else None
     nearest_resistance_distance = ((nearest_front_resistance - price) / price * 100
                                    if nearest_front_resistance is not None and price else None)
-    resistance_score = None
-    if price is not None:
-        resistance_score = max(15.0, 100.0 - len(near_resistances) * 22.0
-                               - (10.0 if nearest_resistance_distance is not None and nearest_resistance_distance <= 3 else 0.0))
-        resistance_score = round(resistance_score, 1)
     resistance_pressure = min(22.0, len(near_resistances) * 7.0
                               + (8.0 if nearest_resistance_distance is not None and nearest_resistance_distance <= 3 else 0.0))
     overbought_count = sum(
         1 for item in groups["oscillators"]
         if str(item.get("signal") or "").strip().casefold().replace("_", "") == "overbought"
     )
-    if rsi is not None and rsi >= 70:
-        overbought_count = max(1, overbought_count)
     correction_probability = round(max(5.0, min(95.0,
         bearish_probability * 0.65
         + resistance_pressure
@@ -342,6 +310,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         "model_profile": fund_model.get("model_profile"),
         "score_timestamp": data_timestamp,
         "score_weights": fund_model["score_weights"],
+        "effective_score_weights": fund_model["effective_score_weights"],
         "family_scores": fund_model["family_scores"],
         "data_coverage_pct": fund_model["data_coverage_pct"],
         "available_family_weight_pct": fund_model["available_family_weight_pct"],
@@ -371,7 +340,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         },
         "signal": signal, "trend": trend, "risk": "unavailable",
         "confidence": None,
-        "confidence_basis": "امتیاز تکنیکال هفت‌گروهی توسط AliVest و بر پایه داده‌های ره‌آورد محاسبه می‌شود؛ امتیاز رسمی ره‌آورد یا احتمال سود نیست.",
+        "confidence_basis": "امتیاز تکنیکال چهارگروهی توسط AliVest و بر پایه داده‌های ره‌آورد محاسبه می‌شود؛ امتیاز رسمی ره‌آورد یا احتمال سود نیست.",
         "decision_support": explanation,
         "explanation": explanation, "site_gauges": gauges,
         "indicators": groups, "indicator_notes": notes,

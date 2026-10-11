@@ -432,6 +432,16 @@
 .fund-family-extra{display:grid;gap:3px;margin-top:5px;color:#a8bac3;font-size:10px;line-height:1.6}
 .fund-family-coverage{display:flex;justify-content:space-between;gap:6px;margin-top:8px;color:#8fa8ab;font-size:10px;line-height:1.5}
 .fund-family-coverage span:last-child{text-align:left}
+.dashboard-score-details{margin-top:8px;border-top:1px solid rgba(111,145,160,.18);color:#a8bac3;font-size:10px}
+.dashboard-score-details summary{padding:7px 0;cursor:pointer;color:#8fa8ab;list-style-position:inside}
+.dashboard-score-details>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 8px;max-height:220px;overflow:auto;padding:0 2px 5px}
+.dashboard-score-detail-row{display:flex;justify-content:space-between;align-items:center;gap:5px;min-width:0;padding:3px 4px;border-bottom:1px solid rgba(111,145,160,.10);line-height:1.5}
+.dashboard-score-detail-row>span{min-width:0;overflow-wrap:anywhere}
+.dashboard-score-detail-row small{color:#748a99;font-size:9px}
+.dashboard-score-detail-row>b{flex:none;color:#c4d1d8;font:600 10px "DM Mono",Tahoma,sans-serif}
+.dashboard-score-detail-row.positive>b{color:#75d6b0}
+.dashboard-score-detail-row.negative>b{color:#f09aa4}
+.dashboard-score-detail-row.unavailable>b{color:#8796a2}
 .fund-family-score-card>i{display:block;height:4px;margin-top:8px;border-radius:99px;background:#71839a;opacity:.9}
 .fund-family-score-card.positive{border-color:rgba(66,183,141,.34)}
 .fund-family-score-card.positive>strong{color:#75d6b0}
@@ -469,6 +479,10 @@
 .light-mode .fund-model-score-head,.light-mode .fund-model-meta,.light-mode .fund-family-score-card,.light-mode .fund-model-context,.light-mode .fund-score-changes,.light-mode .fund-score-change{background:#f5f8fb;border-color:#d8e3ea}
 .light-mode .fund-model-score-head p,.light-mode .fund-model-meta span,.light-mode .fund-family-score-head,.light-mode .fund-family-score-card>small,.light-mode .fund-family-coverage,.light-mode .fund-family-extra,.light-mode .fund-model-context,.light-mode .fund-model-factors span{color:#64798b}
 .light-mode .fund-model-meta b,.light-mode .fund-family-score-card>strong,.light-mode .fund-score-changes>b{color:#263d52}
+.light-mode .dashboard-score-details{border-color:#d8e3ea;color:#64798b}
+.light-mode .dashboard-score-details summary,.light-mode .dashboard-score-detail-row small{color:#64798b}
+.light-mode .dashboard-score-detail-row{border-color:#e6edf2}
+.light-mode .dashboard-score-detail-row>b{color:#3d5669}
 .light-mode .fund-score-change small{color:#71849a}.light-mode .fund-score-change b{color:#4c6373}
 .light-mode .fund-model-score-head h3 strong,.light-mode .fund-family-score-card.positive>strong{color:#11815c}
 .light-mode .fund-family-score-card.negative>strong{color:#bf4253}
