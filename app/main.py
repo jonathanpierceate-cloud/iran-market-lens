@@ -667,6 +667,10 @@ def _exclude_fixed_income_funds(items: list[dict[str, Any]]) -> list[dict[str, A
         fixed_income_ids = _fund_category_asset_ids("255")
     except SourceError:
         fixed_income_ids = set()
+    cached_category_map = FUND_CATEGORY_MAP_CACHE
+    if cached_category_map:
+        fixed_income_ids.update(asset_id for asset_id, category_id in cached_category_map[1].items()
+                                if category_id == "255")
 
     visible: list[dict[str, Any]] = []
     for item in items:
@@ -701,6 +705,8 @@ def _dedupe_rahavard_funds(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 @app.get("/api/funds")
 def funds(search: str = "", category: str = "", sort: str = "data_timestamp"):
+    if category == "255":
+        return {"items": [], "count": 0, "source": "Rahavard365", "data_status": "available"}
     db_category = "" if category.isdigit() else category
     items = _dedupe_rahavard_funds(db.funds(search=search, category=db_category, sort=sort, source="Rahavard365"))
     if category.isdigit():
@@ -723,6 +729,7 @@ def funds(search: str = "", category: str = "", sort: str = "data_timestamp"):
             _schedule_fund_category_map_refresh()
         for item in items:
             _apply_fund_category_map(item, category_map)
+    items = _exclude_fixed_income_funds(items)
     snapshots = db.fund_indicator_snapshots()
     peer_groups: dict[str, list[dict[str, Any]]] = {}
     if category in FUND_TYPE_BY_CATEGORY_ID:
