@@ -351,7 +351,7 @@ class Database:
             params.append(source)
         params.append(max(1, min(limit, 10000)))
         with self.connect() as conn:
-            rows = conn.execute(f"SELECT data_timestamp AS timestamp,open,high,low,close,volume,source,fetched_at FROM prices WHERE {where} ORDER BY data_timestamp DESC LIMIT ?",
+            rows = conn.execute(f"SELECT data_timestamp AS timestamp,open,high,low,close,volume,source,source_url,fetched_at FROM prices WHERE {where} ORDER BY data_timestamp DESC LIMIT ?",
                                 params).fetchall()
         return [dict(row) for row in reversed(rows)]
 

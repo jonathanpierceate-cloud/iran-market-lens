@@ -68,6 +68,11 @@ def _market_history(symbol: str, limit: int = 1000) -> list[dict[str, Any]]:
     preferred = {"GOLD": "Rahavard365", "GOLD_18K": "Rahavard365", "USD_IR_FREE": "Rahavard365", "TEPIX": "Rahavard365"}.get(symbol)
     if preferred:
         bars = db.history(symbol, limit, source=preferred)
+        if symbol == "USD_IR_FREE":
+            # Do not mix candles from the former Rahavard asset with the requested USDT asset.
+            bars = [bar for bar in bars if bar.get("source_url") == RAHAVARD_USDT_PAGE_URL]
+            if not bars:
+                return []
         if bars:
             if symbol == "USD_IR_FREE":
                 iran_tz = timezone(timedelta(hours=3, minutes=30))
@@ -118,9 +123,10 @@ def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None)
     data = dict(asset) if asset else asset_defaults.get(symbol)
     if data is None:
         raise HTTPException(status_code=404, detail="دارایی پیدا نشد")
+    source_url = RAHAVARD_USDT_PAGE_URL if symbol == "USD_IR_FREE" else data.get("source_url")
     if not bars:
         return {"symbol": symbol, "name": data["name"], "price": None, "history": [],
-                "source": data.get("source"), "source_url": data.get("source_url"),
+                "source": data.get("source"), "source_url": source_url,
                 "data_timestamp": None, "fetched_at": None, "stale": None,
                 "status": "unavailable", "error": "هنوز مشاهده معتبری ذخیره نشده است"}
     latest = bars[-1]
@@ -146,7 +152,7 @@ def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None)
     output = {"symbol": symbol, "name": data["name"], "price": latest["close"],
               "open": latest.get("open"), "high": latest.get("high"), "low": latest.get("low"),
               "volume": latest.get("volume"), "history": bars, "returns": returns,
-              "source": latest.get("source"), "source_url": data.get("source_url"),
+              "source": latest.get("source"), "source_url": source_url,
               "data_timestamp": observed_timestamp, "fetched_at": latest.get("fetched_at"),
               "stale": bool(is_stale), "status": status}
     iran_tz = timezone(timedelta(hours=3, minutes=30))
