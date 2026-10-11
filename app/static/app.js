@@ -1423,7 +1423,11 @@
     if (status && state.watchlistStorage) {
       const storage = state.watchlistStorage;
       status.className = `watchlist-storage-status ${storage.persistent ? "is-persistent" : "is-temporary"}`;
-      status.textContent = `${storage.label} · ${storage.message}${state.watchlistDrafts.size ? ` · ${nf.format(state.watchlistDrafts.size)} نماد ویرایش‌نشده` : ""}`;
+      const detailsWereOpen = Boolean(status.querySelector(".watchlist-storage-details")?.open);
+      const storageLabel = storage.shared ? "ذخیرهٔ پایدار و مشترک" : storage.mode === "local-sqlite" ? "ذخیره روی همین سرور" : "ذخیرهٔ موقت · فقط روی نمونهٔ جاری";
+      const draftNote = state.watchlistDrafts.size ? ` · ${nf.format(state.watchlistDrafts.size)} تغییر ذخیره‌نشده` : "";
+      status.innerHTML = `<span>${storageLabel}${draftNote}</span><details class="watchlist-storage-details"><summary>جزئیات</summary><p>${esc(storage.message || "وضعیت ذخیره‌سازی دیده‌بان")}</p></details>`;
+      if (detailsWereOpen) status.querySelector(".watchlist-storage-details").open = true;
     }
   }
   function watchlistInputNumber(input) {
