@@ -72,6 +72,13 @@ class Database:
           fund_key TEXT PRIMARY KEY, data_timestamp TEXT, fetched_at TEXT NOT NULL,
           source TEXT NOT NULL, payload_json TEXT NOT NULL
         );
+        CREATE TABLE IF NOT EXISTS fund_score_history (
+          fund_key TEXT NOT NULL, score_date TEXT NOT NULL, score_method TEXT NOT NULL,
+          score REAL NOT NULL, coverage_pct REAL, captured_at TEXT NOT NULL,
+          PRIMARY KEY(fund_key,score_date,score_method)
+        );
+        CREATE INDEX IF NOT EXISTS ix_fund_score_history_date
+          ON fund_score_history(fund_key,score_method,score_date);
         CREATE TABLE IF NOT EXISTS fund_portfolios (
           id INTEGER PRIMARY KEY, symbol TEXT NOT NULL, data_timestamp TEXT NOT NULL,
           asset_type TEXT, percentage REAL, source TEXT NOT NULL,
@@ -439,6 +446,51 @@ class Database:
                 payload = {}
             result[row["fund_key"]] = {"data_timestamp": row["data_timestamp"],
                                        "fetched_at": row["fetched_at"], "data": payload}
+        return result
+
+    def save_fund_score_snapshot(self, fund_key: str, score_date: str,
+                                 score: float, coverage_pct: float | None,
+                                 score_method: str) -> None:
+        date_key = str(score_date or "")[:10]
+        if not fund_key or len(date_key) != 10 or not score_method:
+            return
+        with self.connect() as conn:
+            conn.execute("""INSERT INTO fund_score_history
+                (fund_key,score_date,score_method,score,coverage_pct,captured_at)
+                VALUES(?,?,?,?,?,?)
+                ON CONFLICT(fund_key,score_date,score_method) DO UPDATE SET
+                  score=excluded.score,coverage_pct=excluded.coverage_pct,
+                  captured_at=excluded.captured_at""",
+                (fund_key, date_key, score_method, score, coverage_pct, utc_now()))
+
+    def fund_score_changes(self, fund_key: str, score_date: str,
+                           score_method: str,
+                           session_dates: list[str] | None = None) -> dict[str, float | None]:
+        date_key = str(score_date or "")[:10]
+        result: dict[str, float | None] = {"score_change_5d": None, "score_change_20d": None}
+        if not fund_key or len(date_key) != 10 or not score_method:
+            return result
+        sessions = sorted({str(value)[:10] for value in (session_dates or [])
+                           if str(value)[:10] <= date_key}, reverse=True)
+        if not sessions or sessions[0] != date_key:
+            return result
+        with self.connect() as conn:
+            current_row = conn.execute("""SELECT score FROM fund_score_history
+                WHERE fund_key=? AND score_method=? AND score_date=?""",
+                (fund_key, score_method, date_key)).fetchone()
+            if current_row is None:
+                return result
+            current = float(current_row["score"])
+        for days, key in ((5, "score_change_5d"), (20, "score_change_20d")):
+            if len(sessions) <= days:
+                continue
+            target_date = sessions[days]
+            with self.connect() as conn:
+                prior = conn.execute("""SELECT score FROM fund_score_history
+                    WHERE fund_key=? AND score_method=? AND score_date=?""",
+                    (fund_key, score_method, target_date)).fetchone()
+            if prior is not None:
+                result[key] = round(current - float(prior["score"]), 1)
         return result
 
     def fund_nav_history(self, symbol: str) -> list[dict[str, Any]]:

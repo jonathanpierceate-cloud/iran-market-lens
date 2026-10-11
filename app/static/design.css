@@ -758,7 +758,7 @@ body.light-mode #view-settings .alert-form { background: #f5f9f6; border-color: 
 #view-funds .table-scroll { overflow: auto; scrollbar-color: #527f7c #14242c; }
 #view-funds #fund-table-grid {
   width: 100%;
-  min-width: 1320px;
+  min-width: 1580px;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: auto;
@@ -860,6 +860,12 @@ body.light-mode #view-settings .alert-form { background: #f5f9f6; border-color: 
 #view-funds .technical-score-chip.neutral { color: #edc578; border-color: rgba(222, 177, 82, .3); background: rgba(165, 119, 33, .13); }
 #view-funds .technical-score-chip.negative { color: #ef9aa2; border-color: rgba(226, 101, 120, .3); background: rgba(153, 53, 72, .13); }
 #view-funds .technical-score-chip.unknown { color: #90a2a0; border-color: rgba(127, 157, 151, .22); background: rgba(83, 108, 105, .12); }
+#view-funds .fund-type-chip { display: inline-flex; max-width: 180px; padding: 5px 9px; border: 1px solid rgba(94, 140, 151, .25); border-radius: 999px; background: rgba(34, 70, 80, .28); color: #a9c5c8; font: 600 11px Tahoma, sans-serif; white-space: normal; line-height: 1.5; }
+#view-funds .fund-metric-chip { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 58px; padding: 5px 8px; border: 1px solid rgba(127, 157, 151, .22); border-radius: 999px; background: rgba(83, 108, 105, .12); color: #b6c9c8; font: 700 11px Tahoma, sans-serif; }
+#view-funds .fund-metric-chip.positive { border-color: rgba(76, 196, 151, .3); background: rgba(48, 145, 111, .14); color: #71d6af; }
+#view-funds .fund-metric-chip.warning { border-color: rgba(222, 177, 82, .3); background: rgba(165, 119, 33, .13); color: #edc578; }
+#view-funds .fund-metric-chip.negative { border-color: rgba(226, 101, 120, .3); background: rgba(153, 53, 72, .13); color: #ef9aa2; }
+#view-funds .fund-metric-chip.unknown { color: #90a2a0; }
 #view-funds #fund-table-grid tbody td.fund-buy-cell { min-width: 230px; direction: rtl; text-align: right; white-space: normal; }
 #view-funds .fund-purchase-assessment { display: grid; justify-items: start; gap: 5px; min-width: 0; }
 #view-funds .fund-purchase-chip { display: inline-flex; align-items: center; justify-content: center; padding: 5px 10px; border: 1px solid transparent; border-radius: 999px; font: 700 12px Tahoma, sans-serif; line-height: 1.45; white-space: nowrap; }
@@ -869,10 +875,10 @@ body.light-mode #view-settings .alert-form { background: #f5f9f6; border-color: 
 #view-funds .fund-purchase-chip.unknown { color: #90a2a0; border-color: rgba(127, 157, 151, .22); background: rgba(83, 108, 105, .12); }
 #view-funds .fund-purchase-assessment small { max-width: 240px; color: #91aaa6; font: 11px Tahoma, sans-serif; line-height: 1.7; }
 #view-funds #fund-table-grid tbody td:nth-child(3) { color: #e5eee9; font-weight: 650; }
-#view-funds #fund-table-grid tbody td:nth-child(5) .positive,
-#view-funds #fund-table-grid tbody td:nth-child(6) .positive { color: #71d6af; }
-#view-funds #fund-table-grid tbody td:nth-child(5) .negative,
-#view-funds #fund-table-grid tbody td:nth-child(6) .negative { color: #ef9aa2; }
+#view-funds #fund-table-grid tbody td:nth-child(8) .positive,
+#view-funds #fund-table-grid tbody td:nth-child(9) .positive { color: #71d6af; }
+#view-funds #fund-table-grid tbody td:nth-child(8) .negative,
+#view-funds #fund-table-grid tbody td:nth-child(9) .negative { color: #ef9aa2; }
 #view-funds .table-footer { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 13px 17px; border-top: 1px solid rgba(87, 122, 125, .22); background: rgba(11, 25, 32, .28); color: #91aaa6; font-size: 12px; line-height: 1.8; }
 #view-funds .table-footer span:last-child { color: #718c88; text-align: left; }
 
@@ -894,6 +900,11 @@ body.light-mode #view-funds .technical-score-chip.positive { color: #16845c; bac
 body.light-mode #view-funds .technical-score-chip.neutral { color: #946a1a; background: #fbf1d9; }
 body.light-mode #view-funds .technical-score-chip.negative { color: #b33d4d; background: #fbe8eb; }
 body.light-mode #view-funds .technical-score-chip.unknown { color: #71847f; background: #edf3ef; }
+body.light-mode #view-funds .fund-type-chip { border-color: #c9dfd4; background: #eff8f3; color: #52776c; }
+body.light-mode #view-funds .fund-metric-chip { border-color: #d5e4dc; background: #f2f7f4; color: #58756b; }
+body.light-mode #view-funds .fund-metric-chip.positive { color: #16845c; background: #e1f4e9; }
+body.light-mode #view-funds .fund-metric-chip.warning { color: #946a1a; background: #fbf1d9; }
+body.light-mode #view-funds .fund-metric-chip.negative { color: #b33d4d; background: #fbe8eb; }
 body.light-mode #view-funds .fund-purchase-chip.suitable { color: #16845c; background: #e1f4e9; }
 body.light-mode #view-funds .fund-purchase-chip.wait { color: #946a1a; background: #fbf1d9; }
 body.light-mode #view-funds .fund-purchase-chip.unsuitable { color: #b33d4d; background: #fbe8eb; }
@@ -959,18 +970,21 @@ body.light-mode #view-funds .table-footer span:last-child { color: #7a918a; }
     direction: rtl;
   }
   #view-funds #fund-table-grid tbody td:first-child::before { display: none; }
-  #view-funds #fund-table-grid tbody td:nth-child(2)::before { content: "امتیاز تکنیکال"; }
-  #view-funds #fund-table-grid tbody td:nth-child(3)::before { content: "قیمت پایانی"; }
-  #view-funds #fund-table-grid tbody td:nth-child(4)::before { content: "خرید در قیمت فعلی؟"; }
-  #view-funds #fund-table-grid tbody td:nth-child(5)::before { content: "تغییر روز"; }
-  #view-funds #fund-table-grid tbody td:nth-child(6)::before { content: "بازده 1 ماهه"; }
-  #view-funds #fund-table-grid tbody td:nth-child(7)::before { content: "بازده 3 ماهه"; }
-  #view-funds #fund-table-grid tbody td:nth-child(8)::before { content: "بازده 6 ماهه"; }
-  #view-funds #fund-table-grid tbody td:nth-child(9)::before { content: "بازده 1 ساله"; }
-  #view-funds #fund-table-grid tbody td:nth-child(10)::before { content: "حجم"; }
-  #view-funds #fund-table-grid tbody td:nth-child(11)::before { content: "ارزش معامله"; }
-  #view-funds #fund-table-grid tbody td:nth-child(12)::before { content: "آخرین به‌روزرسانی"; }
-  #view-funds #fund-table-grid tbody td.fund-buy-cell { grid-column: 1 / -1; }
+  #view-funds #fund-table-grid tbody td:nth-child(2)::before { content: "نوع صندوق"; }
+  #view-funds #fund-table-grid tbody td:nth-child(3)::before { content: "امتیاز تکنیکال"; }
+  #view-funds #fund-table-grid tbody td:nth-child(4)::before { content: "ریسک نوسان"; }
+  #view-funds #fund-table-grid tbody td:nth-child(5)::before { content: "قدرت نسبی"; }
+  #view-funds #fund-table-grid tbody td:nth-child(6)::before { content: "قیمت پایانی"; }
+  #view-funds #fund-table-grid tbody td:nth-child(7)::before { content: "خرید در قیمت فعلی؟"; }
+  #view-funds #fund-table-grid tbody td:nth-child(8)::before { content: "تغییر روز"; }
+  #view-funds #fund-table-grid tbody td:nth-child(9)::before { content: "بازده 1 ماهه"; }
+  #view-funds #fund-table-grid tbody td:nth-child(10)::before { content: "بازده 3 ماهه"; }
+  #view-funds #fund-table-grid tbody td:nth-child(11)::before { content: "بازده 6 ماهه"; }
+  #view-funds #fund-table-grid tbody td:nth-child(12)::before { content: "بازده 1 ساله"; }
+  #view-funds #fund-table-grid tbody td:nth-child(13)::before { content: "حجم"; }
+  #view-funds #fund-table-grid tbody td:nth-child(14)::before { content: "ارزش معامله"; }
+  #view-funds #fund-table-grid tbody td:nth-child(15)::before { content: "آخرین به‌روزرسانی"; }
+  #view-funds #fund-table-grid tbody td:nth-child(7) { grid-column: 1 / -1; }
   #view-funds .fund-table-name { width: 100%; min-width: 0; padding: 11px 12px; }
   #view-funds .fund-table-name strong { font-size: 16px; }
   #view-funds .fund-table-name small { font-size: 11px; }

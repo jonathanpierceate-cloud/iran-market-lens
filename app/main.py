@@ -7,9 +7,11 @@ import json
 import math
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from threading import Lock, Thread
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
@@ -25,6 +27,7 @@ from .config import (MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
                      RAHAVARD_USDT_PAGE_URL,
                      REFRESH_INTERVAL_SECONDS, ROOT)
 from .db import db, utc_now
+from .fund_scoring import FUND_TYPE_BY_CATEGORY_ID, FUND_TYPE_LABELS, resolve_fund_type
 from .sources import (SourceError, fetch_fund_indicators, fetch_fund_nav_history,
                       fetch_fund_price_history, fetch_rahavard_fund_profile,
                       rahavard_etf_fund_asset_ids, refresh_all)
@@ -34,6 +37,10 @@ REFRESH_STATE: dict[str, Any] = {"running": False, "last_result": None}
 REFRESH_WAKE: asyncio.Event | None = None
 FUND_CATEGORY_CACHE: dict[str, tuple[float, set[str]]] = {}
 FUND_CATEGORY_CACHE_TTL = 15 * 60
+FUND_CATEGORY_MAP_CACHE: tuple[float, dict[str, str]] | None = None
+FUND_CATEGORY_MAP_TTL = 2 * 60 * 60
+FUND_CATEGORY_MAP_LOCK = Lock()
+FUND_CATEGORY_MAP_BUILDING = False
 
 
 class WatchlistAddInput(BaseModel):
@@ -47,6 +54,7 @@ class WatchlistUpdateInput(BaseModel):
 
 class FundScoreBatchInput(BaseModel):
     fund_keys: list[str] = Field(default_factory=list, max_length=4)
+    category_id: str = Field(default="", max_length=24)
 
 
 def _source_map() -> dict[str, dict[str, Any]]:
@@ -245,6 +253,7 @@ async def _periodic_refresh():
 async def lifespan(_: FastAPI):
     global REFRESH_WAKE
     db.init()
+    _schedule_fund_category_map_refresh()
     REFRESH_WAKE = asyncio.Event()
     for key, label, url in [
         ("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL),
@@ -466,6 +475,118 @@ def _fund_updated_at(fund: dict[str, Any]) -> str | None:
     return raw.get("trade_date_time") or raw.get("data_updated_at") or fund.get("data_timestamp")
 
 
+def _fund_category_id(fund: dict[str, Any], requested: str | None = None) -> str | None:
+    raw = fund.get("raw") if isinstance(fund.get("raw"), dict) else {}
+    for value in (requested, fund.get("category_id"), raw.get("groupId"),
+                  raw.get("group_id"), raw.get("category_id"), raw.get("categoryId")):
+        candidate = str(value or "").strip()
+        if candidate in FUND_TYPE_BY_CATEGORY_ID:
+            return candidate
+    return None
+
+
+def _fund_peer_group_key(fund: dict[str, Any]) -> str | None:
+    category_id = _fund_category_id(fund)
+    kind = resolve_fund_type({
+        "category_id": category_id, "category": fund.get("category"),
+        "fund_type": fund.get("fund_type"), "name": fund.get("name"),
+    })
+    return category_id or (f"type:{kind}" if kind else None)
+
+
+def _record_fund_score_history(result: dict[str, Any] | None, fund_key: str,
+                               data_timestamp: str | None) -> None:
+    if not isinstance(result, dict) or result.get("technical_score") is None:
+        return
+    score_date = str(data_timestamp or result.get("score_timestamp") or "")
+    method = str(result.get("score_method") or "")
+    try:
+        db.save_fund_score_snapshot(
+            fund_key, score_date, float(result["technical_score"]),
+            result.get("data_coverage_pct"), method)
+        bars = db.history(fund_key, 60, source="Rahavard365")
+        sessions = [str(row.get("timestamp") or "")[:10] for row in bars]
+        result.update(db.fund_score_changes(fund_key, score_date, method, sessions))
+    except Exception:
+        # Some serverless deployments do not provide durable writable storage.
+        result["score_change_5d"] = None
+        result["score_change_20d"] = None
+
+
+def _fund_model_context(fund: dict[str, Any], *, category_id: str | None = None,
+                        category: Any = None, price_history: list[dict[str, Any]] | None = None,
+                        nav_timestamp: str | None = None,
+                        peer_items: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    raw = fund.get("raw") if isinstance(fund.get("raw"), dict) else {}
+    category_obj = category if isinstance(category, dict) else {}
+    category_name = category_obj.get("name") if category_obj else category
+    category_id = _fund_category_id(fund, str(category_id or category_obj.get("id") or "")) or ""
+    context = {
+        "category_id": category_id,
+        "category": category_name or fund.get("category"),
+        "fund_type": fund.get("fund_type"),
+        "name": fund.get("name"),
+        "symbol": fund.get("symbol"),
+        "nav": _watchlist_number(fund.get("nav")),
+        "nav_premium_pct": _watchlist_number(fund.get("nav_premium_pct")),
+        "nav_timestamp": nav_timestamp,
+        "price_timestamp": fund.get("data_timestamp") or raw.get("trade_date_time"),
+        "daily_return_pct": _watchlist_number(fund.get("daily_return")),
+        "fund_history": price_history,
+    }
+    kind = resolve_fund_type(context)
+    context["resolved_fund_type"] = kind
+    if kind:
+        context["fund_type"] = kind
+    if context["nav_timestamp"] is None and kind is not None:
+        try:
+            nav_rows = db.fund_nav_history(str(fund.get("fund_key") or ""))
+            if nav_rows:
+                latest_nav = nav_rows[-1]
+                context["nav_timestamp"] = latest_nav.get("timestamp")
+                context["nav"] = context["nav"] or _watchlist_number(latest_nav.get("statistical_nav"))
+        except Exception:
+            pass
+    if context["fund_history"] is None:
+        try:
+            context["fund_history"] = _market_history(str(fund.get("fund_key") or fund.get("symbol") or ""), 150)
+        except Exception:
+            context["fund_history"] = []
+
+    benchmark_symbol = "TEPIX" if kind in {"equity", "index", "leveraged"} else "GOLD_18K" if kind == "gold" else None
+    context["benchmark_symbol"] = benchmark_symbol
+    if benchmark_symbol:
+        try:
+            context["benchmark_history"] = _market_history(benchmark_symbol, 150)
+        except Exception:
+            context["benchmark_history"] = []
+
+    if peer_items:
+        key = str(fund.get("fund_key") or "")
+        peers: list[tuple[str, float]] = []
+        liquidity: list[tuple[str, float]] = []
+        for item in peer_items:
+            value = _watchlist_number(item.get("three_month_return"))
+            if value is not None:
+                peers.append((str(item.get("fund_key") or ""), value))
+            traded_value = _watchlist_number(item.get("value"))
+            if traded_value is not None and traded_value >= 0:
+                liquidity.append((str(item.get("fund_key") or ""), traded_value))
+        current = next((value for peer_key, value in peers if peer_key == key),
+                       _watchlist_number(fund.get("three_month_return")))
+        if current is not None and len(peers) >= 5:
+            below = sum(value < current for _, value in peers)
+            equal = sum(value == current for _, value in peers)
+            context["peer_percentile"] = round((below + equal / 2) / len(peers) * 100, 1)
+        current_liquidity = next((value for peer_key, value in liquidity if peer_key == key),
+                                 _watchlist_number(fund.get("value")))
+        if current_liquidity is not None and len(liquidity) >= 5:
+            below = sum(value < current_liquidity for _, value in liquidity)
+            equal = sum(value == current_liquidity for _, value in liquidity)
+            context["liquidity_percentile"] = round((below + equal / 2) / len(liquidity) * 100, 1)
+    return context
+
+
 def _fund_category_asset_ids(category_id: str) -> set[str]:
     now = time.monotonic()
     cached = FUND_CATEGORY_CACHE.get(category_id)
@@ -474,6 +595,71 @@ def _fund_category_asset_ids(category_id: str) -> set[str]:
     asset_ids = rahavard_etf_fund_asset_ids(category_id)
     FUND_CATEGORY_CACHE[category_id] = (now, asset_ids)
     return asset_ids
+
+
+def _fund_category_map_is_fresh(cache: tuple[float, dict[str, str]] | None,
+                                now: float | None = None) -> bool:
+    if not cache:
+        return False
+    now = time.monotonic() if now is None else now
+    ttl = FUND_CATEGORY_MAP_TTL if cache[1] else 60
+    return now - cache[0] < ttl
+
+
+def _fund_category_map() -> dict[str, str]:
+    """Build a short-lived asset-to-type map from Rahavard category lists."""
+    global FUND_CATEGORY_MAP_CACHE
+    now = time.monotonic()
+    with FUND_CATEGORY_MAP_LOCK:
+        now = time.monotonic()
+        if _fund_category_map_is_fresh(FUND_CATEGORY_MAP_CACHE, now):
+            return FUND_CATEGORY_MAP_CACHE[1]
+        category_ids = tuple(FUND_TYPE_BY_CATEGORY_ID)
+        mapping: dict[str, str] = {}
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            futures = {pool.submit(_fund_category_asset_ids, category_id): category_id
+                       for category_id in category_ids}
+            for future in as_completed(futures):
+                category_id = futures[future]
+                try:
+                    for asset_id in future.result():
+                        mapping.setdefault(str(asset_id), category_id)
+                except Exception:
+                    continue
+        FUND_CATEGORY_MAP_CACHE = (now, mapping)
+        return mapping
+
+
+def _schedule_fund_category_map_refresh() -> None:
+    global FUND_CATEGORY_MAP_BUILDING
+    now = time.monotonic()
+    with FUND_CATEGORY_MAP_LOCK:
+        if FUND_CATEGORY_MAP_BUILDING:
+            return
+        if _fund_category_map_is_fresh(FUND_CATEGORY_MAP_CACHE, now):
+            return
+        FUND_CATEGORY_MAP_BUILDING = True
+
+    def refresh() -> None:
+        global FUND_CATEGORY_MAP_BUILDING
+        try:
+            _fund_category_map()
+        except Exception:
+            pass
+        finally:
+            with FUND_CATEGORY_MAP_LOCK:
+                FUND_CATEGORY_MAP_BUILDING = False
+
+    Thread(target=refresh, name="rahavard-fund-category-map", daemon=True).start()
+
+
+def _apply_fund_category_map(fund: dict[str, Any], category_map: dict[str, str]) -> None:
+    raw = fund.get("raw") if isinstance(fund.get("raw"), dict) else {}
+    asset_id = str(raw.get("rahavard_asset_id") or raw.get("asset_id")
+                   or fund.get("registration_no") or fund.get("symbol") or "").strip()
+    mapped = category_map.get(asset_id)
+    if mapped and not _fund_category_id(fund):
+        fund["category_id"] = mapped
 
 
 def _exclude_fixed_income_funds(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -515,19 +701,37 @@ def _dedupe_rahavard_funds(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 @app.get("/api/funds")
 def funds(search: str = "", category: str = "", sort: str = "data_timestamp"):
-    if category == "255":
-        return {"items": [], "count": 0, "source": "Rahavard365", "data_status": "available"}
     db_category = "" if category.isdigit() else category
     items = _dedupe_rahavard_funds(db.funds(search=search, category=db_category, sort=sort, source="Rahavard365"))
     if category.isdigit():
-        try:
-            allowed_ids = _fund_category_asset_ids(category)
-            items = [item for item in items
-                     if str(item.get("raw", {}).get("rahavard_asset_id") or item.get("symbol") or "") in allowed_ids]
-        except SourceError:
-            items = []
-    items = _exclude_fixed_income_funds(items)
+        local_matches = [item for item in items if _fund_category_id(item) == category]
+        if local_matches:
+            items = local_matches
+        else:
+            try:
+                allowed_ids = _fund_category_asset_ids(category)
+                items = [item for item in items
+                         if str(item.get("raw", {}).get("rahavard_asset_id") or item.get("symbol") or "") in allowed_ids]
+            except SourceError:
+                items = []
+    else:
+        cached_map = FUND_CATEGORY_MAP_CACHE
+        if _fund_category_map_is_fresh(cached_map):
+            category_map = cached_map[1]
+        else:
+            category_map = {}
+            _schedule_fund_category_map_refresh()
+        for item in items:
+            _apply_fund_category_map(item, category_map)
     snapshots = db.fund_indicator_snapshots()
+    peer_groups: dict[str, list[dict[str, Any]]] = {}
+    if category in FUND_TYPE_BY_CATEGORY_ID:
+        peer_groups[category] = items
+    else:
+        for peer in items:
+            peer_key = _fund_peer_group_key(peer)
+            if peer_key:
+                peer_groups.setdefault(peer_key, []).append(peer)
     for item in items:
         raw = item.get("raw") if isinstance(item.get("raw"), dict) else {}
         current_price = _watchlist_number(item.get("market_price"))
@@ -541,11 +745,28 @@ def funds(search: str = "", category: str = "", sort: str = "data_timestamp"):
                       "real_close_price_change_percent", "trade_date_time"):
             item[field] = raw.get(field)
         snapshot = snapshots.get(item["fund_key"])
-        result = analyze_rahavard(item["symbol"], snapshot["data"],
-                                  snapshot.get("data_timestamp") or item.get("data_timestamp"),
-                                  current_price) if snapshot else None
+        result = None
+        category_id = _fund_category_id(item, category)
+        peer_key = category_id or _fund_peer_group_key(item)
+        model_context = _fund_model_context(
+            item, category_id=category_id,
+            peer_items=peer_groups.get(peer_key),
+        )
+        item["fund_type_key"] = model_context.get("resolved_fund_type")
+        item["fund_type_label"] = FUND_TYPE_LABELS.get(item["fund_type_key"], item.get("category") or "نامشخص")
+        if snapshot:
+            result = analyze_rahavard(item["symbol"], snapshot["data"],
+                                      snapshot.get("data_timestamp") or item.get("data_timestamp"),
+                                      current_price, model_context)
+            _record_fund_score_history(result, item["fund_key"],
+                                       item.get("data_timestamp") or snapshot.get("data_timestamp"))
         item["analysis"] = result
         item["technical_score"] = result.get("technical_score") if result else None
+        item["data_coverage_pct"] = result.get("data_coverage_pct") if result else None
+        item["risk_score"] = (result.get("risk_rank") or {}).get("score") if result else None
+        item["relative_strength_score"] = (((result.get("family_scores") or {}).get("relative_strength") or {}).get("score") if result else None)
+        item["score_change_5d"] = result.get("score_change_5d") if result else None
+        item["score_change_20d"] = result.get("score_change_20d") if result else None
         item["medium_term_exit_price"] = result.get("medium_term_exit_price") if result else None
         item["purchase_assessment"] = _fund_purchase_assessment(current_price, result)
         item["buy_suitability_rank"] = item["purchase_assessment"]["rank"]
@@ -576,24 +797,60 @@ async def fund_score_batch(payload: FundScoreBatchInput):
     if not keys:
         raise HTTPException(status_code=422, detail="شناسه‌ای برای محاسبه امتیاز ارسال نشده است")
 
+    category_id = payload.category_id if payload.category_id in FUND_TYPE_BY_CATEGORY_ID else ""
+    peer_groups: dict[str, list[dict[str, Any]]] = {}
+    if category_id:
+        try:
+            peer_asset_ids = _fund_category_asset_ids(category_id)
+            peers = [item for item in _dedupe_rahavard_funds(
+                db.funds(source="Rahavard365"))
+                if str((item.get("raw") or {}).get("rahavard_asset_id") or item.get("symbol") or "") in peer_asset_ids]
+            peer_groups[category_id] = peers
+        except SourceError:
+            pass
+    else:
+        category_map = await asyncio.to_thread(_fund_category_map)
+        for peer in db.funds(source="Rahavard365"):
+            _apply_fund_category_map(peer, category_map)
+            peer_key = _fund_peer_group_key(peer)
+            if peer_key:
+                peer_groups.setdefault(peer_key, []).append(peer)
+
     semaphore = asyncio.Semaphore(4)
 
     async def calculate(identifier: str) -> dict[str, Any]:
         async with semaphore:
             try:
                 fund = _fund_or_error(identifier)
+                if not category_id:
+                    _apply_fund_category_map(fund, category_map)
                 indicators = await fetch_fund_indicators(fund["fund_key"])
                 raw = fund.get("raw") if isinstance(fund.get("raw"), dict) else {}
                 current_price = _watchlist_number(fund.get("market_price"))
                 if current_price is None or current_price <= 0:
                     current_price = _watchlist_number(raw.get("real_close_price"))
+                actual_category_id = _fund_category_id(fund, category_id)
+                peer_key = actual_category_id or _fund_peer_group_key(fund)
+                model_context = _fund_model_context(
+                    fund, category_id=actual_category_id,
+                    peer_items=peer_groups.get(peer_key or ""))
                 analysis_result = analyze_rahavard(
-                    fund.get("symbol"), indicators, fund.get("data_timestamp"), current_price)
+                    fund.get("symbol"), indicators, fund.get("data_timestamp"), current_price,
+                    model_context)
+                _record_fund_score_history(analysis_result, fund["fund_key"],
+                                           fund.get("data_timestamp"))
                 purchase_assessment = _fund_purchase_assessment(current_price, analysis_result)
                 return {"fund_key": fund["fund_key"], "technical_score": analysis_result.get("technical_score"),
                         "medium_term_exit_price": analysis_result.get("medium_term_exit_price"),
                         "purchase_assessment": purchase_assessment,
                         "buy_suitability_rank": purchase_assessment["rank"],
+                        "data_coverage_pct": analysis_result.get("data_coverage_pct"),
+                        "risk_score": (analysis_result.get("risk_rank") or {}).get("score"),
+                        "relative_strength_score": (((analysis_result.get("family_scores") or {}).get("relative_strength") or {}).get("score")),
+                        "score_change_5d": analysis_result.get("score_change_5d"),
+                        "score_change_20d": analysis_result.get("score_change_20d"),
+                        "fund_type_key": analysis_result.get("fund_type"),
+                        "fund_type_label": analysis_result.get("fund_type_label"),
                         "error": None if analysis_result.get("technical_score") is not None else "داده کافی برای محاسبه موجود نیست"}
             except HTTPException as exc:
                 return {"fund_key": identifier, "technical_score": None, "error": str(exc.detail)}
@@ -625,11 +882,22 @@ def _fund_purchase_assessment(price: Any, analysis: dict[str, Any] | None) -> di
     breakdown = analysis.get("score_breakdown") if isinstance(analysis.get("score_breakdown"), dict) else {}
     near_resistance_count = _watchlist_number(breakdown.get("near_resistance_count"))
     rsi = _watchlist_number(breakdown.get("rsi"))
+    coverage = _watchlist_number(analysis.get("data_coverage_pct"))
+    available_weight = _watchlist_number(analysis.get("available_family_weight_pct"))
+    risk_level = (analysis.get("risk_rank") or {}).get("level")
+    fund_type = analysis.get("fund_type")
     if current_price is None or current_price <= 0 or exit_price is None or exit_price <= 0 or score is None or near_resistance_count is None:
         return {"status": "unknown", "label": "داده کافی نیست", "reason": "برای ارزیابی قیمت فعلی، قیمت و دادهٔ کامل تکنیکال لازم است.", "rank": None}
     if current_price <= exit_price:
         return {"status": "unsuitable", "label": "نامناسب", "reason": "قیمت فعلی روی حد خروج میان‌مدت یا پایین‌تر از آن است.", "rank": 0}
-    if rsi is not None and rsi >= 70:
+    if ((coverage is not None and coverage < 30)
+            or (available_weight is not None and available_weight < 50)):
+        return {"status": "wait", "label": "صبر · پوشش داده کم",
+                "reason": "کمتر از نیمی از وزن مدل با دادهٔ معتبر پوشش دارد؛ امتیاز برای تصمیم خرید کافی نیست.", "rank": 2}
+    if risk_level == "high":
+        return {"status": "wait", "label": "صبر · ریسک بالا",
+                "reason": "رتبهٔ ریسک نوسان بالاست؛ امتیاز تکنیکال به‌تنهایی برای ورود کافی نیست.", "rank": 2}
+    if fund_type != "fixed_income" and rsi is not None and rsi >= 70:
         label = "صبر · RSI داغ" if rsi >= 80 else "صبر · RSI بالاست"
         return {"status": "wait", "label": label,
                 "reason": f"RSI(14) برابر {rsi:.1f} است؛ برای خرید تازه تا کاهش خریدزدگی و تأیید دوباره صبر کن.", "rank": 2}
@@ -1081,13 +1349,17 @@ async def fund_detail(symbol: str):
     nav = db.fund_nav_history(fund_key)
     fund = dict(fund)
     fund["rahavard_asset_id"] = (fund.get("raw") or {}).get("rahavard_asset_id") or fund["registration_no"]
+    profile_category = None
+    latest_nav_timestamp = None
     if profile:
         asset = profile.get("asset") or {}
         spec = profile.get("fund_specification") or {}
         category = asset.get("category") or {}
+        profile_category = category
         last_trade = profile.get("last_trade") or {}
         values = profile.get("fund_values") or []
         latest_nav = next((row for row in values if row.get("date")), {})
+        latest_nav_timestamp = latest_nav.get("date") or latest_nav.get("timestamp")
         positive_navs = [row for row in values if (row.get("nav") or 0) > 0]
         aum_row = positive_navs[0] if positive_navs else latest_nav
         display_name = lambda value: value.get("name") if isinstance(value, dict) else value
@@ -1135,9 +1407,14 @@ async def fund_detail(symbol: str):
         fund["price_is_cached"] = fund["market_price"] is not None
     if fund.get("price_is_cached"):
         fund["price_note"] = "آخرین قیمت پایانی ذخیره‌شده؛ با ثبت معامله جدید به‌روز می‌شود"
-    analysis_result = analyze_rahavard(fund.get("display_symbol") or fund["symbol"], indicator_data,
-                                       fund.get("data_timestamp"), fund.get("market_price")) if indicator_data else None
+    model_context = _fund_model_context(
+        fund, category=profile_category, price_history=bars,
+        nav_timestamp=latest_nav_timestamp)
+    analysis_result = analyze_rahavard(
+        fund.get("display_symbol") or fund["symbol"], indicator_data,
+        fund.get("data_timestamp"), fund.get("market_price"), model_context) if indicator_data else None
     if analysis_result:
+        _record_fund_score_history(analysis_result, fund_key, fund.get("data_timestamp"))
         analysis_result["price_is_cached"] = fund.get("price_is_cached", False)
     return {"fund": fund, "history": bars, "nav_history": nav, "portfolio": [],
             "analysis": analysis_result,
@@ -1174,7 +1451,10 @@ async def fund_technical(symbol: str):
         data = await fetch_fund_indicators(fund["fund_key"])
     except SourceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return analyze_rahavard(fund.get("symbol"), data, fund.get("data_timestamp"), fund.get("market_price"))
+    result = analyze_rahavard(fund.get("symbol"), data, fund.get("data_timestamp"),
+                              fund.get("market_price"), _fund_model_context(fund))
+    _record_fund_score_history(result, fund["fund_key"], fund.get("data_timestamp"))
+    return result
 
 
 @app.get("/api/funds/{symbol}/signals")
@@ -1184,7 +1464,9 @@ async def fund_signals(symbol: str):
         data = await fetch_fund_indicators(fund["fund_key"])
     except SourceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    result = analyze_rahavard(fund["symbol"], data, fund.get("data_timestamp"), fund.get("market_price"))
+    result = analyze_rahavard(fund["symbol"], data, fund.get("data_timestamp"),
+                              fund.get("market_price"), _fund_model_context(fund))
+    _record_fund_score_history(result, fund["fund_key"], fund.get("data_timestamp"))
     return {"symbol": fund["symbol"], "fund_key": fund["fund_key"], "source": "Rahavard365",
             "signal": result["signal"], "score": result["technical_score"],
             "gauges": result["site_gauges"], "indicator_notes": result["indicator_notes"],
@@ -1199,7 +1481,10 @@ async def fund_analysis(symbol: str):
         data = await fetch_fund_indicators(fund["fund_key"])
     except SourceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
-    return analyze_rahavard(fund["symbol"], data, fund.get("data_timestamp"), fund.get("market_price"))
+    result = analyze_rahavard(fund["symbol"], data, fund.get("data_timestamp"),
+                              fund.get("market_price"), _fund_model_context(fund))
+    _record_fund_score_history(result, fund["fund_key"], fund.get("data_timestamp"))
+    return result
 
 
 @app.get("/api/admin")
@@ -1284,7 +1569,7 @@ def update_setting(data: SettingInput):
 
 @app.get("/api/export/funds.csv")
 def export_funds_csv():
-    items = _exclude_fixed_income_funds(db.funds(source="Rahavard365"))
+    items = db.funds(source="Rahavard365")
     stream = io.StringIO(newline="")
     writer = csv.DictWriter(stream, fieldnames=["symbol", "name", "category", "manager", "aum", "nav", "market_price", "nav_premium_pct", "volume", "value", "data_timestamp"], extrasaction="ignore")
     writer.writeheader()
@@ -1300,7 +1585,7 @@ def export_funds_xlsx():
         from openpyxl.styles import Font, PatternFill
     except ImportError as exc:
         raise HTTPException(status_code=501, detail="برای خروجی Excel، openpyxl را نصب کنید") from exc
-    items = _exclude_fixed_income_funds(db.funds(source="Rahavard365"))
+    items = db.funds(source="Rahavard365")
     columns = [("symbol", "نماد"), ("name", "نام"), ("category", "دسته"), ("manager", "مدیر"),
                ("daily_return", "بازده روزانه"), ("weekly_return", "بازده هفتگی"),
                ("monthly_return", "بازده ماهانه"), ("three_month_return", "بازده ۳ماهه"),
@@ -1324,7 +1609,7 @@ def export_funds_xlsx():
 @app.get("/api/export/funds.json")
 def export_funds_json():
     return {"exported_at": utc_now(), "source": "Rahavard365",
-            "items": _exclude_fixed_income_funds(db.funds(source="Rahavard365"))}
+            "items": db.funds(source="Rahavard365")}
 
 
 @app.get("/api/export/analysis.json")

@@ -429,7 +429,122 @@
     return "بخشی از روند، مومنتوم، حجم یا نوسان را می‌سنجد؛ آن را همراه قیمت و بقیهٔ شاخص‌ها بخوان.";
   }
 
+  function fundModelRecommendationHtml(a) {
+    const fixedIncomeProfile = a.fund_type === "fixed_income";
+    const labels = {
+      trend_structure: ["روند و ساختار قیمت", "جهت قیمت نسبت به میانگین‌ها و ابر ایچیموکو"],
+      momentum: ["مومنتوم و قدرت روند", "شتاب حرکت و قدرت روند؛ همراه با سنجش اشباع"],
+      volume_confirmation: ["تأیید حجم معاملات", "جهت جریان و نسبت حجم معاملات"],
+      support_resistance: ["حمایت و مقاومت", "موقعیت قیمت میان پیوت‌ها و فاصله تا سطوح نزدیک"],
+      relative_strength: ["قدرت نسبی", "عملکرد ۶۰ و ۱۲۰ روزه در برابر شاخص و هم‌گروه‌ها"],
+      entry_quality: ["کیفیت نقطه ورود", "موقعیت در باندها، فاصله EMA50 و نوسان قیمت"],
+      nav_pricing: ["قیمت بازار نسبت به NAV", "میزان حباب یا تخفیف با توجه به تازگی NAV"]
+    };
+    if (fixedIncomeProfile) {
+      labels.momentum[1] = "اثر کمترِ نوسان‌گرهای سهامی در ارزیابی صندوق درآمد ثابت";
+      labels.volume_confirmation[1] = "ارزش معامله نسبت به هم‌گروه‌ها و تأیید حجم";
+      labels.relative_strength[1] = "بازده و جایگاه صندوق در مقایسه با هم‌گروه‌ها";
+      labels.entry_quality[1] = "نوسان قیمت و کیفیت نقطه ورود با حساسیت کمتر به نوسان‌های معمول";
+    }
+    const bandLabels = {
+      very_strong: "بسیار قوی", strong: "قوی", relatively_positive: "نسبتاً مثبت",
+      neutral: "خنثی", weak: "ضعیف", very_weak: "بسیار ضعیف", unavailable: "داده کافی نیست"
+    };
+    const familyNames = Object.fromEntries(Object.entries(labels).map(([key, [label]]) => [key, label]));
+    const riskLabels = { low: "پایین", medium: "متوسط", elevated: "بالا", high: "بسیار بالا" };
+    const score = a.technical_score == null ? NaN : Number(a.technical_score);
+    const validScore = Number.isFinite(score);
+    const tone = !validScore ? "unknown" : score >= 60 ? "positive" : score < 45 ? "negative" : "neutral";
+    const scoreWeights = a.score_weights || {};
+    const familyScores = a.family_scores || {};
+    const familyCards = Object.entries(labels).map(([key, [label, description]]) => {
+      const family = familyScores[key] || {};
+      const value = family.score == null ? NaN : Number(family.score);
+      const available = Number.isFinite(value);
+      const coverage = family.coverage_pct == null ? NaN : Number(family.coverage_pct);
+      const weight = Number(scoreWeights[key]);
+      const familyTone = !available ? "unavailable" : value >= 60 ? "positive" : value < 45 ? "negative" : "neutral";
+      const validCount = Array.isArray(family.indicators) ? family.indicators.length : 0;
+      const missingCount = Array.isArray(family.missing_indicators) ? family.missing_indicators.length : 0;
+      const countText = validCount || missingCount ? `${num(validCount, 0)} شاخص در محاسبه · ${num(missingCount, 0)} ناموجود` : "دادهٔ معتبر در دسترس نیست";
+      const extras = [];
+      if (key === "support_resistance") {
+        if (family.nearest_support != null) extras.push(`حمایت نزدیک: ${money(family.nearest_support)}${family.support_distance_pct != null ? ` · ${num(family.support_distance_pct, 2)}٪ فاصله` : ""}`);
+        if (family.nearest_resistance != null) extras.push(`مقاومت نزدیک: ${money(family.nearest_resistance)}${family.resistance_distance_pct != null ? ` · ${num(family.resistance_distance_pct, 2)}٪ فاصله` : ""}`);
+      } else if (key === "relative_strength") {
+        if (family.excess_60d_pct != null) extras.push(`مازاد بازده ۶۰روزه ${num(family.excess_60d_pct, 2)}٪`);
+        if (family.excess_120d_pct != null) extras.push(`مازاد بازده ۱۲۰روزه ${num(family.excess_120d_pct, 2)}٪`);
+        if (family.peer_percentile != null) extras.push(`رتبه هم‌گروهی ${num(family.peer_percentile, 0)}٪`);
+      } else if (key === "entry_quality" && family.realized_volatility_pct != null) {
+        extras.push(`نوسان سالانه‌شده ۲۰روزه ${num(family.realized_volatility_pct, 1)}٪`);
+      } else if (key === "nav_pricing" && family.premium_pct != null) {
+        extras.push(`صرف / کسر نسبت به NAV ${num(family.premium_pct, 2)}٪`);
+      }
+      return `<article class="fund-family-score-card ${familyTone}">
+        <div class="fund-family-score-head"><span>${label}</span><b>وزن ${num(weight, 0)}٪</b></div>
+        <strong>${available ? `${num(value, 0)} از ۱۰۰` : "—"}</strong>
+        <small>${description}</small>
+        ${extras.length ? `<div class="fund-family-extra">${extras.map((item) => `<span>${item}</span>`).join("")}</div>` : ""}
+        <div class="fund-family-coverage"><span>پوشش ${Number.isFinite(coverage) ? `${num(coverage, 0)}٪` : "—"}</span><span>${countText}</span></div>
+        <i style="width:${available ? Math.max(0, Math.min(100, value)) : 0}%"></i>
+      </article>`;
+    }).join("");
+    const risk = a.risk_rank || {};
+    const riskScore = risk.score == null ? NaN : Number(risk.score);
+    const coverage = a.data_coverage_pct == null ? NaN : Number(a.data_coverage_pct);
+    const familyWeight = a.available_family_weight_pct == null ? NaN : Number(a.available_family_weight_pct);
+    const nav = a.nav_assessment || {};
+    const relative = a.relative_strength || {};
+    const navText = nav.premium_pct != null && Number.isFinite(Number(nav.premium_pct))
+      ? `حباب/تخفیف بازار نسبت به NAV: ${num(nav.premium_pct, 2)}٪`
+      : "مقایسه با NAV تازه در این محاسبه موجود نیست";
+    const relativeText = relative.peer_percentile != null && Number.isFinite(Number(relative.peer_percentile))
+      ? `جایگاه بازده میان‌مدت در ${num(relative.peer_percentile, 0)}٪ بالایی صندوق‌های هم‌گروه`
+      : relative.excess_60d_pct != null && Number.isFinite(Number(relative.excess_60d_pct))
+      ? `مازاد بازده ۶۰روزه نسبت به شاخص مرجع: ${num(relative.excess_60d_pct, 2)}٪`
+      : "بازده نسبی در نبود دادهٔ کافی محاسبه نشده است";
+    const factors = a.top_factors || {};
+    const positiveFactor = factors.positive;
+    const negativeFactor = factors.negative;
+    const factorSummary = `<div class="fund-model-factors"><span class="positive">نقطه قوت: ${positiveFactor ? `${familyNames[positiveFactor.family] || "عامل تکنیکال"} · ${num(positiveFactor.score, 0)}/100` : "عامل مثبت برجسته‌ای از داده‌های موجود به دست نیامد"}</span><span class="negative">نیازمند توجه: ${negativeFactor ? `${familyNames[negativeFactor.family] || "عامل تکنیکال"} · ${num(negativeFactor.score, 0)}/100` : "عامل منفی برجسته‌ای از داده‌های موجود به دست نیامد"}</span></div>`;
+    const unverified = (Array.isArray(a.missing_data) ? a.missing_data : [])
+      .some((row) => row?.status === "formula_unverified");
+    const modelNote = unverified
+      ? "فرمول رسمی بعضی شاخص‌های اختصاصی ره‌آورد، از جمله Trend، SM، VRSI و VMACD، تأیید نشده و برای جلوگیری از حدس از امتیازدهی کنار گذاشته شده‌اند."
+      : "مواردی که داده یا فرمول قابل اتکا ندارند از محاسبه کنار گذاشته شده‌اند؛ وزن بخش‌های موجود متناسب بازتنظیم می‌شود.";
+    const changeChip = (label, value) => {
+      const delta = value == null || !Number.isFinite(Number(value)) ? null : Number(value);
+      const klass = delta == null || delta === 0 ? "neutral" : delta > 0 ? "positive" : "negative";
+      const shown = delta == null ? "سابقه کافی نیست" : `${delta > 0 ? "+" : ""}${num(delta, 1)} امتیاز`;
+      return `<span class="fund-score-change ${klass}"><small>${label}</small><b>${shown}</b></span>`;
+    };
+    const profileNote = fixedIncomeProfile
+      ? "مدل تخصصی درآمد ثابت · بازده هم‌گروه، نقدشوندگی، نوسان و NAV سهم بیشتری دارند."
+      : "مدل میان‌مدتی متعادل · وزن‌های پایه برای سایر گروه‌های صندوق.";
+    return `<section class="fund-recommendation ${tone} fund-model-recommendation">
+      <div class="fund-model-score-head">
+        <div><span class="recommendation-kicker">${fixedIncomeProfile ? "مدل تخصصی درآمد ثابت" : "مدل میان‌مدتی AliVest"} · محاسبه بر پایه داده‌های ره‌آورد</span>
+          <h3>امتیاز تکنیکال صندوق: <strong>${validScore ? `${num(score, 0)} از ۱۰۰` : "داده کافی نیست"}</strong></h3>
+          <p>${profileNote} ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · امتیاز رسمی ره‌آورد یا احتمال سود نیست.</p>
+        </div>
+        <div class="fund-model-meta">
+          <span>پوشش کل داده‌ها <b>${Number.isFinite(coverage) ? `${num(coverage, 0)}٪` : "—"}</b></span>
+          <span>وزن خانواده‌های قابل‌محاسبه <b>${Number.isFinite(familyWeight) ? `${num(familyWeight, 0)}٪` : "—"}</b></span>
+          <span>ریسک نوسان (بالاتر = ریسک بیشتر) <b>${riskLabels[risk.level] || "نامشخص"}${Number.isFinite(riskScore) ? ` · ${num(riskScore, 0)}/100` : ""}</b></span>
+        </div>
+      </div>
+      <div class="fund-family-score-grid">${familyCards}</div>
+      ${factorSummary}
+      <div class="fund-model-context"><span>${relativeText}</span><span>${navText}</span></div>
+      <div class="fund-score-changes"><b>تغییر امتیاز در روزهای معاملاتی گذشته</b>${changeChip("۵ روز", a.score_change_5d)}${changeChip("۲۰ روز", a.score_change_20d)}</div>
+      <div class="fund-model-disclaimer"><b>نحوهٔ خواندن امتیاز</b><span>${modelNote} وزن‌ها نسخهٔ اولیه‌اند و هنوز با بک‌تست تاریخی اعتبارسنجی نشده‌اند؛ تغییر امتیاز وقتی نمایش داده می‌شود که سابقهٔ کافی از روزهای معاملاتی گذشته ذخیره شده باشد.</span></div>
+    </section>`;
+  }
+
   function rahavardRecommendationHtml(a) {
+    if (a?.score_method === "fund_seven_family_initial_v1" && a.family_scores) {
+      return fundModelRecommendationHtml(a);
+    }
     const gauge = a.site_gauges?.main || {};
     const rawSignal = gauge.signal?.value;
     const signalValue = rawSignal == null || String(rawSignal).trim() === "" ? null : Number(rawSignal);
@@ -866,7 +981,7 @@
 
   function _sourceByName(name) { return (state.summary?.sources || []).find((s) => s.name === name) || null; }
 
-  const fundSortTextKeys = new Set(["name", "updated_at"]);
+  const fundSortTextKeys = new Set(["name", "updated_at", "fund_type_label"]);
   function sortedFundItems(items) {
     const rows = [...(items || [])];
     const key = fundSortState.key;
@@ -899,12 +1014,21 @@
     if (fundSortState.key === key) fundSortState.direction *= -1;
     else {
       fundSortState.key = key;
-      fundSortState.direction = fundSortTextKeys.has(key) ? 1 : -1;
+      fundSortState.direction = fundSortTextKeys.has(key) || key === "risk_score" ? 1 : -1;
     }
     state.funds = sortedFundItems(state.funds);
     renderFundTable(state.funds);
     const mobileScoreSort = $("#fund-mobile-score-sort");
-    if (mobileScoreSort) mobileScoreSort.value = key === "technical_score" ? (fundSortState.direction === 1 ? "asc" : "desc") : key === "buy_suitability_rank" ? key : "";
+    if (mobileScoreSort) {
+      const values = {
+        technical_score: fundSortState.direction === 1 ? "asc" : "desc",
+        buy_suitability_rank: "buy_suitability_rank",
+        fund_type_label: fundSortState.direction === 1 ? "type_asc" : "type_desc",
+        risk_score: fundSortState.direction === 1 ? "risk_asc" : "risk_desc",
+        relative_strength_score: fundSortState.direction === 1 ? "relative_asc" : "relative_desc",
+      };
+      mobileScoreSort.value = values[key] || "";
+    }
   }
 
   // ETF directory rows expose a Rahavard asset ID, not necessarily an exchange ticker.
@@ -915,7 +1039,7 @@
       const category = $("#fund-category")?.value.trim() || "";
       const filtered = search || category;
       const filterLabel = search || $("#fund-category")?.selectedOptions?.[0]?.textContent?.trim() || "";
-      target.innerHTML = `<tr><td colspan="12"><div class="empty-state fund-empty-state"><span>&#9632;</span><b>${filtered ? "نتیجه‌ای برای فیلتر فعلی پیدا نشد" : "صندوقی از ره‌آورد۳۶۵ دریافت نشده"}</b><small>${filtered ? `فیلتر فعال: ${esc(filterLabel)} · برای نمایش همه صندوق‌ها فیلتر را پاک کنید.` : "وضعیت اتصال ره‌آورد را در صفحه وضعیت سامانه ببینید."}</small>${filtered ? `<button class="button button-quiet fund-clear-filter" type="button" data-clear-fund-filters>پاک کردن فیلترها</button>` : ""}</div></td></tr>`;
+      target.innerHTML = `<tr><td colspan="15"><div class="empty-state fund-empty-state"><span>&#9632;</span><b>${filtered ? "نتیجه‌ای برای فیلتر فعلی پیدا نشد" : "صندوقی از ره‌آورد۳۶۵ دریافت نشده"}</b><small>${filtered ? `فیلتر فعال: ${esc(filterLabel)} · برای نمایش همه صندوق‌ها فیلتر را پاک کنید.` : "وضعیت اتصال ره‌آورد را در صفحه وضعیت سامانه ببینید."}</small>${filtered ? `<button class="button button-quiet fund-clear-filter" type="button" data-clear-fund-filters>پاک کردن فیلترها</button>` : ""}</div></td></tr>`;
       return;
     }
     const amount = (value) => value == null ? "—" : money(value);
@@ -923,12 +1047,22 @@
       const id = f.rahavard_asset_id || f.symbol;
       const price = f.market_price ?? f.real_close_price;
       const scoreValue = f.technical_score == null ? null : Number(f.technical_score);
+      const scoreCoverage = f.data_coverage_pct == null ? null : Number(f.data_coverage_pct);
       const scoreTone = scoreValue == null || !Number.isFinite(scoreValue) ? "unknown" : scoreValue >= 70 ? "positive" : scoreValue >= 50 ? "neutral" : "negative";
-      const scoreCell = scoreValue == null || !Number.isFinite(scoreValue) ? `<span class="technical-score-chip unknown" title="امتیاز هنوز محاسبه نشده">—</span>` : `<span class="technical-score-chip ${scoreTone}" title="امتیاز میان‌مدتی AliVest">${num(scoreValue, 0)} / 100</span>`;
+      const scoreTitle = `امتیاز میان‌مدتی AliVest · پوشش داده: ${scoreCoverage != null && Number.isFinite(scoreCoverage) ? `${num(scoreCoverage, 0)}٪` : "نامشخص"}`;
+      const scoreCell = scoreValue == null || !Number.isFinite(scoreValue) ? `<span class="technical-score-chip unknown" title="امتیاز هنوز محاسبه نشده">—</span>` : `<span class="technical-score-chip ${scoreTone}" title="${esc(scoreTitle)}">${num(scoreValue, 0)} / 100</span>`;
+      const riskScore = f.risk_score == null ? null : Number(f.risk_score);
+      const riskLevel = f.analysis?.risk_rank?.level;
+      const riskLabels = { low: "پایین", medium: "متوسط", elevated: "بالا", high: "خیلی بالا" };
+      const resolvedRisk = riskLabels[riskLevel] || (riskScore >= 70 ? "خیلی بالا" : riskScore >= 50 ? "بالا" : riskScore >= 30 ? "متوسط" : "پایین");
+      const riskCell = Number.isFinite(riskScore) ? `<span class="fund-metric-chip ${riskScore >= 70 ? "negative" : riskScore >= 50 ? "warning" : "positive"}" title="رتبه ریسک مستقل از امتیاز تکنیکال؛ بالاتر یعنی نوسان بیشتر">${num(riskScore, 0)} · ${resolvedRisk}</span>` : `<span class="fund-metric-chip unknown">—</span>`;
+      const relativeScore = f.relative_strength_score == null ? null : Number(f.relative_strength_score);
+      const relativeCell = Number.isFinite(relativeScore) ? `<span class="fund-metric-chip ${relativeScore >= 60 ? "positive" : relativeScore < 40 ? "negative" : ""}" title="${esc(f.analysis?.relative_strength?.benchmark_symbol ? `مقایسه با ${f.analysis.relative_strength.benchmark_symbol}` : "مقایسه با دادهٔ هم‌گروهی")}">${num(relativeScore, 0)} / 100</span>` : `<span class="fund-metric-chip unknown">—</span>`;
+      const typeLabel = f.fund_type_label || f.category || "نامشخص";
       const assessment = f.purchase_assessment || {};
       const assessmentStatus = ["suitable", "wait", "unsuitable"].includes(assessment.status) ? assessment.status : "unknown";
       const assessmentCell = `<div class="fund-purchase-assessment"><span class="fund-purchase-chip ${assessmentStatus}">${esc(assessment.label || "داده کافی نیست")}</span><small>${esc(assessment.reason || "ارزیابی پس از دریافت دادهٔ تکنیکال نمایش داده می‌شود.")}</small></div>`;
-      return `<tr><td><button class="row-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><strong>${esc(f.name)}</strong><small class="fund-symbol">شناسه ره‌آورد: ${esc(id)}</small></span></button></td><td class="fund-technical-score">${scoreCell}</td><td>${amount(price)}</td><td class="fund-buy-cell">${assessmentCell}</td><td><span class="${changeClass(f.daily_return)}">${pct(f.daily_return)}</span></td><td>${pct(f.monthly_return)}</td><td>${pct(f.three_month_return)}</td><td>${pct(f.six_month_return)}</td><td>${pct(f.one_year_return)}</td><td>${amount(f.volume)}</td><td>${amount(f.value)}</td><td class="fund-update-time">${esc(formatDate(f.updated_at))}</td></tr>`;
+      return `<tr><td><button class="row-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><strong>${esc(f.name)}</strong><small class="fund-symbol">شناسه ره‌آورد: ${esc(id)}</small></span></button></td><td><span class="fund-type-chip">${esc(typeLabel)}</span></td><td class="fund-technical-score">${scoreCell}</td><td>${riskCell}</td><td>${relativeCell}</td><td>${amount(price)}</td><td class="fund-buy-cell">${assessmentCell}</td><td><span class="${changeClass(f.daily_return)}">${pct(f.daily_return)}</span></td><td>${pct(f.monthly_return)}</td><td>${pct(f.three_month_return)}</td><td>${pct(f.six_month_return)}</td><td>${pct(f.one_year_return)}</td><td>${amount(f.volume)}</td><td>${amount(f.value)}</td><td class="fund-update-time">${esc(formatDate(f.updated_at))}</td></tr>`;
     }).join("");
     updateFundSortIndicators();
   }
@@ -954,7 +1088,7 @@
         try {
           response = await api("/api/funds/scores/batch", {
             method: "POST",
-            body: JSON.stringify({ fund_keys: batch })
+            body: JSON.stringify({ fund_keys: batch, category_id: $("#fund-category")?.value || "" })
           });
         } catch (error) {
           batch.forEach((key) => fundScoreAttemptedKeys.add(key));
@@ -970,13 +1104,22 @@
           returned.add(key);
           fundScoreAttemptedKeys.add(key);
           const listed = state.funds.find((fund) => String(fund.fund_key || fund.symbol) === key);
+          if (listed) {
+            listed.fund_type_key = result.fund_type_key || listed.fund_type_key;
+            listed.fund_type_label = result.fund_type_label || listed.fund_type_label;
+          }
           if (result.technical_score != null) {
             scored += 1;
             if (listed) {
               listed.technical_score = Number(result.technical_score);
+              listed.data_coverage_pct = result.data_coverage_pct;
               listed.medium_term_exit_price = result.medium_term_exit_price;
               listed.purchase_assessment = result.purchase_assessment;
               listed.buy_suitability_rank = result.buy_suitability_rank;
+              listed.risk_score = result.risk_score;
+              listed.relative_strength_score = result.relative_strength_score;
+              listed.score_change_5d = result.score_change_5d;
+              listed.score_change_20d = result.score_change_20d;
             }
           } else {
             unavailable += 1;
@@ -1029,6 +1172,11 @@
         const listedFund = state.funds.find((item) => item.fund_key === symbol || item.symbol === symbol || String(item.rahavard_asset_id || "") === String(id));
         if (listedFund) {
           listedFund.technical_score = Number(a.technical_score);
+          listedFund.data_coverage_pct = a.data_coverage_pct;
+          listedFund.risk_score = a.risk_rank?.score;
+          listedFund.relative_strength_score = a.family_scores?.relative_strength?.score;
+          listedFund.score_change_5d = a.score_change_5d;
+          listedFund.score_change_20d = a.score_change_20d;
           listedFund.medium_term_exit_price = a.medium_term_exit_price;
           listedFund.purchase_assessment = data.purchase_assessment;
           listedFund.buy_suitability_rank = data.purchase_assessment?.rank ?? null;
@@ -1039,7 +1187,7 @@
       const displaySymbol = f.display_symbol || `شناسه ره‌آورد ${id}`;
       const props = [
         ["شناسه ره‌آورد", id], ["نماد معاملاتی", f.display_symbol],
-        ["نوع صندوق", f.category], ["مدیر", f.manager], ["متولی", f.custodian],
+        ["نوع صندوق", a?.fund_type_label || f.category], ["مدیر", f.manager], ["متولی", f.custodian],
         ["قیمت پایانی (ریال)", f.market_price], ["NAV آماری (ریال)", f.nav],
         ["فاصله قیمت از NAV", f.nav_premium_pct == null ? null : `${num(f.nav_premium_pct)}٪`],
         ["ارزش معامله (ریال)", f.value], ["حجم معامله", f.volume],
@@ -1363,9 +1511,15 @@
     if (button) showFund(button.dataset.fund);
   });
   $("#fund-mobile-score-sort").addEventListener("change", (event) => {
-    const direction = event.target.value;
-    fundSortState.key = direction === "buy_suitability_rank" ? direction : direction ? "technical_score" : "data_timestamp";
-    fundSortState.direction = direction === "asc" ? 1 : -1;
+    const sortKeyByOption = {
+      desc: ["technical_score", -1], asc: ["technical_score", 1],
+      buy_suitability_rank: ["buy_suitability_rank", -1],
+      type_asc: ["fund_type_label", 1], type_desc: ["fund_type_label", -1],
+      risk_asc: ["risk_score", 1], risk_desc: ["risk_score", -1],
+      relative_desc: ["relative_strength_score", -1], relative_asc: ["relative_strength_score", 1],
+    };
+    const selected = sortKeyByOption[event.target.value];
+    [fundSortState.key, fundSortState.direction] = selected || ["data_timestamp", -1];
     state.funds = sortedFundItems(state.funds);
     renderFundTable(state.funds);
   });

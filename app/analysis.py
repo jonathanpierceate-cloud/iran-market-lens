@@ -6,6 +6,7 @@ import re
 from typing import Any
 
 from .indicators import compute_indicators
+from .fund_scoring import score_fund_model
 
 
 # Medium-term AliVest score weights for the four factors shown in the analysis.
@@ -13,16 +14,6 @@ MEDIUM_TERM_SCORE_WEIGHTS = {
     "moving_averages": 0.20,
     "volume": 0.30,
     "oscillators": 0.35,
-    "resistance": 0.15,
-}
-
-# Fund analysis cards use their own medium-term model. Generic local-market
-# analysis keeps MEDIUM_TERM_SCORE_WEIGHTS, while dashboard cards use the
-# separate dashboard weights below.
-FUND_CARD_SCORE_WEIGHTS = {
-    "moving_averages": 0.30,
-    "volume": 0.15,
-    "oscillators": 0.40,
     "resistance": 0.15,
 }
 
@@ -285,11 +276,13 @@ def analyze(symbol: str, bars: list[dict[str, Any]],
 
 def analyze_rahavard(symbol: str, payload: dict[str, Any],
                      data_timestamp: str | None = None,
-                     current_price: float | None = None) -> dict[str, Any]:
+                     current_price: float | None = None,
+                     model_context: dict[str, Any] | None = None) -> dict[str, Any]:
     """Describe Rahavard's published indicator readings without recalculating them."""
     data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
     groups = {key: data.get(key) if isinstance(data.get(key), list) else []
               for key in ("oscillators", "moving_averages", "pivots", "bands", "volumes")}
+    fund_model = score_fund_model(groups, current_price, model_context)
     def indicator_values(items: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
         output: dict[str, dict[str, float]] = {}
         for item in items:
@@ -474,26 +467,6 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         resistance_score = max(15.0, 100.0 - len(near_resistances) * 22.0
                                - (10.0 if nearest_resistance_distance is not None and nearest_resistance_distance <= 3 else 0.0))
         resistance_score = round(resistance_score, 1)
-    score_components = {
-        "moving_averages": moving_average_score,
-        "volume": volume_score,
-        "oscillators": oscillator_score,
-        "resistance": resistance_score,
-    }
-    available_components = [
-        (name, value, FUND_CARD_SCORE_WEIGHTS[name])
-        for name, value in score_components.items()
-        if value is not None
-    ]
-    available_weight = sum(weight for _, _, weight in available_components)
-    weighted_score = (
-        round(sum(value * weight for _, value, weight in available_components) / available_weight, 1)
-        if available_weight else None
-    )
-    weighted_contributions = {
-        name: round(value * weight / available_weight, 1)
-        for name, value, weight in available_components
-    } if available_weight else {}
     resistance_pressure = min(22.0, len(near_resistances) * 7.0
                               + (8.0 if nearest_resistance_distance is not None and nearest_resistance_distance <= 3 else 0.0))
     overbought_count = sum(
@@ -615,17 +588,32 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
             "structural_price": structural_exit_price,
             "structural_trigger": "شکست و تثبیت زیر SMA(100) یا حمایت ساختاری ره‌آورد",
         },
-        "technical_score": weighted_score,
-        "score_method": "medium_term_weighted",
-        "score_weights": {name: round(weight * 100) for name, weight in FUND_CARD_SCORE_WEIGHTS.items()},
+        "technical_score": fund_model["technical_score"],
+        "score_method": fund_model["score_method"],
+        "score_origin": "AliVest",
+        "fund_type": fund_model.get("fund_type"),
+        "fund_type_label": fund_model.get("fund_type_label"),
+        "model_profile": fund_model.get("model_profile"),
+        "score_timestamp": data_timestamp,
+        "score_weights": fund_model["score_weights"],
+        "family_scores": fund_model["family_scores"],
+        "data_coverage_pct": fund_model["data_coverage_pct"],
+        "available_family_weight_pct": fund_model["available_family_weight_pct"],
+        "score_band": fund_model["score_band"],
+        "score_validation": fund_model["score_validation"],
+        "risk_rank": fund_model["risk_rank"],
+        "relative_strength": fund_model["relative_strength"],
+        "nav_assessment": fund_model["nav_assessment"],
+        "top_factors": fund_model["top_factors"],
+        "missing_data": fund_model["missing_data"],
+        "score_change_5d": fund_model["score_change_5d"],
+        "score_change_20d": fund_model["score_change_20d"],
         "score_breakdown": {
             "moving_averages": moving_average_score,
             "volume": volume_score,
             "oscillators": oscillator_score,
             "rsi": rsi,
             "resistance": resistance_score,
-            "weighted_contributions": weighted_contributions,
-            "available_weight": round(available_weight * 100),
             "front_resistance_count": len(front_resistances),
             "near_resistance_count": len(near_resistances),
         },
@@ -638,7 +626,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         },
         "signal": signal, "trend": trend, "risk": "unavailable",
         "confidence": None,
-        "confidence_basis": "امتیاز با وزن‌دهی چهار گروه در AliVest محاسبه شده و سیگنال منتشرشده از داشبورد ره‌آورد است.",
+        "confidence_basis": "امتیاز تکنیکال هفت‌گروهی توسط AliVest و بر پایه داده‌های ره‌آورد محاسبه می‌شود؛ امتیاز رسمی ره‌آورد یا احتمال سود نیست.",
         "decision_support": explanation,
         "explanation": explanation, "site_gauges": gauges,
         "indicators": groups, "indicator_notes": notes,
