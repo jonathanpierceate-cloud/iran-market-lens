@@ -9,21 +9,15 @@ from .indicators import compute_indicators
 from .fund_scoring import score_fund_model
 
 
-# Medium-term AliVest score weights for the four factors shown in the analysis.
-MEDIUM_TERM_SCORE_WEIGHTS = {
-    "moving_averages": 0.20,
-    "volume": 0.30,
-    "oscillators": 0.35,
-    "resistance": 0.15,
-}
-
-# Dashboard market cards use a separate medium-term model.
+# Four dashboard assets use the five-family medium-term model.
 DASHBOARD_SCORE_WEIGHTS = {
-    "moving_averages": 0.40,
-    "volume": 0.10,
-    "oscillators": 0.30,
-    "resistance": 0.20,
+    "trend_structure": 0.35,
+    "momentum": 0.25,
+    "support_resistance": 0.15,
+    "entry_quality": 0.15,
+    "volume_confirmation": 0.10,
 }
+MEDIUM_TERM_SCORE_WEIGHTS = DASHBOARD_SCORE_WEIGHTS
 
 
 def _num(item: dict[str, Any] | None) -> float | None:
@@ -90,158 +84,362 @@ def support_resistance(bars: list[dict[str, Any]], indicators: dict[str, Any]) -
 
 def analyze(symbol: str, bars: list[dict[str, Any]],
             weights: dict[str, float] | None = None) -> dict[str, Any]:
-    score_weights = weights or MEDIUM_TERM_SCORE_WEIGHTS
+    score_weights = weights or DASHBOARD_SCORE_WEIGHTS
     tech = compute_indicators(bars)
     indicators = tech["indicators"]
     current = tech.get("latest")
-    ma = tech.get("moving_average_analysis", {})
-    short = _trend(current, _num(indicators.get("EMA(20)")))
-    medium = _trend(current, _num(indicators.get("EMA(50)")), _num(indicators.get("EMA(200)")))
-    long = _trend(current, _num(indicators.get("EMA(200)")))
-
-    rsi = _num(indicators.get("RSI(14)"))
-    ma_score = None
-    if ma.get("price_above_ema20") is not None:
-        checks = [ma.get(k) for k in ["price_above_ema20", "price_above_ema50", "price_above_ema200"]]
-        checks = [x for x in checks if x is not None]
-        ma_score = 100 * sum(checks) / len(checks) if checks else None
     volume = tech.get("volume_analysis", {})
-    vol_score = (65 if volume.get("volume_spike") else 55 if volume.get("volume_trend") == "up" else 45) if volume.get("available") else None
-    rv = _num(indicators.get("RV(30)"))
-    signal_score = 55
-    macd = indicators.get("MACD(12,26,9)", {}).get("signal")
-    if macd == "bullish": signal_score = 80
-    elif macd == "bearish": signal_score = 20
+
+    def numeric(value: Any) -> float | None:
+        try:
+            result = float(value)
+            return result if math.isfinite(result) else None
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+    def indicator_value(key: str, field: str = "value") -> float | None:
+        item = indicators.get(key)
+        return numeric(item.get(field)) if isinstance(item, dict) else None
+
+    def clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
+        return min(high, max(low, value))
+
+    def signed_score(value: float, scale: float) -> float:
+        if scale <= 0:
+            return 50.0
+        return clamp(50.0 + 50.0 * math.tanh(value / scale))
+
+    def weighted_mean(rows: list[tuple[float | None, float]]) -> float | None:
+        valid = [(value, weight) for value, weight in rows
+                 if value is not None and weight > 0]
+        total = sum(weight for _, weight in valid)
+        return sum(value * weight for value, weight in valid) / total if total else None
+
+    # Trend: collapse EMA/SMA duplicates by horizon, then give Ichimoku a
+    # separate, smaller contribution to limit overlapping evidence.
+    period_weights = {20: 0.15, 50: 0.25, 100: 0.25, 200: 0.35}
+    ma_levels: dict[int, float] = {}
+    ma_position_scores: list[tuple[float, float]] = []
+    ma_used: list[str] = []
+    for period, horizon_weight in period_weights.items():
+        readings = [indicator_value(f"{kind}({period})")
+                    for kind in ("EMA", "SMA")]
+        readings = [value for value in readings if value is not None and value > 0]
+        if current is None or current <= 0 or not readings:
+            continue
+        level = sum(readings) / len(readings)
+        ma_levels[period] = level
+        ma_position_scores.append((signed_score((current - level) / level, 0.05), horizon_weight))
+        ma_used.append(f"EMA/SMA({period})" if len(readings) == 2 else (f"EMA({period})" if indicator_value(f"EMA({period})") is not None else f"SMA({period})"))
+    ma_position = weighted_mean(ma_position_scores)
+    ma_alignment_rows = [signed_score((ma_levels[shorter] - ma_levels[longer]) / current, 0.03)
+                         for shorter, longer in zip((20, 50, 100), (50, 100, 200))
+                         if current and shorter in ma_levels and longer in ma_levels]
+    ma_alignment = sum(ma_alignment_rows) / len(ma_alignment_rows) if ma_alignment_rows else None
+    ma_score = weighted_mean([(ma_position, 0.8), (ma_alignment, 0.2)])
+    ma_coverage = (0.8 * len(ma_position_scores) / len(period_weights)
+                   + (0.2 if ma_alignment is not None else 0.0))
+
+    ichi = indicators.get("Ichimoku(9,26,52,26)", {})
+    cloud_low = numeric(ichi.get("senkou_a_at_current")) if isinstance(ichi, dict) else None
+    cloud_high = numeric(ichi.get("senkou_b_at_current")) if isinstance(ichi, dict) else None
+    tenkan = numeric(ichi.get("tenkan")) if isinstance(ichi, dict) else None
+    kijun = numeric(ichi.get("kijun")) if isinstance(ichi, dict) else None
+    ichimoku_parts: list[tuple[float | None, float]] = []
+    if current is not None and current > 0 and cloud_low is not None and cloud_high is not None:
+        low, high = min(cloud_low, cloud_high), max(cloud_low, cloud_high)
+        cloud_score = 50.0 if low <= current <= high else signed_score((current - (high if current > high else low)) / current, 0.03)
+        ichimoku_parts.append((cloud_score, 0.7))
+    if current is not None and current > 0 and tenkan is not None and kijun is not None:
+        ichimoku_parts.append((signed_score((tenkan - kijun) / current, 0.01), 0.3))
+    ichimoku_score = weighted_mean(ichimoku_parts)
+    ichimoku_coverage = 0.7 * (1.0 if cloud_low is not None and cloud_high is not None else 0.0) + 0.3 * (1.0 if tenkan is not None and kijun is not None else 0.0)
+    trend_score = weighted_mean([(ma_score, 0.8), (ichimoku_score, 0.2)])
+    trend_coverage = 0.8 * ma_coverage + 0.2 * ichimoku_coverage
+    trend_used = ma_used + (["Ichimoku cloud / Tenkan / Kijun"] if ichimoku_score is not None else [])
+
+    # Momentum indicators are grouped so several similar oscillators do not
+    # outweigh independent evidence such as MACD, Aroon, or DI direction.
+    momentum_groups: dict[str, list[float]] = {"directional": [], "price_momentum": [], "bounded_oscillators": []}
+    momentum_used: list[str] = []
+    rsi = indicator_value("RSI(14)")
+    if rsi is not None:
+        momentum_groups["bounded_oscillators"].append(clamp(rsi)); momentum_used.append("RSI(14)")
+    cci = indicator_value("CCI(14)")
+    if cci is not None:
+        momentum_groups["price_momentum"].append(clamp(50.0 + clamp(cci, -200.0, 200.0) * 0.15)); momentum_used.append("CCI(14)")
+    stoch_rsi = indicator_value("StochRSI(14)")
+    if stoch_rsi is not None:
+        momentum_groups["bounded_oscillators"].append(clamp(stoch_rsi)); momentum_used.append("StochRSI(14)")
+    wr = indicator_value("WR(14)")
+    if wr is not None:
+        momentum_groups["bounded_oscillators"].append(clamp(wr + 100.0)); momentum_used.append("WR(14)")
+    ao = indicator_value("AO(5,34)")
+    mtm = indicator_value("MTM(6)")
+    if ao is not None and current is not None and current > 0:
+        momentum_groups["price_momentum"].append(signed_score(ao, current * 0.003)); momentum_used.append("AO(5,34)")
+    if mtm is not None and current is not None and current > 0:
+        momentum_groups["price_momentum"].append(signed_score(mtm, current * 0.003)); momentum_used.append("MTM(6)")
+    macd_line = indicator_value("MACD(12,26,9)")
+    macd_histogram = indicator_value("MACD(12,26,9)", "histogram")
+    if macd_line is not None and current is not None and current > 0:
+        line_score = signed_score(macd_line, current * 0.01)
+        macd_score = weighted_mean([(line_score, 0.55),
+                                    (signed_score(macd_histogram, current * 0.003) if macd_histogram is not None else None, 0.45)])
+        momentum_groups["directional"].append(macd_score); momentum_used.append("MACD(12,26,9)")
+    adx_item = indicators.get("ADX(14)", {})
+    adx_value = indicator_value("ADX(14)")
+    plus_di = numeric(adx_item.get("plus_di")) if isinstance(adx_item, dict) else None
+    minus_di = numeric(adx_item.get("minus_di")) if isinstance(adx_item, dict) else None
+    if adx_value is not None and plus_di is not None and minus_di is not None:
+        di_direction = 1 if plus_di > minus_di else -1 if plus_di < minus_di else 0
+        momentum_groups["directional"].append(clamp(50 + di_direction * 50 * min(1.0, adx_value / 40.0)))
+        momentum_used.append("ADX(14) + DI+/DI−")
+    aroon_item = indicators.get("Aroon(25)", {})
+    aroon_up = numeric(aroon_item.get("up")) if isinstance(aroon_item, dict) else None
+    aroon_down = numeric(aroon_item.get("down")) if isinstance(aroon_item, dict) else None
+    if aroon_up is not None and aroon_down is not None:
+        momentum_groups["directional"].append(clamp(50.0 + (aroon_up - aroon_down) / 2.0))
+        momentum_used.append("Aroon(25)")
+    if volume.get("available"):
+        mfi = indicator_value("MFI(14)")
+        if mfi is not None:
+            momentum_groups["bounded_oscillators"].append(clamp(mfi)); momentum_used.append("MFI(14)")
+    group_scores = [sum(values) / len(values) for values in momentum_groups.values() if values]
+    momentum_score = sum(group_scores) / len(group_scores) if group_scores else None
+    momentum_coverage = len(momentum_used) / 10.0
+
     levels = support_resistance(bars, tech)
-    supports = [x for x in levels if x["kind"] == "support"]
-    resistances = [x for x in levels if x["kind"] == "resistance"]
-    nearest_support = max((x for x in supports if x["midpoint"] < current), key=lambda x: x["midpoint"], default=None) if current is not None else None
-    nearest_resistance = min((x for x in resistances if x["midpoint"] > current), key=lambda x: x["midpoint"], default=None) if current is not None else None
-    front_resistances = [x["midpoint"] for x in resistances if current is not None and x["midpoint"] > current]
-    near_resistances = [value for value in front_resistances if (value - current) / current <= 0.10] if current else []
-    nearest_front_resistance = min(front_resistances) if front_resistances else None
-    resistance_distance = ((nearest_front_resistance - current) / current * 100
-                           if nearest_front_resistance is not None and current else None)
-    resistance_score = None
-    if current is not None:
-        resistance_score = max(15.0, 100.0 - len(near_resistances) * 22.0
-                               - (10.0 if resistance_distance is not None and resistance_distance <= 3 else 0.0))
-    oscillator_score = signal_score if rsi is not None or macd else None
-    if oscillator_score is not None and rsi is not None:
-        if rsi >= 80:
-            oscillator_score = min(oscillator_score, 20.0)
-        elif rsi >= 70:
-            oscillator_score = min(oscillator_score, 40.0)
-    score_components = {
-        "moving_averages": ma_score,
-        "volume": vol_score,
-        "oscillators": oscillator_score,
-        "resistance": resistance_score,
+    supports = [row for row in levels if row["kind"] == "support"]
+    resistances = [row for row in levels if row["kind"] == "resistance"]
+    nearest_support = max((row for row in supports if current is not None and row["midpoint"] < current),
+                          key=lambda row: row["midpoint"], default=None)
+    nearest_resistance = min((row for row in resistances if current is not None and row["midpoint"] > current),
+                             key=lambda row: row["midpoint"], default=None)
+    front_resistances = [row["midpoint"] for row in resistances if current is not None and row["midpoint"] > current]
+    near_resistances = [value for value in front_resistances if current and (value - current) / current <= 0.10]
+    atr = indicator_value("ATR(14)")
+    sr_parts: list[tuple[float | None, float]] = []
+    sr_used: list[str] = []
+    if current is not None and current > 0 and nearest_support:
+        distance = max(0.0, (current - nearest_support["midpoint"]) / (atr if atr and atr > 0 else current * 0.03))
+        sr_parts.append((clamp(78.0 - distance * 13.0, 25.0, 78.0), 0.4))
+        sr_used.append("حمایت نزدیک")
+    if current is not None and current > 0 and nearest_resistance:
+        headroom = max(0.0, (nearest_resistance["midpoint"] - current) / (atr if atr and atr > 0 else current * 0.03))
+        sr_parts.append((clamp(28.0 + headroom * 14.0, 28.0, 88.0), 0.4))
+        sr_used.append("مقاومت نزدیک")
+    classic_pivot = numeric((tech.get("pivots", {}).get("Classic") or {}).get("pivot"))
+    if current is not None and current > 0 and classic_pivot is not None:
+        sr_parts.append((signed_score((current - classic_pivot) / current, 0.01), 0.2))
+        sr_used.append("پیوت مرکزی")
+    support_resistance_score = weighted_mean(sr_parts)
+    support_resistance_coverage = len(sr_parts) / 3.0
+    near_resistance_distance = ((nearest_resistance["midpoint"] - current) / current * 100
+                                if nearest_resistance and current else None)
+    support_distance = ((current - nearest_support["midpoint"]) / current * 100
+                        if nearest_support and current else None)
+
+    # Entry quality is kept separate from direction: extension from EMA50,
+    # position within the Bollinger range, and available volatility evidence.
+    quality_parts: list[float] = []
+    ema50 = indicator_value("EMA(50)")
+    ema50_distance_atr = None
+    if current is not None and current > 0 and ema50 is not None:
+        if atr is not None and atr > 0:
+            ema50_distance_atr = abs(current - ema50) / atr
+            quality_parts.append(clamp(100.0 - max(0.0, ema50_distance_atr - 0.5) * 18.0, 10.0, 100.0))
+        else:
+            quality_parts.append(clamp(100.0 - abs(current - ema50) / current * 800.0, 20.0, 100.0))
+    bb_pct_b = indicator_value("BB(20)", "%B")
+    if bb_pct_b is not None:
+        quality_parts.append(clamp(100.0 - abs(bb_pct_b - 0.5) * 100.0, 20.0, 100.0))
+    rv30 = indicator_value("RV(30)")
+    atr_pct = (atr / current * 100.0) if atr is not None and current is not None and current > 0 else None
+    risk_metric = rv30 if rv30 is not None else (atr_pct * math.sqrt(252.0) if atr_pct is not None else None)
+    risk_basis = "RV(30) سالانه‌شده" if rv30 is not None else "برآورد نوسان سالانه از ATR(14) نسبی" if atr_pct is not None else None
+    risk_score = clamp((risk_metric / 60.0) * 100.0) if risk_metric is not None else None
+    if risk_score is not None:
+        quality_parts.append(clamp(100.0 - risk_score * 0.8))
+    entry_quality_score = sum(quality_parts) / len(quality_parts) if quality_parts else None
+    entry_quality_coverage = len(quality_parts) / 3.0
+
+    daily_return_pct = ((current / bars[-2]["close"] - 1.0) * 100.0
+                        if current is not None and len(bars) > 1 and bars[-2].get("close") else None)
+    daily_direction = 1 if daily_return_pct is not None and daily_return_pct > 0 else -1 if daily_return_pct is not None and daily_return_pct < 0 else 0
+    volume_parts: list[float] = []
+    volume_used: list[str] = []
+    obv_item = indicators.get("OBV(20)", {})
+    obv_value = numeric(obv_item.get("value")) if isinstance(obv_item, dict) else None
+    obv_average = numeric(obv_item.get("obv_sma20")) if isinstance(obv_item, dict) else None
+    if obv_value is not None and obv_average is not None:
+        volume_parts.append(75.0 if obv_value > obv_average else 25.0 if obv_value < obv_average else 50.0)
+        volume_used.append("OBV(20)")
+    last_volume = numeric(volume.get("last_volume"))
+    volume_average = numeric(volume.get("volume_sma20"))
+    relative_volume = last_volume / volume_average if last_volume is not None and volume_average and volume_average > 0 else None
+    if relative_volume is not None and daily_direction:
+        volume_parts.append(clamp(50.0 + daily_direction * min(35.0, max(0.0, relative_volume - 1.0) * 25.0)))
+        volume_used.append("حجم نسبی روزانه")
+    vmacd = indicator_value("VMACD(12,26)")
+    if vmacd is not None and daily_direction:
+        volume_parts.append(50.0 + daily_direction * 25.0 if vmacd > 0 else 50.0)
+        volume_used.append("VMACD(12,26)")
+    vrsi = indicator_value("VRSI(14)")
+    if vrsi is not None and daily_direction:
+        volume_parts.append(clamp(50.0 + daily_direction * (vrsi - 50.0) * 0.5))
+        volume_used.append("VRSI(14)")
+    volume_score = sum(volume_parts) / len(volume_parts) if volume_parts else None
+    volume_coverage = len(volume_parts) / 4.0
+
+    family_data = {
+        "trend_structure": (trend_score, trend_coverage, trend_used),
+        "momentum": (momentum_score, momentum_coverage, momentum_used),
+        "support_resistance": (support_resistance_score, support_resistance_coverage, sr_used),
+        "entry_quality": (entry_quality_score, entry_quality_coverage,
+                          [name for name, present in (("فاصله از EMA50", ema50 is not None),
+                          ("موقعیت در باند بولینگر", bb_pct_b is not None),
+                          ("معیار نوسان", risk_metric is not None)) if present]),
+        "volume_confirmation": (volume_score, volume_coverage, volume_used),
     }
-    available_components = [
-        (name, value, score_weights[name])
-        for name, value in score_components.items()
-        if value is not None
-    ]
-    total_weight = sum(weight for _, _, weight in available_components)
-    score = (sum(value * weight for _, value, weight in available_components) / total_weight
-             if total_weight else None)
-    weighted_contributions = {
-        name: round(value * weight / total_weight, 1)
-        for name, value, weight in available_components
-    } if total_weight else {}
-    factors = [
-        {"name": name, "score": value, "weight": weight,
-         "evidence": medium if name == "moving_averages" else "volume analysis" if name == "volume"
-         else f"MACD={macd}; RSI={rsi}" if name == "oscillators" else f"{len(near_resistances)} nearby resistance levels"}
-        for name, value, weight in available_components
-    ]
-    confidence = round(100 * min(1, len(bars) / 200) * total_weight, 0)
-
-    explanation = [f"{factor['name']}: {factor['evidence']}" for factor in factors]
-    if score is None:
-        signal = "unavailable"
-    elif score >= 80 and confidence >= 35:
-        signal = "strong_buy"
-    elif score >= 62 and confidence >= 25:
-        signal = "buy"
-    elif score <= 25 and confidence >= 35:
-        signal = "strong_sell"
-    elif score <= 40 and confidence >= 25:
-        signal = "sell"
+    momentum_expected = ["RSI(14)", "CCI(14)", "StochRSI(14)", "WR(14)", "AO(5,34)",
+                         "MTM(6)", "MACD(12,26,9)", "ADX(14) + DI+/DI−", "Aroon(25)", "MFI(14)"]
+    family_expected = {
+        "trend_structure": ([f"EMA/SMA({period})" for period in period_weights]
+                            + ["چیدمان میانگین‌ها", "ابر ایچیموکو"]),
+        "momentum": momentum_expected,
+        "support_resistance": ["حمایت نزدیک", "مقاومت نزدیک", "پیوت مرکزی"],
+        "entry_quality": ["فاصله از EMA50", "موقعیت در باند بولینگر", "معیار نوسان"],
+        "volume_confirmation": ["OBV(20)", "حجم نسبی روزانه", "VMACD(12,26)", "VRSI(14)"],
+    }
+    family_present = {
+        "trend_structure": ([f"EMA/SMA({period})" for period in ma_levels]
+                            + (["چیدمان میانگین‌ها"] if ma_alignment is not None else [])
+                            + (["ابر ایچیموکو"] if ichimoku_score is not None else [])),
+        "momentum": momentum_used,
+        "support_resistance": sr_used,
+        "entry_quality": [name for name, present in (("فاصله از EMA50", ema50 is not None),
+                         ("موقعیت در باند بولینگر", bb_pct_b is not None),
+                         ("معیار نوسان", risk_metric is not None)) if present],
+        "volume_confirmation": volume_used,
+    }
+    family_scores = {
+        key: {"score": round(score, 1) if score is not None else None,
+              "coverage_pct": round(coverage * 100.0, 1), "indicators": used,
+              "missing_indicators": [name for name in family_expected[key]
+                                     if name not in family_present[key]]}
+        for key, (score, coverage, used) in family_data.items()
+    }
+    available_families = [(key, family_data[key][0], score_weights[key])
+                          for key in score_weights if family_data[key][0] is not None]
+    available_weight = sum(weight for _, _, weight in available_families)
+    technical_score = (sum(value * weight for _, value, weight in available_families) / available_weight
+                       if available_weight else None)
+    effective_weights = {key: round(weight / available_weight * 100.0, 1)
+                         for key, _, weight in available_families} if available_weight else {}
+    data_coverage = (sum(score_weights[key] * family_data[key][1] for key in score_weights)
+                     / sum(score_weights.values()) * 100.0)
+    direction_score = weighted_mean([(trend_score, 0.65), (momentum_score, 0.35)])
+    if direction_score is None:
+        direction = "unavailable"
+    elif direction_score >= 60:
+        direction = "bullish"
+    elif direction_score <= 40:
+        direction = "bearish"
     else:
-        signal = "hold"
+        direction = "neutral"
 
-    atr = _num(indicators.get("ATR(14)"))
-    scenarios = []
-    bullish_probability = 50
-    bearish_probability = 50
-    correction_probability = 50
-    correction_label = "متوسط"
-    if current is not None:
-        bullish_probability = max(5, min(95, round(float(score if score is not None else 50) + (8 if medium == "bullish" else -8 if medium == "bearish" else 0))))
-        bearish_probability = 100 - bullish_probability
-        resistance_pressure = min(22.0, len(near_resistances) * 7.0
-                                  + (8.0 if resistance_distance is not None and resistance_distance <= 3 else 0.0))
-        overbought_count = 1 if rsi is not None and rsi >= 70 else 0
-        correction_probability = round(max(5.0, min(95.0,
-            bearish_probability * 0.65 + resistance_pressure + min(18.0, overbought_count * 6.0)
-            + (8.0 if medium == "bearish" else 0.0))))
-        correction_label = "بالا" if correction_probability >= 55 else "متوسط" if correction_probability >= 30 else "پایین"
-        bullish_reasons = [f"امتیاز فنی فعلی {score:.1f} از ۱۰۰ است" if score is not None else "امتیاز فنی کامل در دسترس نیست"]
-        bearish_reasons = [f"امتیاز فنی فعلی {score:.1f} از ۱۰۰ هنوز تأیید قطعی صعود نیست" if score is not None else "امتیاز فنی کامل در دسترس نیست"]
-        if medium == "bullish":
-            bullish_reasons.append("روند میان‌مدت صعودی و قیمت بالای میانگین مرجع است")
-        elif medium == "bearish":
-            bearish_reasons.append("روند میان‌مدت نزولی و قیمت زیر میانگین مرجع است")
-        if rsi is not None and rsi >= 70:
-            bearish_reasons.append("RSI در ناحیه خریدزدگی است و احتمال اصلاح کوتاه‌مدت را بالا می‌برد")
-        elif rsi is not None and rsi <= 30:
-            bullish_reasons.append("RSI در ناحیه فروش‌زدگی است و امکان برگشت را مطرح می‌کند")
-        if macd == "bullish":
-            bullish_reasons.append("MACD شتاب صعودی را تأیید می‌کند")
-        elif macd == "bearish":
-            bearish_reasons.append("MACD شتاب نزولی را تأیید می‌کند")
-        scenarios = [
-            {"name": "صعودی", "direction": "bullish", "condition": "قیمت بالای مقاومت نزدیک تثبیت شود",
-             "target": current + 2 * (atr or 0) if atr is not None else None,
-             "support": nearest_support, "resistance": nearest_resistance,
-             "confidence": None, "probability": bullish_probability,
-             "confidence_status": "احتمال تحلیلی و بدون بک‌تست کالیبره‌شده",
-             "reason": "؛ ".join(bullish_reasons),
-             "risk": "هدف سناریویی بر اساس ۲×ATR است و پیش‌بینی قطعی نیست."},
-            {"name": "نزولی", "direction": "bearish", "condition": "حمایت نزدیک با تأیید حجم شکسته شود",
-             "target": current - 2 * (atr or 0) if atr is not None else None,
-             "support": nearest_support, "resistance": nearest_resistance,
-             "confidence": None, "probability": bearish_probability,
-             "confidence_status": "احتمال تحلیلی و بدون بک‌تست کالیبره‌شده",
-             "reason": "؛ ".join(bearish_reasons),
-             "risk": "هدف سناریویی بر اساس ۲×ATR است و پیش‌بینی قطعی نیست."},
-        ]
+    if technical_score is None:
+        score_band = "unavailable"
+    elif technical_score >= 80:
+        score_band = "very_strong"
+    elif technical_score >= 70:
+        score_band = "strong"
+    elif technical_score >= 60:
+        score_band = "relatively_positive"
+    elif technical_score >= 45:
+        score_band = "neutral"
+    elif technical_score >= 30:
+        score_band = "weak"
+    else:
+        score_band = "very_weak"
 
-    if rv is None:
+    if risk_metric is None:
         risk = "unavailable"
-    elif rv >= 45:
-        risk = "very_high"
-    elif rv >= 30:
-        risk = "high"
-    elif rv >= 15:
-        risk = "medium"
-    else:
+    elif risk_metric < 15:
         risk = "low"
-    exit_support = min((x["midpoint"] for x in supports if current is not None and x["midpoint"] < current), default=None)
-    sma50 = _num(indicators.get("SMA(50)"))
-    ema50 = _num(indicators.get("EMA(50)"))
-    sma100 = _num(indicators.get("SMA(100)"))
-    ema100 = _num(indicators.get("EMA(100)"))
+    elif risk_metric < 30:
+        risk = "medium"
+    elif risk_metric < 45:
+        risk = "high"
+    else:
+        risk = "very_high"
+    risk_label = {"low": "کم", "medium": "متوسط", "high": "زیاد", "very_high": "بسیار زیاد", "unavailable": "نامشخص"}[risk]
+
+    di_agrees = (None if direction == "unavailable" or plus_di is None or minus_di is None
+                 else (plus_di > minus_di if direction == "bullish" else plus_di < minus_di if direction == "bearish" else False))
+    if direction in {"neutral", "unavailable"}:
+        trend_strength = "weak"
+    elif adx_value is not None:
+        if di_agrees is False:
+            trend_strength = "weak"
+        else:
+            trend_strength = "strong" if adx_value >= 25 else "medium" if adx_value >= 20 else "weak"
+    else:
+        directional_evidence = [score for score in [*([value for value, _ in ma_position_scores]),
+                              ichimoku_score, momentum_score] if score is not None]
+        aligned = [value for value in directional_evidence
+                   if (value >= 55 if direction == "bullish" else value <= 45)]
+        agreement = len(aligned) / len(directional_evidence) if directional_evidence else 0.0
+        trend_strength = "strong" if len(directional_evidence) >= 3 and agreement >= 0.8 else "medium" if agreement >= 0.6 else "weak"
+
+    entry_label = ("unavailable" if entry_quality_score is None else "suitable" if entry_quality_score >= 65
+                   else "confirmation" if entry_quality_score >= 45 else "unsuitable")
+    quality_label = {"suitable": "مناسب", "confirmation": "نیازمند تأیید",
+                     "unsuitable": "نامناسب", "unavailable": "داده کافی نیست"}[entry_label]
+    coverage_level = "high" if data_coverage >= 75 else "medium" if data_coverage >= 50 else "low"
+    confidence_level = {"high": "بالا", "medium": "متوسط", "low": "پایین"}[coverage_level]
+
+    family_names = {"trend_structure": "روند و ساختار", "momentum": "مومنتوم",
+                    "support_resistance": "حمایت و مقاومت", "entry_quality": "کیفیت ورود",
+                    "volume_confirmation": "تأیید حجم"}
+    valid_scores = [(key, float(value)) for key, value, _ in available_families]
+    positive_evidence = [{"family": key, "name": family_names[key], "score": round(value, 1)}
+                         for key, value in sorted(valid_scores, key=lambda row: row[1], reverse=True) if value >= 60][:2]
+    negative_evidence = [{"family": key, "name": family_names[key], "score": round(value, 1)}
+                         for key, value in sorted(valid_scores, key=lambda row: row[1]) if value <= 40][:2]
+    factors = [{"name": key, "score": round(float(value), 1), "weight": score_weights[key],
+                "evidence": ", ".join(family_data[key][2])}
+               for key, value, _ in available_families]
+
+    support_levels = [row for row in supports if row.get("midpoint") is not None]
+    resistance_levels = [row for row in resistances if row.get("midpoint") is not None]
+    exit_support = min((row["midpoint"] for row in supports if current is not None and row["midpoint"] < current), default=None)
+    sma50 = indicator_value("SMA(50)")
+    ema100 = indicator_value("EMA(100)")
+    sma100 = indicator_value("SMA(100)")
     immediate_exit_base = sma50 or ema50 or (nearest_support["midpoint"] if nearest_support else None)
     structural_exit_base = sma100 or ema100 or exit_support
     medium_term_exit_price = round(immediate_exit_base * 0.995) if immediate_exit_base is not None else None
     structural_exit_price = round(structural_exit_base * 0.998) if structural_exit_base is not None else None
     if structural_exit_price is not None and medium_term_exit_price is not None and structural_exit_price >= medium_term_exit_price:
         structural_exit_price = round(medium_term_exit_price * 0.985)
+
+    limitations = []
+    if volume_score is None:
+        limitations.append("حجم معتبر برای این دارایی در دادهٔ فعلی موجود نیست و وزن این عامل حذف شد.")
+    if support_resistance_score is None:
+        limitations.append("سطح معتبر حمایت، مقاومت یا پیوت در دادهٔ فعلی موجود نیست.")
+    if risk_metric is None:
+        limitations.append("ATR و نوسان تحقق‌یافته برای برآورد ریسک در دسترس نیست.")
+    if symbol == "GOLD":
+        limitations.append("حجم اونس ممکن است حجم نمایندهٔ کل بازار نباشد؛ به‌عنوان تأیید محدود خوانده شود.")
+    elif symbol == "USD_IR_FREE":
+        limitations.append("حجم تتر از منبع محدود است و نمایندهٔ کل بازار OTC نیست.")
+
     return {
-        "symbol": symbol, "data_timestamp": bars[-1].get("timestamp"), "price": current,
+        "symbol": symbol, "data_timestamp": bars[-1].get("timestamp") if bars else None,
+        "price": current, "daily_return_pct": daily_return_pct,
         "medium_term_exit_price": medium_term_exit_price,
         "structural_exit_price": structural_exit_price,
         "medium_term_exit": {
@@ -251,28 +449,50 @@ def analyze(symbol: str, bars: list[dict[str, Any]],
             "structural_price": structural_exit_price,
             "structural_trigger": "شکست و تثبیت زیر SMA(100) یا حمایت ساختاری",
         },
-        "trend": medium, "short_term_trend": short, "medium_term_trend": medium,
-        "long_term_trend": long, "technical_score": round(score, 1) if score is not None else None,
-        "score_method": "dashboard_four_factor_medium_term_v1",
-        "score_origin": "AliVest",
-        "score_profile": "dashboard_medium_term",
+        "trend": direction, "short_term_trend": _trend(current, indicator_value("EMA(20)")),
+        "medium_term_trend": direction, "long_term_trend": _trend(current, indicator_value("EMA(200)")),
+        "trend_direction_score": round(direction_score, 1) if direction_score is not None else None,
+        "trend_strength": trend_strength,
+        "technical_score": round(technical_score, 1) if technical_score is not None else None,
+        "score_method": "dashboard_five_family_medium_term_v1",
+        "score_origin": "AliVest", "score_profile": "four_assets_medium_term_initial",
         "score_weights": {name: round(weight * 100) for name, weight in score_weights.items()},
+        "effective_score_weights": effective_weights,
+        "family_scores": family_scores,
+        "score_band": score_band,
+        "score_validation": "initial_unbacktested",
         "score_breakdown": {
-            **score_components, "rsi": rsi, "weighted_contributions": weighted_contributions,
-            "available_weight": round(total_weight * 100),
-            "front_resistance_count": len(front_resistances),
-            "near_resistance_count": len(near_resistances),
+            **{key: value[0] for key, value in family_data.items()},
+            "family_coverage_pct": {key: round(value[1] * 100.0, 1) for key, value in family_data.items()},
+            "available_weight": round(available_weight * 100.0, 1),
+            "direction_score": round(direction_score, 1) if direction_score is not None else None,
+            "rsi": rsi, "atr_pct": round(atr_pct, 3) if atr_pct is not None else None,
+            "realized_volatility_pct": rv30, "relative_volume": round(relative_volume, 2) if relative_volume is not None else None,
+            "ema50_distance_atr": round(ema50_distance_atr, 2) if ema50_distance_atr is not None else None,
+            "support_distance_pct": round(support_distance, 2) if support_distance is not None else None,
+            "resistance_distance_pct": round(near_resistance_distance, 2) if near_resistance_distance is not None else None,
+            "front_resistance_count": len(front_resistances), "near_resistance_count": len(near_resistances),
         },
-        "trend_probabilities": {"bullish": bullish_probability, "bearish": bearish_probability},
-        "correction_risk": {"probability": correction_probability, "label": correction_label},
-        "confidence": confidence, "confidence_basis": "پوشش عوامل قابل محاسبه و طول تاریخچه؛ احتمال موفقیت نیست",
-        "risk": risk, "signal": signal,
-        "factors": factors, "explanation": explanation, "indicators": tech,
-        "support_resistance": levels,
+        "data_coverage_pct": round(data_coverage, 1),
+        "available_family_weight_pct": round(available_weight * 100.0, 1),
+        "confidence": round(data_coverage, 1), "confidence_level": coverage_level,
+        "confidence_label": confidence_level,
+        "confidence_basis": "میزان دسترسی و پوشش داده‌های پنج خانواده؛ این عدد احتمال موفقیت معامله نیست.",
+        "risk": risk, "risk_score": round(risk_score, 1) if risk_score is not None else None,
+        "risk_label": risk_label, "risk_basis": risk_basis,
+        "entry_quality": {"score": round(entry_quality_score, 1) if entry_quality_score is not None else None,
+                          "status": entry_label, "label": quality_label},
+        "signal": direction,
+        "factors": factors, "positive_evidence": positive_evidence,
+        "negative_evidence": negative_evidence,
+        "explanation": [f"{family_names[item['name']]}: {item['evidence']}" for item in factors],
+        "volume_data_note": ("حجم خام منبع با احتیاط تفسیر شود و لزوماً کل بازار را پوشش نمی‌دهد."
+                             if symbol in {"GOLD", "USD_IR_FREE"} else None),
+        "data_limitations": limitations,
+        "indicators": tech, "support_resistance": levels,
+        "support_levels": support_levels, "resistance_levels": resistance_levels,
         "nearest_support": nearest_support, "nearest_resistance": nearest_resistance,
-        "scenarios": scenarios,
-        "scenario_note": "احتمال‌ها برآورد تحلیلی بر پایه امتیاز، روند و مومنتوم هستند؛ پیش‌بینی قطعی یا بک‌تست‌شده نیستند.",
-        "decision_support": "شرایط مدل برای بررسی بیشتر مناسب‌تر است" if signal in ("buy", "strong_buy") else "مدل فعلی ورود را تأیید نمی‌کند" if signal in ("sell", "strong_sell") else "برای تصمیم‌گیری داده/تأیید بیشتری لازم است",
+        "decision_support": "این خروجی جمع‌بندی تکنیکال وضعیت فعلی است، نه توصیهٔ قطعی خرید یا فروش.",
     }
 
 

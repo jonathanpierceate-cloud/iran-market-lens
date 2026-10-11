@@ -164,6 +164,9 @@ def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None)
     except (TypeError, ValueError, OverflowError):
         output["price_is_cached"] = bool(is_stale)
     output["analysis"] = analyze(symbol, bars, weights=analysis_weights)
+    output["analysis"]["source"] = output.get("source")
+    output["analysis"]["data_timestamp"] = observed_timestamp
+    output["analysis"]["daily_return_pct"] = returns.get("daily")
     output["analysis"]["price_is_cached"] = output["price_is_cached"]
     return output
 

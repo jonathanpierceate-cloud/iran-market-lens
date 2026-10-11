@@ -11,8 +11,8 @@
   <link rel="manifest" href="/static/manifest.webmanifest">
   <title>AliVest | تحلیل سرمایه‌گذاری</title>
   <link rel="stylesheet" href="/static/app.css?v=market-summary-20261007">
-  <link rel="stylesheet" href="/static/analysis.css?v=watchlist-combined-pnl-20261011">
-  <link rel="stylesheet" href="/static/design.css?v=watchlist-combined-pnl-20261011">
+  <link rel="stylesheet" href="/static/analysis.css?v=four-asset-five-family-score-20261011">
+  <link rel="stylesheet" href="/static/design.css?v=four-asset-score-comparison-20261011">
 </head>
 <body>
   <div class="app-shell">
@@ -91,6 +91,11 @@
           </article>
         </div>
 
+        <section class="panel asset-comparison-panel" aria-labelledby="asset-comparison-title">
+          <div class="asset-comparison-heading"><div><span class="panel-kicker">نمای مقایسه‌ای · افق ۳ تا ۶ ماه</span><h2 id="asset-comparison-title">مقایسه تکنیکال چهار دارایی</h2></div><small>امتیاز مدل اختصاصی AliVest · بر پایه داده‌های موجود ره‌آورد</small></div>
+          <div class="asset-comparison-scroll"><table class="asset-comparison-table"><thead><tr><th scope="col">دارایی</th><th scope="col">امتیاز</th><th scope="col">جهت میان‌مدت</th><th scope="col">قدرت روند</th><th scope="col">ریسک</th><th scope="col">کیفیت ورود</th></tr></thead><tbody id="overview-asset-comparison-body"><tr><td colspan="6">در انتظار دریافت داده</td></tr></tbody></table></div>
+        </section>
+
         <section class="section-heading"><div><h2>تحلیل دارایی‌ها</h2><p>برای بازکردن تحلیل، کارت هر دارایی را انتخاب کن.</p></div><span class="section-note"><i class="status-dot"></i> تحلیل‌ها در همین داشبورد باز می‌شوند</span></section>
         <div class="dashboard-analysis-stack">
           <article class="panel market-analysis-panel hidden" data-analysis-panel="gold"><div class="panel-heading"><div><span class="panel-kicker">XAU/USD · ره‌آورد۳۶۵</span><h3>تحلیل تکنیکال طلای جهانی</h3></div><span id="gold-analysis-status" class="freshness"><i></i> در حال دریافت</span></div><div id="gold-analysis" class="analysis-content"><div class="empty-state compact"><b>داده کافی برای تحلیل موجود نیست</b><small>شاخص‌ها پس از دریافت داده نمایش داده می‌شوند.</small></div></div></article>
@@ -158,6 +163,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=fund-six-family-no-relative-20261011"></script>
+  <script src="/static/app.js?v=four-asset-five-family-score-20261011"></script>
 </body>
 </html>

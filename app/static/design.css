@@ -117,6 +117,26 @@ button, a, .market-card, .panel, input, select { transition: background-color .1
 .button-quiet:hover { background: #243941; border-color: #52716f; }
 
 .market-strip { gap: 16px; }
+.asset-comparison-panel { margin: 18px 0 8px; padding: 16px 18px; }
+.asset-comparison-heading { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin-bottom: 10px; }
+.asset-comparison-heading h2 { margin: 3px 0 0; color: #e5efec; font-size: 18px; }
+.asset-comparison-heading>small { color: #8fa8ab; font-size: 11px; }
+.asset-comparison-scroll { width: 100%; overflow-x: auto; }
+.asset-comparison-table { width: 100%; min-width: 650px; border-collapse: collapse; }
+.asset-comparison-table th, .asset-comparison-table td { padding: 11px 12px; border-bottom: 1px solid rgba(112,157,157,.16); text-align: right; white-space: nowrap; }
+.asset-comparison-table thead th { color: #91aaa9; font-size: 11px; font-weight: 600; }
+.asset-comparison-table tbody th { color: #dce9e6; font-size: 12px; font-weight: 650; }
+.asset-comparison-table tbody td { color: #b8c9c8; font-size: 12px; }
+.asset-comparison-table tbody tr:last-child th, .asset-comparison-table tbody tr:last-child td { border-bottom: 0; }
+.asset-comparison-tag { display: inline-flex; padding: 4px 9px; border: 1px solid #364e56; border-radius: 99px; background: rgba(13,28,35,.5); }
+.asset-comparison-tag.bullish { color: #73d7b0; border-color: rgba(66,183,141,.32); }
+.asset-comparison-tag.bearish { color: #f0929d; border-color: rgba(220,105,119,.34); }
+.asset-comparison-tag.neutral, .asset-comparison-tag.unavailable { color: #d0b978; border-color: rgba(216,167,78,.3); }
+.light-mode .asset-comparison-heading h2, .light-mode .asset-comparison-table tbody th { color: #29453e; }
+.light-mode .asset-comparison-heading>small, .light-mode .asset-comparison-table thead th { color: #647b75; }
+.light-mode .asset-comparison-table th, .light-mode .asset-comparison-table td { border-color: #e3ece7; }
+.light-mode .asset-comparison-table tbody td { color: #3e5a52; }
+.light-mode .asset-comparison-tag { background: #f5f8f6; }
 .market-card, .panel {
   background: linear-gradient(145deg, #1a2931, #17252d);
   border: 1px solid #2d4148;

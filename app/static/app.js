@@ -530,65 +530,80 @@
   }
 
   function dashboardModelRecommendationHtml(a) {
-    const breakdown = a.score_breakdown || {};
-    const weights = a.score_weights || {};
     const finite = (value) => value != null && Number.isFinite(Number(value));
     const scoreValue = finite(a.technical_score) ? Number(a.technical_score) : null;
     const scoreTone = scoreValue == null ? "unknown" : scoreValue >= 60 ? "positive" : scoreValue < 45 ? "negative" : "neutral";
-    const trendLabels = { bullish: "صعودی", bearish: "نزولی", neutral: "خنثی", unavailable: "نامشخص" };
-    const trend = trendLabels[a.medium_term_trend] || "نامشخص";
-    const volume = a.indicators?.volume_analysis || {};
-    const volumeTrendLabels = { up: "افزایشی", down: "کاهشی", flat: "بدون تغییر" };
-    const indicatorValues = a.indicators?.indicators || {};
-    const macd = indicatorValues["MACD(12,26,9)"] || {};
-    const macdSignal = macd.signal === "bullish" ? "صعودی" : macd.signal === "bearish" ? "نزولی" : macd.signal === "neutral" ? "خنثی" : null;
-    const rsi = finite(breakdown.rsi) ? Number(breakdown.rsi) : null;
-    const resistanceCount = finite(breakdown.near_resistance_count) ? Number(breakdown.near_resistance_count) : null;
-    const frontCount = finite(breakdown.front_resistance_count) ? Number(breakdown.front_resistance_count) : null;
-    const nearestResistance = a.nearest_resistance?.midpoint;
-    const scoreWeightText = "مدل میان‌مدتی · روند " + num(weights.moving_averages ?? 40, 0) + "٪ · حجم " + num(weights.volume ?? 10, 0) + "٪ · نوسان‌گر " + num(weights.oscillators ?? 30, 0) + "٪ · مقاومت " + num(weights.resistance ?? 20, 0) + "٪";
-    const signalLabels = { strong_buy: "خرید قوی", buy: "خرید", hold: "صبر", sell: "فروش", strong_sell: "فروش قوی", unavailable: "داده کافی نیست" };
-    const signal = signalLabels[a.signal] || "داده کافی نیست";
-    const probabilities = a.trend_probabilities || {};
-    const bullish = finite(probabilities.bullish) ? Number(probabilities.bullish) : null;
-    const bearish = finite(probabilities.bearish) ? Number(probabilities.bearish) : null;
-    const correction = a.correction_risk || {};
-    const correctionProbability = finite(correction.probability) ? Number(correction.probability) : null;
-    const correctionLabel = correction.label || "نامشخص";
-    const availableWeight = finite(breakdown.available_weight) ? Number(breakdown.available_weight) : null;
+    const weights = a.score_weights || {};
+    const effectiveWeights = a.effective_score_weights || {};
+    const scores = a.family_scores || {};
+    const trendLabels = { bullish: "صعودی", bearish: "نزولی", neutral: "خنثی", unavailable: "داده کافی نیست" };
+    const strengthLabels = { strong: "قوی", medium: "متوسط", weak: "ضعیف", unavailable: "نامشخص" };
+    const riskLabels = { low: "کم", medium: "متوسط", high: "زیاد", very_high: "بسیار زیاد", unavailable: "نامشخص" };
+    const entryLabels = { suitable: "مناسب", confirmation: "نیازمند تأیید", unsuitable: "نامناسب", unavailable: "داده کافی نیست" };
+    const bandLabels = { very_strong: "بسیار قوی", strong: "قوی", relatively_positive: "نسبتاً مثبت", neutral: "خنثی", weak: "نسبتاً منفی", very_weak: "بسیار ضعیف", unavailable: "داده کافی نیست" };
+    const confidenceLabels = { high: "بالا", medium: "متوسط", low: "پایین" };
+    const trend = trendLabels[a.medium_term_trend] || "داده کافی نیست";
+    const strength = strengthLabels[a.trend_strength] || "نامشخص";
+    const risk = riskLabels[a.risk] || "نامشخص";
+    const entry = entryLabels[a.entry_quality?.status] || "داده کافی نیست";
+    const confidence = confidenceLabels[a.confidence_level] || "پایین";
+    const scoreWeightText = `میان‌مدت · روند ${num(weights.trend_structure ?? 35, 0)}٪ · مومنتوم ${num(weights.momentum ?? 25, 0)}٪ · حمایت/مقاومت ${num(weights.support_resistance ?? 15, 0)}٪ · کیفیت ورود ${num(weights.entry_quality ?? 15, 0)}٪ · حجم ${num(weights.volume_confirmation ?? 10, 0)}٪`;
     const familyDefinitions = [
-      { key: "moving_averages", label: "روند و ساختار قیمت", description: "موقعیت قیمت نسبت به میانگین‌ها · روند میان‌مدت " + trend, detail: "EMA / SMA" },
-      { key: "volume", label: "تأیید حجم معاملات", description: volume.available ? "روند حجم: " + (volumeTrendLabels[volume.volume_trend] || "ثبت‌شده") + (volume.volume_spike ? " · جهش حجم" : "") : "دادهٔ حجم برای این نماد منتشر نشده است", detail: "ورود پول و همراهی حجم" },
-      { key: "oscillators", label: "نوسان‌گرها و مومنتوم", description: [macdSignal ? "MACD " + macdSignal : null, rsi == null ? null : "RSI " + num(rsi, 1)].filter(Boolean).join(" · ") || "MACD و RSI در ارزیابی روند", detail: "شتاب حرکت و اشباع خرید/فروش" },
-      { key: "resistance", label: "مقاومت‌های پیش‌رو", description: num(resistanceCount ?? 0, 0) + " سطح نزدیک · " + num(frontCount ?? 0, 0) + " مقاومت در مسیر" + (finite(nearestResistance) ? " · نزدیک‌ترین " + money(nearestResistance) : ""), detail: "فاصله تا موانع قیمتی" },
+      { key: "trend_structure", label: "روند و ساختار قیمت", description: "موقعیت و چیدمان EMA/SMA با سهم جداگانهٔ ابر ایچیموکو", detail: "میانگین‌های میان‌مدت و بلندمدت" },
+      { key: "momentum", label: "مومنتوم و قدرت روند", description: "MACD، DI/Aroon و گروه‌های نوسان‌گر؛ بدون ادعای کراسِ تأییدنشده", detail: "شتاب و جهت حرکت" },
+      { key: "support_resistance", label: "حمایت، مقاومت و موقعیت قیمت", description: "فقط سطوح محاسبه‌شده از تاریخچه و پیوت موجود", detail: "فاصله تا سطح نزدیک" },
+      { key: "entry_quality", label: "نوسان و کیفیت نقطه ورود", description: "فاصله از EMA50، موقعیت باند و معیار نوسان", detail: "مستقل از جهت روند" },
+      { key: "volume_confirmation", label: "حجم و تأیید حرکت", description: "بر پایهٔ حجم موجود و همراهی آن با تغییر قیمت", detail: "به‌تنهایی نشانهٔ ورود پول نیست" },
     ];
     const familyCards = familyDefinitions.map((factor) => {
-      const raw = breakdown[factor.key];
-      const value = finite(raw) ? Number(raw) : null;
+      const family = scores[factor.key] || {};
+      const value = finite(family.score) ? Number(family.score) : null;
       const weight = finite(weights[factor.key]) ? Number(weights[factor.key]) : 0;
       const tone = value == null ? "unavailable" : value >= 60 ? "positive" : value < 45 ? "negative" : "neutral";
+      const coverage = finite(family.coverage_pct) ? `${num(family.coverage_pct, 0)}٪` : "—";
+      const used = Array.isArray(family.indicators) && family.indicators.length ? family.indicators.join("، ") : "شاخص معتبر ثبت نشده";
+      const effective = finite(effectiveWeights[factor.key]) ? ` · وزن مؤثر ${num(effectiveWeights[factor.key], 1)}٪` : " · در امتیاز این نماد لحاظ نشد";
       return "<article class=\"fund-family-score-card " + tone + "\">" +
-        "<div class=\"fund-family-score-head\"><span>" + factor.label + "</span><b>وزن " + num(weight, 0) + "٪</b></div>" +
+        "<div class=\"fund-family-score-head\"><span>" + factor.label + "</span><b>وزن پایه " + num(weight, 0) + "٪</b></div>" +
         "<strong>" + (value == null ? "—" : num(value, 0) + " از ۱۰۰") + "</strong>" +
         "<small>" + factor.description + "</small>" +
-        "<div class=\"fund-family-coverage\"><span>" + factor.detail + "</span><span>" + (value == null ? "داده موجود نیست" : "در امتیاز لحاظ شد") + "</span></div>" +
+        "<div class=\"fund-family-extra\"><span>" + esc(used) + "</span></div>" +
+        "<div class=\"fund-family-coverage\"><span>پوشش " + coverage + "</span><span>" + esc(factor.detail + effective) + "</span></div>" +
         "<i style=\"width:" + (value == null ? 0 : Math.max(0, Math.min(100, value))) + "%\"></i></article>";
     }).join("");
-    const probabilityCard = (label, value, kind, extra = "") => "<article class=\"analysis-probability " + kind + "\"><div><span>" + label + "</span><strong>" + (value == null ? "—" : num(value, 0) + "٪") + "</strong></div>" + (extra ? "<small>" + extra + "</small>" : "") + "<i style=\"width:" + (value == null ? 0 : Math.max(0, Math.min(100, value))) + "%\"></i></article>";
+    const unitLabels = { GOLD: "دلار / اونس", USD_IR_FREE: "تومان", TEPIX: "واحد", GOLD_18K: "ریال / گرم" };
+    const price = finite(a.price) ? `${money(a.price)} ${unitLabels[a.symbol] || ""}` : "قیمت در دسترس نیست";
+    const daily = finite(a.daily_return_pct) ? `${Number(a.daily_return_pct) > 0 ? "+" : ""}${num(a.daily_return_pct, 2)}٪` : "تغییر روزانه موجود نیست";
+    const nearestSupport = a.nearest_support?.midpoint;
+    const nearestResistance = a.nearest_resistance?.midpoint;
+    const levelText = (label, level, distance) => finite(level)
+      ? `<span>${label} <b>${money(level)}</b>${finite(distance) ? ` · ${num(distance, 2)}٪ فاصله` : ""}</span>`
+      : `<span>${label} <b>در داده موجود نیست</b></span>`;
+    const evidenceText = (rows, fallback) => Array.isArray(rows) && rows.length
+      ? rows.map((row) => `<span><b>${esc(row.name || row.family)}</b> · ${num(row.score, 0)}/۱۰۰</span>`).join("")
+      : `<span>${fallback}</span>`;
+    const limitations = Array.isArray(a.data_limitations) ? a.data_limitations : [];
     return "<section class=\"fund-recommendation " + scoreTone + " fund-model-recommendation dashboard-model-recommendation\">" +
-      "<div class=\"fund-model-score-head\"><div><span class=\"recommendation-kicker\">مدل میان‌مدتی AliVest · تحلیل بر پایهٔ دادهٔ قیمت ره‌آورد</span>" +
+      "<div class=\"fund-model-score-head\"><div><span class=\"recommendation-kicker\">مدل میان‌مدتی چهار دارایی · دادهٔ روزانهٔ ره‌آورد</span>" +
       "<h3>امتیاز تکنیکال: <strong>" + (scoreValue == null ? "داده کافی نیست" : num(scoreValue, 0) + " از ۱۰۰") + "</strong></h3>" +
-      "<p>" + scoreWeightText + " · این امتیاز محاسبهٔ اختصاصی AliVest است، نه امتیاز رسمی ره‌آورد.</p></div>" +
-      "<div class=\"fund-model-meta\"><span>جمع‌بندی مدل <b>" + signal + "</b></span><span>روند میان‌مدت <b>" + trend + "</b></span>" +
-      "<span>وزن عوامل دارای داده <b>" + (availableWeight == null ? "—" : num(availableWeight, 0) + "٪") + "</b></span>" +
-      "<span>ریسک اصلاح <b>" + (correctionProbability == null ? "—" : num(correctionProbability, 0) + "٪ · " + esc(correctionLabel)) + "</b></span></div></div>" +
-      "<div class=\"fund-family-score-grid\">" + familyCards + "</div><div class=\"analysis-probability-grid\">" +
-      probabilityCard("ادامهٔ روند صعودی", bullish, "bullish") + probabilityCard("ادامهٔ روند نزولی", bearish, "bearish") + probabilityCard("ریسک اصلاح", correctionProbability, "correction", "سطح ریسک: " + esc(correctionLabel)) + "</div>" +
-      "<div class=\"fund-model-disclaimer\"><b>روش امتیازدهی</b><span>چهار عامل روند، حجم، نوسان‌گرها و مقاومت با وزن‌های نشان‌داده‌شده محاسبه می‌شوند. اگر دادهٔ عاملی موجود نباشد، وزن عوامل موجود متناسب‌سازی می‌شود؛ برآوردها پیش‌بینی قطعی نیستند.</span></div></section>";
+      "<p>" + scoreWeightText + " · امتیاز اختصاصی AliVest است و احتمال رشد یا امتیاز رسمی ره‌آورد نیست.</p></div>" +
+      "<div class=\"fund-model-meta\"><span>قیمت فعلی <b>" + price + "</b></span><span>تغییر روزانه <b>" + daily + "</b></span>" +
+      "<span>جهت میان‌مدت <b>" + trend + "</b></span><span>قدرت روند <b>" + strength + "</b></span>" +
+      "<span>ریسک موقعیت <b>" + risk + (finite(a.risk_score) ? ` · ${num(a.risk_score, 0)}/۱۰۰` : "") + "</b></span>" +
+      "<span>کیفیت ورود <b>" + entry + (finite(a.entry_quality?.score) ? ` · ${num(a.entry_quality.score, 0)}/۱۰۰` : "") + "</b></span>" +
+      "<span>پوشش داده <b>" + (finite(a.data_coverage_pct) ? num(a.data_coverage_pct, 0) + "٪" : "—") + "</b></span>" +
+      "<span>اطمینان داده‌ای <b>" + confidence + "</b></span><span>به‌روزرسانی <b>" + esc(formatDate(a.data_timestamp)) + "</b></span></div></div>" +
+      "<div class=\"fund-family-score-grid\">" + familyCards + "</div>" +
+      "<div class=\"fund-model-factors\"><div class=\"positive\"><b>شواهد مثبت</b>" + evidenceText(a.positive_evidence, "عامل مثبت برجسته‌ای از داده‌های موجود به دست نیامد.") + "</div>" +
+      "<div class=\"negative\"><b>شواهد منفی</b>" + evidenceText(a.negative_evidence, "عامل منفی برجسته‌ای از داده‌های موجود به دست نیامد.") + "</div></div>" +
+      "<div class=\"fund-model-context dashboard-levels\">" + levelText("حمایت نزدیک", nearestSupport, a.score_breakdown?.support_distance_pct) + levelText("مقاومت نزدیک", nearestResistance, a.score_breakdown?.resistance_distance_pct) + "</div>" +
+      "<div class=\"fund-model-disclaimer\"><b>روش و محدودیت مدل</b><span>پوشش عوامل موجود: " + (finite(a.available_family_weight_pct) ? num(a.available_family_weight_pct, 0) + "٪ از وزن پایه" : "نامشخص") +
+      ". وزن عوامل فاقد داده حذف و وزن عوامل معتبر متناسب‌سازی می‌شود. قدرت روند از ADX (فقط قدرت) و هم‌سویی ساختار سنجیده می‌شود؛ سطوح فقط از دادهٔ موجود آمده‌اند. آستانه‌های اولیه‌اند و مدل هنوز بک‌تست نشده است؛ امتیاز، جهت و اطمینان، پیش‌بینی قطعی نیستند." +
+      (limitations.length ? ` ${limitations.map(esc).join(" ")}` : "") + "</span></div></section>";
   }
 
   function rahavardRecommendationHtml(a) {
-    if (a?.score_method === "dashboard_four_factor_medium_term_v1") {
+    if (a?.score_method === "dashboard_five_family_medium_term_v1") {
       return dashboardModelRecommendationHtml(a);
     }
     if (a?.score_method === "fund_six_family_no_relative_initial_v1" && a.family_scores) {
@@ -937,7 +952,8 @@
       summary("میانگین‌های EMA", maAlignment.length ? `${maAlignment.filter(Boolean).length} از ${maAlignment.length}` : "—", maState, `${maLabel} · نسبت قیمت به EMA20/50/200`)
     ].join("");
     const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
-    return `${overview}${tradePlanHtml(a)}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(entries.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div>${pivotTable}<div class="indicator-readouts">${summaryCards}</div><div class="indicator-card-grid">${cards}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
+    const tradePlan = a.score_method === "dashboard_five_family_medium_term_v1" ? "" : tradePlanHtml(a);
+    return `${overview}${tradePlan}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(entries.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div>${pivotTable}<div class="indicator-readouts">${summaryCards}</div><div class="indicator-card-grid">${cards}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
 
   function renderOverviewMarketSummary() {
@@ -958,12 +974,38 @@
     }).join("");
   }
 
+  function renderOverviewAssetComparison() {
+    const target = $("#overview-asset-comparison-body");
+    if (!target) return;
+    const trendLabels = { bullish: "صعودی", bearish: "نزولی", neutral: "خنثی", unavailable: "نامشخص" };
+    const strengthLabels = { strong: "قوی", medium: "متوسط", weak: "ضعیف", unavailable: "نامشخص" };
+    const riskLabels = { low: "کم", medium: "متوسط", high: "زیاد", very_high: "بسیار زیاد", unavailable: "نامشخص" };
+    const entryLabels = { suitable: "مناسب", confirmation: "نیازمند تأیید", unsuitable: "نامناسب", unavailable: "نامشخص" };
+    const assets = [
+      ["طلای جهانی · XAU/USD", state.gold],
+      ["تتر · USDT/IRT", state.dollar],
+      ["شاخص کل · TEPIX", state.tepix],
+      ["طلای ۱۸ عیار", state.gold18k],
+    ];
+    target.innerHTML = assets.map(([name, quote]) => {
+      const analysis = quote?.analysis || {};
+      const score = analysis.technical_score == null ? "—" : `${num(analysis.technical_score, 0)} / ۱۰۰`;
+      const direction = trendLabels[analysis.medium_term_trend] || "نامشخص";
+      const strength = strengthLabels[analysis.trend_strength] || "نامشخص";
+      const risk = riskLabels[analysis.risk] || "نامشخص";
+      const entry = entryLabels[analysis.entry_quality?.status] || "نامشخص";
+      const tone = analysis.medium_term_trend || "unavailable";
+      return `<tr><th scope="row">${name}</th><td>${score}</td><td><span class="asset-comparison-tag ${tone}">${direction}</span></td><td>${strength}</td><td>${risk}</td><td>${entry}</td></tr>`;
+    }).join("");
+  }
+
   async function loadOverview() {
     try {
       const summary = await api("/api/market/summary");
       state.summary = summary;
       state.gold = summary.gold; state.gold18k = summary.gold18k; state.dollar = summary.dollar; state.tepix = summary.tepix;
       renderOverviewMarketSummary();
+      renderOverviewAssetComparison();
       marketQuote(state.gold, "gold"); marketQuote(state.gold18k, "gold18k"); marketQuote(state.dollar, "dollar"); marketQuote(state.tepix, "tepix");
       renderGold18kValuation(summary.gold18k?.valuation);
       freshness($("#gold-analysis-status"), state.gold?.status, state.gold?.data_timestamp);
