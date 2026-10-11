@@ -10,9 +10,12 @@ import math
 import re
 from typing import Any
 
-from .dashboard_scoring import DASHBOARD_SCORE_WEIGHTS
-
-FAMILY_WEIGHTS = DASHBOARD_SCORE_WEIGHTS
+FAMILY_WEIGHTS = {
+    "moving_averages": 0.35,
+    "oscillators": 0.35,
+    "volume": 0.15,
+    "support_resistance": 0.15,
+}
 
 FUND_TYPE_LABELS = {
     "fixed_income": "درآمد ثابت", "mixed": "مختلط", "equity": "سهامی",

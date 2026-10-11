@@ -459,7 +459,7 @@
 .fund-model-factors .positive{border-color:rgba(66,183,141,.24)}
 .fund-model-factors .negative{border-color:rgba(220,105,119,.24)}
 .dashboard-model-recommendation .fund-model-meta{grid-template-columns:repeat(2,minmax(0,1fr))}
-.dashboard-model-recommendation .fund-family-score-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.dashboard-model-recommendation .fund-family-score-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 .dashboard-model-recommendation .fund-model-factors>div{display:grid;align-content:start;gap:5px;padding:9px 11px;border:1px solid #2d435a;border-radius:9px;background:rgba(9,20,33,.35);color:#a8bac3;font-size:11px;line-height:1.7}
 .dashboard-model-recommendation .fund-model-factors>div>b{color:#dce9e6;font-size:12px}
 .dashboard-model-recommendation .fund-model-factors>div>span{padding:0;border:0;background:none}

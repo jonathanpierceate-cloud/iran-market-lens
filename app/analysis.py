@@ -14,7 +14,7 @@ MEDIUM_TERM_SCORE_WEIGHTS = DASHBOARD_SCORE_WEIGHTS
 
 def analyze(symbol: str, bars: list[dict[str, Any]],
             weights: dict[str, float] | None = None) -> dict[str, Any]:
-    # The dashboard assets use the dedicated four-group medium-term model.
+    # The dashboard assets use the dedicated three-group medium-term model.
     # `weights` remains in the signature for callers on older app versions;
     # the canonical model weights are intentionally fixed in dashboard_scoring.
     return analyze_dashboard_asset(symbol, bars)

@@ -7,9 +7,8 @@ from .indicators import compute_indicators, pivot_points
 
 
 DASHBOARD_SCORE_WEIGHTS = {
-    "moving_averages": 0.35,
-    "oscillators": 0.35,
-    "volume": 0.15,
+    "moving_averages": 0.45,
+    "oscillators": 0.40,
     "support_resistance": 0.15,
 }
 
@@ -92,7 +91,7 @@ def _support_resistance_levels(bars: list[dict[str, Any]], tech: dict[str, Any],
 
 
 def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]]) -> dict[str, Any]:
-    """AliVest medium-term score using the four requested indicator families."""
+    """AliVest medium-term score using the three requested indicator families."""
     bars = bars or []
     tech = compute_indicators(bars)
     indicators = tech.get("indicators", {})
@@ -112,10 +111,6 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]]) -> dict[str
             "StochRSI(14)": .08, "Trend": .06, "AO(5,34)": .05, "SO(14)": .04,
             "AROON(25)": .03, "CCI(14)": .02, "MTM(6)": .01, "WR(14)": .01,
         },
-        "volume": {
-            "OBV(20)": .30, "SM(15)": .22, "RV(30)": .18, "RV(90)": .12,
-            "VMACD(26)": .08, "VRSI(14)": .06, "RV(15)": .04,
-        },
         "support_resistance": {
             "PivotPointFibonacci(30)": .32, "PivotPointClassic(30)": .26,
             "PivotPointCamarilla(30)": .20, "PivotPointWoodie(30)": .14,
@@ -123,7 +118,7 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]]) -> dict[str
         },
     }
     names = {"moving_averages": "میانگین متحرک", "oscillators": "نوسان‌گر",
-             "volume": "حجم", "support_resistance": "حمایت و مقاومت"}
+             "support_resistance": "حمایت و مقاومت"}
 
     def ind(key: str) -> dict[str, Any]:
         found = indicators.get(key)
@@ -204,9 +199,6 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]]) -> dict[str
         slope = sum((i-xm)*(v-ym) for i, v in enumerate(logs))/denom
         trend_score = _signed_score(slope, .004)
     return20 = closes[-1]/closes[-21]-1 if len(closes) >= 21 else None
-    vrsi = val("VRSI(14)")
-    vrsi_score = _clamp(50+(vrsi-50)*.45*(1 if return20 is None or return20 >= 0 else -1)) if vrsi is not None else None
-
     def osc(value: float | None, high: float, low: float) -> float | None:
         if value is None:
             return None
@@ -236,36 +228,16 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]]) -> dict[str
     for key, (score, raw, note) in osc_data.items():
         rows[family].append(row(family, key, score, raw, note))
 
-    # Volume: RV means relative volume here; historical price volatility stays separate.
-    family = "volume"
-    obv, obv_average = val("OBV(20)"), val("OBV(20)", "obv_sma20")
-    avgvol = sum(volumes[-21:-1])/len(volumes[-21:-1]) if len(volumes) > 1 else 0
-    obv_score = _signed_score((obv-obv_average)/max(avgvol, 1), 1.5) if obv is not None and obv_average is not None and avgvol > 0 else None
-    vmacd = val("VMACD(12,26)")
-    vmacd_score = _signed_score(vmacd/max(avgvol, 1), .20) if vmacd is not None and avgvol > 0 else None
-    volume_data = {
-        "OBV(20)": (obv_score, {"OBV": obv, "SMA20": obv_average}, "OBV نسبت به میانگین ۲۰ دوره"),
-        "SM(15)": (None, None, "فرمول محاسباتی قابل اتکای SM در داده‌های فعلی موجود نیست"),
-        "VMACD(26)": (vmacd_score, vmacd, "MACD حجم ۱۲/۲۶"),
-        "VRSI(14)": (vrsi_score, vrsi, "RSI حجم با جهت بازده ۲۰ دوره‌ای"),
-    }
+    # Relative volume remains available as a raw indicator, but is not one of
+    # the three weighted scoring families.
     relative_volumes = {}
     for period in (30, 90, 15):
-        ratio, score = None, None
+        ratio = None
         if len(volumes) > period and volumes[-1] > 0:
             mean = sum(volumes[-period-1:-1])/period
             if mean > 0 and len(closes) > period:
                 ratio = volumes[-1]/mean
-                period_return = closes[-1]/closes[-period-1]-1
-                score = _clamp(50+40*math.tanh(period_return/.05)*min(2, max(.5, ratio)))
-        relative_volumes[period] = {"ratio": ratio, "score": score}
-        volume_data[f"RV({period})"] = (
-            score, {"relative_volume": ratio},
-            f"حجم آخرین کندل نسبت به میانگین {period} کندل، همراه با جهت بازده دوره",
-        )
-    for key in weights[family]:
-        score, raw, note = volume_data[key]
-        rows[family].append(row(family, key, score, raw, note))
+        relative_volumes[period] = {"ratio": ratio}
 
     # Support/resistance: pivot calculations use the previous 30 completed bars.
     family = "support_resistance"
@@ -362,8 +334,8 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]]) -> dict[str
     limitations = [
         "این امتیاز محاسبهٔ اختصاصی AliVest است، نه امتیاز رسمی ره‌آورد یا احتمال آماری موفقیت.",
         "وزن شاخص‌های بدون داده در همان گروه متناسب می‌شود؛ در نبود کامل یک گروه، وزن گروه‌های دیگر متناسب می‌شود و پوشش نمایش داده می‌شود.",
-        "RSI یکی از ۱۲ شاخص نوسان‌گر و ۷٪ از وزن پایهٔ کل است؛ خرید بر پایه برآیند هر چهار گروه ارزیابی می‌شود.",
-        "RV در گروه حجم نسبت حجم آخرین کندل به میانگین همان دوره است؛ RV تاریخیِ درصدی فقط برای سنجش ریسک استفاده می‌شود.",
+        "RSI یکی از ۱۲ شاخص نوسان‌گر و ۸٪ از وزن پایهٔ کل است؛ خرید بر پایه برآیند هر سه گروه ارزیابی می‌شود.",
+        "حجم نسبی فقط به‌عنوان دادهٔ زمینه‌ای نمایش داده می‌شود و در امتیاز کل وزن ندارد؛ ریسک با نوسان تاریخی و ATR سنجیده می‌شود.",
     ]
     if missing:
         limitations.append("شاخص‌های فاقد داده یا فرمول قابل اتکا حذف شدند: "+"، ".join(missing))
@@ -405,8 +377,8 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]]) -> dict[str
         "long_term_trend": "unavailable" if current is None or ema100 is None else "bullish" if current > ema100 else "bearish" if current < ema100 else "neutral",
         "trend_direction_score": round(total, 1) if total is not None else None,
         "trend_strength": strength, "technical_score": round(total, 1) if total is not None else None,
-        "score_method": "dashboard_rahavard_four_group_weighted_v1",
-        "score_origin": "AliVest", "score_profile": "four_group_midterm_custom",
+        "score_method": "dashboard_rahavard_three_group_weighted_v1",
+        "score_origin": "AliVest", "score_profile": "three_group_midterm_custom",
         "score_weights": {key: round(value*100) for key, value in DASHBOARD_SCORE_WEIGHTS.items()},
         "indicator_weights": {family: {key: round(value*100, 1) for key, value in values.items()}
                               for family, values in weights.items()},
@@ -417,8 +389,8 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]]) -> dict[str
         "confidence_level": "high" if coverage >= 75 else "medium" if coverage >= 50 else "low",
         "confidence_label": "بالا" if coverage >= 75 else "متوسط" if coverage >= 50 else "پایین",
         "confidence_basis": "پوشش دادهٔ قابل محاسبه؛ این عدد احتمال موفقیت معامله نیست.",
-        "breakout_confidence": "volume_included" if family_scores["volume"]["score"] is not None else "limited_without_volume",
-        "breakout_confidence_label": "حجم در امتیاز لحاظ شده" if family_scores["volume"]["score"] is not None else "دادهٔ حجم کافی نیست",
+        "breakout_confidence": "volume_not_in_model",
+        "breakout_confidence_label": "حجم جزو این مدل امتیازدهی نیست",
         "risk": risk, "risk_score": round(risk_value, 1) if risk_value is not None else None,
         "risk_label": {"low":"کم","medium":"متوسط","high":"بالا","unavailable":"نامشخص"}[risk],
         "risk_basis": "نوسان تاریخی RV(30)، و در نبود آن تخمین از ATR(14).",
@@ -432,5 +404,5 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]]) -> dict[str
         "support_resistance": levels, "support_levels": supports, "resistance_levels": resistances,
         "nearest_support": near_support, "nearest_resistance": near_resistance,
         "structural_invalidation_level": near_support.get("midpoint") if near_support else None,
-        "decision_support": "امتیاز برآیند وزنی میانگین متحرک، نوسان‌گر، حجم و حمایت/مقاومت است؛ توصیه قطعی خرید یا فروش نیست.",
+        "decision_support": "امتیاز برآیند وزنی میانگین متحرک، نوسان‌گر و حمایت/مقاومت است؛ توصیه قطعی خرید یا فروش نیست.",
     }

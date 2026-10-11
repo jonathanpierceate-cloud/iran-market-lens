@@ -560,11 +560,10 @@
     const strength = strengthLabels[a.trend_strength] || "نامشخص";
     const risk = riskLabels[a.risk] || "نامشخص";
     const entry = entryLabels[a.entry_quality?.status] || "داده کافی نیست";
-    const scoreWeightText = "مدل میان‌مدتی · میانگین متحرک " + num(weights.moving_averages ?? 35, 0) + "٪ · نوسان‌گر " + num(weights.oscillators ?? 35, 0) + "٪ · حجم " + num(weights.volume ?? 15, 0) + "٪ · حمایت و مقاومت " + num(weights.support_resistance ?? 15, 0) + "٪";
+    const scoreWeightText = "مدل میان‌مدتی · میانگین متحرک " + num(weights.moving_averages ?? 45, 0) + "٪ · نوسان‌گر " + num(weights.oscillators ?? 40, 0) + "٪ · حمایت و مقاومت " + num(weights.support_resistance ?? 15, 0) + "٪";
     const familyDefinitions = [
       { key: "moving_averages", label: "میانگین متحرک", description: "EMA، SMA، ایچیموکو و باندها" },
       { key: "oscillators", label: "نوسان‌گر", description: "مومنتوم و قدرت روند؛ RSI فقط یکی از چند رأی است" },
-      { key: "volume", label: "حجم", description: "حجم تعادلی، نسبت حجم و شاخص‌های جریان حجم" },
       { key: "support_resistance", label: "حمایت و مقاومت", description: "پیوت‌های فیبوناچی، کلاسیک، کاماریلا، وودی و دیمارک" },
     ];
     const familyCards = familyDefinitions.map((factor) => {
@@ -600,7 +599,7 @@
       : "<span>" + fallback + "</span>";
     const limitations = Array.isArray(a.data_limitations) ? a.data_limitations : [];
     return "<section class=\"fund-recommendation " + scoreTone + " fund-model-recommendation dashboard-model-recommendation\">" +
-      "<div class=\"fund-model-score-head\"><div><span class=\"recommendation-kicker\">مدل میان‌مدتی · امتیاز اختصاصی AliVest بر پایهٔ داده‌های قیمت و حجم</span>" +
+      "<div class=\"fund-model-score-head\"><div><span class=\"recommendation-kicker\">مدل میان‌مدتی · امتیاز اختصاصی AliVest بر پایهٔ داده‌های ره‌آورد</span>" +
       "<h3>امتیاز تکنیکال: <strong>" + (scoreValue == null ? "داده کافی نیست" : num(scoreValue, 0) + " از ۱۰۰") + "</strong> · " + (bandLabels[a.score_band] || "نامشخص") + "</h3>" +
       "<p>" + scoreWeightText + " · وزن شاخص‌های بی‌داده در گروه متناسب می‌شود؛ RSI به‌تنهایی مبنای خرید نیست.</p></div>" +
       "<div class=\"fund-model-meta\"><span>قیمت فعلی <b>" + price + "</b></span><span>تغییر روزانه <b>" + daily + "</b></span>" +
@@ -615,13 +614,13 @@
       "<div class=\"fund-model-context dashboard-levels\">" + levelText("حمایت نزدیک", a.nearest_support?.midpoint, a.score_breakdown?.support_distance_pct) +
       levelText("مقاومت پیش‌رو", a.nearest_resistance?.midpoint, a.score_breakdown?.resistance_distance_pct) +
       levelText("سطح ساختاری", a.structural_invalidation_level, null) + "</div>" +
-      "<div class=\"fund-model-disclaimer\"><b>روش و محدودیت محاسبه</b><span>امتیاز کل برآیند چهار گروه با وزن‌های نمایش‌داده‌شده است. وزن شاخص‌های فاقد داده حذف و وزن‌های معتبر متناسب می‌شوند. این امتیاز اختصاصی و بدون آزمون تاریخی است و توصیه قطعی معامله محسوب نمی‌شود. " +
+      "<div class=\"fund-model-disclaimer\"><b>روش و محدودیت محاسبه</b><span>امتیاز کل برآیند سه گروه میانگین متحرک، نوسان‌گر و حمایت‌ومقاومت با وزن‌های نمایش‌داده‌شده است. وزن شاخص‌های فاقد داده حذف و وزن‌های معتبر متناسب می‌شوند. این امتیاز اختصاصی و بدون آزمون تاریخی است و توصیه قطعی معامله محسوب نمی‌شود. " +
       limitations.map(esc).join(" ") + "</span></div></section>";
   }
 
 
   function rahavardRecommendationHtml(a) {
-    if (a?.score_method === "dashboard_rahavard_four_group_weighted_v1") {
+    if (a?.score_method === "dashboard_rahavard_three_group_weighted_v1") {
       return dashboardModelRecommendationHtml(a);
     }
     if (a?.score_method === "fund_rahavard_four_group_weighted_v1" && a.family_scores) {
@@ -936,7 +935,7 @@
   }
 
   function analysisHtml(a) {
-    if (a?.source === "Rahavard365" && a?.score_method !== "dashboard_rahavard_four_group_weighted_v1") return rahavardAnalysisHtml(a);
+    if (a?.source === "Rahavard365" && a?.score_method !== "dashboard_rahavard_three_group_weighted_v1") return rahavardAnalysisHtml(a);
     if (!a || a.technical_score == null) return `<div class="empty-state compact"><b>داده کافی برای محاسبه امتیاز موجود نیست</b><small>مدل فقط داده ذخیره‌شده از منبع را تحلیل می‌کند.</small></div>`;
     const all = a.indicators?.indicators || {};
     const seen = new Set();
@@ -970,7 +969,7 @@
       summary("میانگین‌های EMA", maAlignment.length ? `${maAlignment.filter(Boolean).length} از ${maAlignment.length}` : "—", maState, `${maLabel} · نسبت قیمت به EMA20/50/200`)
     ].join("");
     const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
-    const tradePlan = a.score_method === "dashboard_rahavard_four_group_weighted_v1" ? "" : tradePlanHtml(a);
+    const tradePlan = a.score_method === "dashboard_rahavard_three_group_weighted_v1" ? "" : tradePlanHtml(a);
     return `${overview}${tradePlan}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(entries.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div>${pivotTable}<div class="indicator-readouts">${summaryCards}</div><div class="indicator-card-grid">${cards}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
 
