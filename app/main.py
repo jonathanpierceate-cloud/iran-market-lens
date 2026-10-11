@@ -938,7 +938,7 @@ def _watchlist_find_fund(identifier: str) -> dict[str, Any] | None:
 
 
 _DEFAULT_WATCHLIST_ITEMS = [
-    ("آلتون", 6000, 73837),
+    ("آلتون", 7000, 75197),
     ("دارونو", 3500, 34822),
     ("سینرژی", 1000, 63651),
     ("آگاس", 100, 460104),
@@ -999,9 +999,13 @@ def _seed_default_watchlist() -> None:
         if existing and existing["fund_key"] != target_key:
             old_key = existing["fund_key"]
             record = db.add_watchlist_item(target_key)
+            saved_units = existing.get("units")
+            saved_break_even = existing.get("break_even_price")
+            if symbol == "آلتون" and (saved_units, saved_break_even) == (6000, 73837):
+                saved_units, saved_break_even = units, break_even_price
             db.update_watchlist_item(target_key, {
-                "units": existing.get("units"),
-                "break_even_price": existing.get("break_even_price"),
+                "units": saved_units,
+                "break_even_price": saved_break_even,
             })
             db.remove_watchlist_item(old_key)
             existing = {**record, "fund_key": target_key}
@@ -1009,7 +1013,8 @@ def _seed_default_watchlist() -> None:
             records.append(existing)
         elif existing:
             # Keep saved values exactly as entered, including an intentional blank.
-            pass
+            if symbol == "آلتون" and (existing.get("units"), existing.get("break_even_price")) == (6000, 73837):
+                db.update_watchlist_item(target_key, {"units": units, "break_even_price": break_even_price})
         else:
             record = db.add_watchlist_item(target_key)
             db.update_watchlist_item(target_key, {"units": units, "break_even_price": break_even_price})

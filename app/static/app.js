@@ -978,7 +978,7 @@
     if (!node) return;
     const items = [
       ["\u0637\u0644\u0627\u06cc \u062c\u0647\u0627\u0646\u06cc", state.gold],
-      ["دلار به تومان", state.dollar],
+      ["دلار", state.dollar],
       ["\u0634\u0627\u062e\u0635 \u06a9\u0644", state.tepix],
       ["\u0637\u0644\u0627\u06cc 18 \u0639\u06cc\u0627\u0631", state.gold18k],
     ];
@@ -988,7 +988,7 @@
       const value = Number.isFinite(daily) ? `${daily > 0 ? "+" : ""}${num(daily, 2)}%` : "\u2014";
       const tone = Number.isFinite(daily) ? changeClass(daily) : "unknown";
       return `<span class="market-change-chip"><span>${label}</span><b class="${tone}">${value}</b></span>`;
-    }).join("");
+    }).join("") + `<small class="market-summary-period">مبنای درصدها: تغییر نسبت به کندل روزانهٔ قبل</small>`;
   }
 
   function renderOverviewAssetComparison() {
@@ -1000,7 +1000,7 @@
     const entryLabels = { suitable: "مساعد", confirmation: "نیازمند اصلاح و تثبیت", unsuitable: "نامساعد", unavailable: "نامشخص" };
     const assets = [
       ["طلای جهانی · XAU/USD", state.gold],
-      ["دلار به تومان · USD/IRT", state.dollar],
+      ["دلار · USD/IRT", state.dollar],
       ["شاخص کل · TEPIX", state.tepix],
       ["طلای ۱۸ عیار", state.gold18k],
     ];

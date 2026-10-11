@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="/static/assets/alivest-icon-192.png">
   <link rel="manifest" href="/static/manifest.webmanifest">
   <title>AliVest | تحلیل سرمایه‌گذاری</title>
-  <link rel="stylesheet" href="/static/app.css?v=market-summary-20261007">
+  <link rel="stylesheet" href="/static/app.css?v=market-summary-period-20261011">
   <link rel="stylesheet" href="/static/analysis.css?v=watchlist-readonly-v1-20261011">
   <link rel="stylesheet" href="/static/design.css?v=four-asset-score-comparison-20261011">
 </head>
@@ -52,7 +52,7 @@
       <div id="toast" class="toast" role="status"></div>
       <section class="view active" id="view-overview">
         <div class="page-heading">
-          <div><div class="eyebrow"><span class="eyebrow-line"></span>نمای بازار</div><h1>خلاصه وضعیت بازار</h1><p id="overview-market-summary" class="market-status-summary">تغییر روزانهٔ طلای جهانی، دلار به تومان، شاخص کل و طلای 18 عیار.</p></div>
+          <div><div class="eyebrow"><span class="eyebrow-line"></span>نمای بازار</div><h1>خلاصه وضعیت بازار</h1><p id="overview-market-summary" class="market-status-summary">تغییر روزانهٔ طلای جهانی، دلار، شاخص کل و طلای 18 عیار.</p></div>
           <div class="heading-actions"><span class="updated-label" id="last-updated">در انتظار دریافت داده</span><button class="button button-primary" id="refresh-primary"><span>⟳</span> دریافت آخرین داده</button></div>
         </div>
 
@@ -65,7 +65,7 @@
           </article>
 
           <article class="market-card dollar-card market-analysis-trigger" data-analysis-toggle="dollar" role="button" tabindex="0" aria-controls="dollar-analysis" aria-expanded="false">
-            <div class="card-top"><span class="asset-icon dollar-icon">$</span><span class="card-kicker">دلار به تومان · USD/IRT</span><span class="freshness" id="dollar-freshness"><i></i> در حال بررسی</span></div>
+            <div class="card-top"><span class="asset-icon dollar-icon">$</span><span class="card-kicker">دلار · USD/IRT</span><span class="freshness" id="dollar-freshness"><i></i> در حال بررسی</span></div>
             <div class="quote-line"><strong class="quote-value" id="dollar-price">—</strong><span class="quote-unit">تومان</span><span class="change-pill" id="dollar-change">—</span></div>
             <div class="quote-meta"><span>منبع: <b id="dollar-source">—</b></span><span>زمان داده: <b id="dollar-time">—</b></span></div>
             <div class="card-bottom"><span>روند میان‌مدت</span><strong id="dollar-trend" class="trend neutral">داده ناکافی</strong><span class="card-action">تحلیل با کلیک ←</span></div>
@@ -101,7 +101,7 @@
         <div class="dashboard-analysis-stack">
           <article class="panel market-analysis-panel hidden" data-analysis-panel="gold"><div class="panel-heading"><div><span class="panel-kicker">XAU/USD · ره‌آورد۳۶۵</span><h3>تحلیل تکنیکال طلای جهانی</h3></div><span id="gold-analysis-status" class="freshness"><i></i> در حال دریافت</span></div><div id="gold-analysis" class="analysis-content"><div class="empty-state compact"><b>داده کافی برای تحلیل موجود نیست</b><small>شاخص‌ها پس از دریافت داده نمایش داده می‌شوند.</small></div></div></article>
           <article class="panel market-analysis-panel hidden" data-analysis-panel="gold18k"><div class="panel-heading"><div><span class="panel-kicker">طلای ۱۸ عیار · ره‌آورد۳۶۵</span><h3>تحلیل تکنیکال طلای ۱۸ عیار</h3></div><span id="gold18k-analysis-status" class="freshness"><i></i> در حال دریافت</span></div><div id="gold18k-analysis" class="analysis-content"><div class="empty-state compact"><b>داده کافی برای تحلیل موجود نیست</b><small>شاخص‌ها پس از دریافت داده نمایش داده می‌شوند.</small></div></div></article>
-          <article class="panel market-analysis-panel hidden" data-analysis-panel="dollar"><div class="panel-heading"><div><span class="panel-kicker">USD/IRT · ره‌آورد۳۶۵</span><h3>تحلیل تکنیکال دلار به تومان</h3></div><span id="dollar-analysis-status" class="freshness"><i></i> در حال دریافت</span></div><div id="dollar-analysis" class="analysis-content"><div class="empty-state compact"><b>داده کافی برای تحلیل موجود نیست</b><small>شاخص‌ها از داده‌های روزانه ره‌آورد محاسبه می‌شوند.</small></div></div></article>
+          <article class="panel market-analysis-panel hidden" data-analysis-panel="dollar"><div class="panel-heading"><div><span class="panel-kicker">USD/IRT · ره‌آورد۳۶۵</span><h3>تحلیل تکنیکال دلار</h3></div><span id="dollar-analysis-status" class="freshness"><i></i> در حال دریافت</span></div><div id="dollar-analysis" class="analysis-content"><div class="empty-state compact"><b>داده کافی برای تحلیل موجود نیست</b><small>شاخص‌ها از داده‌های روزانه ره‌آورد محاسبه می‌شوند.</small></div></div></article>
           <article class="panel index-analysis-panel hidden" data-analysis-panel="tepix"><div class="panel-heading"><div><span class="panel-kicker">TEPIX · ره‌آورد۳۶۵</span><h3>تحلیل تکنیکال شاخص کل</h3></div><span id="tepix-analysis-status" class="freshness"><i></i> در حال دریافت</span></div><div id="tepix-analysis" class="analysis-content"><div class="empty-state compact"><b>تحلیل شاخص کل در حال دریافت است</b><small>اندیکاتورها و سطوح از منبع رسمی ره‌آورد۳۶۵ خوانده می‌شوند.</small></div></div></article>
         </div>
 
@@ -162,6 +162,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=watchlist-readonly-v1-20261011"></script>
+  <script src="/static/app.js?v=dashboard-market-summary-v2-20261011"></script>
 </body>
 </html>
