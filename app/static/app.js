@@ -961,7 +961,7 @@
     if (!node) return;
     const items = [
       ["\u0637\u0644\u0627\u06cc \u062c\u0647\u0627\u0646\u06cc", state.gold],
-      ["\u062a\u062a\u0631", state.dollar],
+      ["دلار به تومان", state.dollar],
       ["\u0634\u0627\u062e\u0635 \u06a9\u0644", state.tepix],
       ["\u0637\u0644\u0627\u06cc 18 \u0639\u06cc\u0627\u0631", state.gold18k],
     ];
@@ -983,7 +983,7 @@
     const entryLabels = { suitable: "مناسب", confirmation: "نیازمند تأیید", unsuitable: "نامناسب", unavailable: "نامشخص" };
     const assets = [
       ["طلای جهانی · XAU/USD", state.gold],
-      ["تتر · USDT/IRT", state.dollar],
+      ["دلار به تومان · USD/IRT", state.dollar],
       ["شاخص کل · TEPIX", state.tepix],
       ["طلای ۱۸ عیار", state.gold18k],
     ];

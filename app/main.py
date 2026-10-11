@@ -127,15 +127,16 @@ def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None)
     asset_defaults = {
         "GOLD": {"name": "طلای جهانی", "source": "Rahavard365", "source_url": RAHAVARD_GOLD_PAGE_URL},
         "GOLD_18K": {"name": "طلای ۱۸ عیار", "source": "Rahavard365", "source_url": RAHAVARD_GOLD_18K_PAGE_URL},
-        "USD_IR_FREE": {"name": "تتر (معادل دلار آمریکا)", "source": "Rahavard365", "source_url": RAHAVARD_USDT_PAGE_URL},
+        "USD_IR_FREE": {"name": "دلار به تومان", "source": "Rahavard365", "source_url": RAHAVARD_USDT_PAGE_URL},
         "TEPIX": {"name": "شاخص کل بورس", "source": "Rahavard365", "source_url": RAHAVARD_TEPIX_PAGE_URL},
     }
     data = dict(asset) if asset else asset_defaults.get(symbol)
     if data is None:
         raise HTTPException(status_code=404, detail="دارایی پیدا نشد")
+    display_name = asset_defaults.get(symbol, {}).get("name") or data["name"]
     source_url = RAHAVARD_USDT_PAGE_URL if symbol == "USD_IR_FREE" else data.get("source_url")
     if not bars:
-        return {"symbol": symbol, "name": data["name"], "price": None, "history": [],
+        return {"symbol": symbol, "name": display_name, "price": None, "history": [],
                 "source": data.get("source"), "source_url": source_url,
                 "data_timestamp": None, "fetched_at": None, "stale": None,
                 "status": "unavailable", "error": "هنوز مشاهده معتبری ذخیره نشده است"}
@@ -159,7 +160,7 @@ def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None)
         status = "stale" if is_stale else "cached_after_source_error"
     else:
         status = "stale" if is_stale else "available"
-    output = {"symbol": symbol, "name": data["name"], "price": latest["close"],
+    output = {"symbol": symbol, "name": display_name, "price": latest["close"],
               "open": latest.get("open"), "high": latest.get("high"), "low": latest.get("low"),
               "volume": latest.get("volume"), "history": bars, "returns": returns,
               "source": latest.get("source"), "source_url": source_url,
@@ -277,7 +278,7 @@ async def lifespan(_: FastAPI):
     for key, label, url in [
         ("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL),
         ("rahavard_gold_18k", "طلای ۱۸ عیار / ره‌آورد۳۶۵", RAHAVARD_GOLD_18K_PAGE_URL),
-        ("rahavard_usdt", "قیمت تتر / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL),
+        ("rahavard_usdt", "قیمت دلار به تومان / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL),
         ("rahavard_tepix", "شاخص کل بورس / ره‌آورد۳۶۵", RAHAVARD_TEPIX_PAGE_URL),
         ("yahoo_dxy", "شاخص دلار آمریکا", "https://finance.yahoo.com/quote/DX-Y.NYB/"),
         ("rahavard_funds", "صندوق‌های قابل معامله / ره‌آورد۳۶۵", RAHAVARD_ETF_FUNDS_URL),
@@ -285,17 +286,22 @@ async def lifespan(_: FastAPI):
         ("rahavard_fund_charts", "نمودار صندوق / ره‌آورد۳۶۵", RAHAVARD_LIGHT_BARS_URL + "?symbol=exchange.asset:{asset_id}:real_close"),
         ("rahavard_indicators", "اندیکاتورهای صندوق / ره‌آورد۳۶۵", RAHAVARD_API_BASE_URL + "/asset/{asset_id}/indicators"),
     ]:
-        if key not in _source_map():
+        existing_source = _source_map().get(key)
+        if existing_source is None:
             db.save_source(key, label, "not_tested", url, None, "هنوز بررسی نشده است", None)
+        elif existing_source.get("label") != label:
+            db.update_source_label(key, label)
     legacy_sources = _source_map()
     for key, label in [("tsetmc", "منبع قبلی قیمت صندوق‌ها · غیرفعال"),
                        ("fipiran", "منبع قبلی مشخصات صندوق‌ها · غیرفعال"),
-                       ("tabdeal_usdt", "منبع قبلی قیمت تتر · غیرفعال")]:
+                       ("tabdeal_usdt", "منبع قبلی قیمت دلار به تومان · غیرفعال")]:
         previous = legacy_sources.get(key)
         if previous and previous.get("status") != "disabled":
             db.save_source(key, label, "disabled", previous.get("source_url"),
                            previous.get("last_data_timestamp"),
                            "برای داده جدید صندوق‌ها از ره‌آورد۳۶۵ استفاده می‌شود؛ تاریخچه قبلی نگهداری شده است.", None)
+        elif previous and previous.get("label") != label:
+            db.update_source_label(key, label)
     for key, label in [("yahoo_gold", "Yahoo Finance · تاریخچه پیشین"),
                        ("tgju", "TGJU · تاریخچه پیشین")]:
         previous = legacy_sources.get(key)
@@ -358,7 +364,7 @@ def health():
 
 
 def _gold18k_valuation(gold_quote: dict[str, Any], dollar_quote: dict[str, Any], rahavard_quote: dict[str, Any]) -> dict[str, Any]:
-    """Estimate 18K gold per gram from XAU/USD and USDT/IRT, then compare it with Rahavard."""
+    """Estimate 18K gold per gram from XAU/USD and the Rahavard dollar-to-toman rate."""
     def number(value: Any) -> float | None:
         try:
             result = float(value)
@@ -378,7 +384,7 @@ def _gold18k_valuation(gold_quote: dict[str, Any], dollar_quote: dict[str, Any],
         "usdt_toman": usdt_toman,
         "purity": 0.75,
         "ounce_grams": 31.1034768,
-        "method": "XAU/USD * USDT/IRT * 75% / 31.1034768",
+        "method": "XAU/USD * USD/IRT * 75% / 31.1034768",
     }
     if gold_usd_per_ounce is None or usdt_toman is None or rahavard_irr_per_gram is None:
         return valuation

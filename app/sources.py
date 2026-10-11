@@ -174,7 +174,7 @@ def rahavard_usdt_history() -> list[dict[str, Any]]:
     payload = _json(f"{RAHAVARD_LIGHT_BARS_URL}?{query}", referer=RAHAVARD_USDT_PAGE_URL)
     rows = payload.get("data") if isinstance(payload, dict) else None
     if not isinstance(rows, list) or not rows:
-        raise SourceError("ره‌آورد۳۶۵ برای قیمت تتر کندلی برنگرداند")
+        raise SourceError("ره‌آورد۳۶۵ برای دلار به تومان کندلی برنگرداند")
     grouped: dict[str, dict[str, Any]] = {}
     for item in sorted(rows, key=lambda row: _num(row.get("time")) or 0):
         try:
@@ -212,7 +212,7 @@ def rahavard_usdt_history() -> list[dict[str, Any]]:
                 current["volume"] = volume
     bars = [grouped[day] for day in sorted(grouped)]
     if not bars:
-        raise SourceError("کندل‌های قیمت تتر از ره‌آورد۳۶۵ معتبر نیستند")
+        raise SourceError("کندل‌های دلار به تومان از ره‌آورد۳۶۵ معتبر نیستند")
     return bars
 
 
@@ -592,12 +592,12 @@ async def refresh_all() -> dict[str, Any]:
 
     def apply_usd(result):
         bars = result
-        db.save_bars("USD_IR_FREE", "تتر (معادل دلار آمریکا)", "currency", "IRT", "تومان",
+        db.save_bars("USD_IR_FREE", "دلار به تومان", "currency", "IRT", "تومان",
                      "Rahavard365", RAHAVARD_USDT_PAGE_URL, bars)
         observed = bars[-1].get("observed_at") or bars[-1].get("timestamp")
         stale = bool(observed and (datetime.now(timezone.utc) - datetime.fromisoformat(str(observed).replace("Z", "+00:00"))).total_seconds() > MAX_STALE_HOURS * 3600)
         return (len(bars), observed,
-                {"status": "stale", "message": "آخرین مشاهدهٔ USDT/IRT از آستانه تازگی عبور کرده است"} if stale else {})
+                {"status": "stale", "message": "آخرین مشاهدهٔ دلار به تومان از آستانه تازگی عبور کرده است"} if stale else {})
 
     def apply_tepix(result):
         bars = result
@@ -632,7 +632,7 @@ async def refresh_all() -> dict[str, Any]:
                    rahavard_gold_18k_history, apply_gold_18k),
         run_source("yahoo_dxy", "شاخص دلار آمریکا", YAHOO_CHART.format(symbol="DX-Y.NYB"),
                    lambda: yahoo_history("DX-Y.NYB"), apply_dxy),
-        run_source("rahavard_usdt", "قیمت تتر / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL,
+        run_source("rahavard_usdt", "قیمت دلار به تومان / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL,
                    rahavard_usdt_history, apply_usd),
         run_source("rahavard_tepix", "شاخص کل بورس / ره‌آورد۳۶۵",
                    RAHAVARD_TEPIX_PAGE_URL, rahavard_tepix_history, apply_tepix),

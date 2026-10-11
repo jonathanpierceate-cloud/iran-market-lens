@@ -204,7 +204,7 @@ class Database:
             for row in [
                 ("GOLD", "طلای جهانی (قرارداد آتی COMEX)", "commodity", "USD", "دلار/اونس تروا", "Yahoo Finance", "https://finance.yahoo.com/quote/GC=F/"),
                 ("DXY", "شاخص دلار آمریکا", "index", "USD", "شاخص", "Yahoo Finance", "https://finance.yahoo.com/quote/DX-Y.NYB/"),
-                ("USD_IR_FREE", "دلار بازار آزاد ایران", "currency", "IRR", "تومان", "TGJU", "https://www.tgju.org/profile/price_dollar_rl"),
+                ("USD_IR_FREE", "دلار به تومان", "currency", "IRR", "تومان", "TGJU", "https://www.tgju.org/profile/price_dollar_rl"),
             ]:
                 conn.execute(
                     "INSERT OR IGNORE INTO assets(symbol,name,asset_type,currency,unit,source,source_url) VALUES(?,?,?,?,?,?,?)",
@@ -352,6 +352,10 @@ class Database:
                 source_url=excluded.source_url,last_sync=excluded.last_sync,last_data_timestamp=excluded.last_data_timestamp,
                 error=excluded.error,latency_ms=excluded.latency_ms""",
                 (name, label, status, url, utc_now(), last_data_timestamp, error, latency_ms))
+
+    def update_source_label(self, name: str, label: str) -> None:
+        with self.connect() as conn:
+            conn.execute("UPDATE data_sources SET label=? WHERE name=?", (label, name))
 
     def log_fetch(self, source: str, started_at: str, status: str, records: int = 0,
                   message: str | None = None, latency_ms: int | None = None) -> None:

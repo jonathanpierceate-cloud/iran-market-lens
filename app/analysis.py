@@ -435,7 +435,7 @@ def analyze(symbol: str, bars: list[dict[str, Any]],
     if symbol == "GOLD":
         limitations.append("حجم اونس ممکن است حجم نمایندهٔ کل بازار نباشد؛ به‌عنوان تأیید محدود خوانده شود.")
     elif symbol == "USD_IR_FREE":
-        limitations.append("حجم تتر از منبع محدود است و نمایندهٔ کل بازار OTC نیست.")
+        limitations.append("حجم ثبت‌شده برای دلار به تومان از منبع محدود است و نمایندهٔ کل بازار OTC نیست.")
 
     return {
         "symbol": symbol, "data_timestamp": bars[-1].get("timestamp") if bars else None,
