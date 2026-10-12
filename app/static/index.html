@@ -12,7 +12,7 @@
   <title>AliVest | تحلیل سرمایه‌گذاری</title>
   <link rel="stylesheet" href="/static/app.css?v=market-summary-period-20261011">
   <link rel="stylesheet" href="/static/analysis.css?v=watchlist-readonly-v1-20261011">
-  <link rel="stylesheet" href="/static/design.css?v=four-asset-score-comparison-20261011">
+  <link rel="stylesheet" href="/static/design.css?v=investment-horizon-v1-20261012">
 </head>
 <body>
   <div class="app-shell">
@@ -56,6 +56,15 @@
           <div class="heading-actions"><span class="updated-label" id="last-updated">در انتظار دریافت داده</span><button class="button button-primary" id="refresh-primary"><span>⟳</span> دریافت آخرین داده</button></div>
         </div>
 
+        <div class="investment-horizon-toolbar">
+          <label for="investment-horizon">دید سرمایه‌گذاری</label>
+          <select id="investment-horizon" aria-label="انتخاب دید سرمایه‌گذاری">
+            <option value="short">کوتاه‌مدت</option>
+            <option value="medium" selected>میان‌مدت</option>
+          </select>
+          <span id="investment-horizon-description">امتیازهای داشبورد، صندوق‌ها و دیده‌بان با مدل میان‌مدت محاسبه می‌شوند.</span>
+        </div>
+
         <div class="market-strip">
           <article class="market-card gold-card market-analysis-trigger" data-analysis-toggle="gold" role="button" tabindex="0" aria-controls="gold-analysis" aria-expanded="false">
             <div class="card-top"><span class="asset-icon gold-icon">Au</span><span class="card-kicker">طلای جهانی · XAU/USD</span><span class="freshness" id="gold-freshness"><i></i> در حال بررسی</span></div>
@@ -92,8 +101,8 @@
         </div>
 
         <section class="panel asset-comparison-panel" aria-labelledby="asset-comparison-title">
-          <div class="asset-comparison-heading"><div><span class="panel-kicker">نمای مقایسه‌ای · افق ۳ تا ۶ ماه</span><h2 id="asset-comparison-title">مقایسه تکنیکال چهار دارایی</h2></div><small>امتیاز مدل اختصاصی AliVest · بر پایه داده‌های موجود ره‌آورد</small></div>
-          <div class="asset-comparison-scroll"><table class="asset-comparison-table"><thead><tr><th scope="col">دارایی</th><th scope="col">آخرین قیمت</th><th scope="col">امتیاز از ۱۰۰</th><th scope="col">جهت میان‌مدت</th><th scope="col">قدرت روند</th><th scope="col">ریسک نوسان</th><th scope="col">کیفیت ورود</th><th scope="col">پوشش داده</th></tr></thead><tbody id="overview-asset-comparison-body"><tr><td colspan="8">در انتظار دریافت داده</td></tr></tbody></table></div>
+          <div class="asset-comparison-heading"><div><span id="asset-comparison-kicker" class="panel-kicker">نمای مقایسه‌ای · دید میان‌مدت</span><h2 id="asset-comparison-title">مقایسه تکنیکال چهار دارایی</h2></div><small>امتیاز مدل اختصاصی AliVest · بر پایه داده‌های موجود ره‌آورد</small></div>
+          <div class="asset-comparison-scroll"><table class="asset-comparison-table"><thead><tr><th scope="col">دارایی</th><th scope="col">آخرین قیمت</th><th scope="col">امتیاز از ۱۰۰</th><th id="asset-comparison-trend-heading" scope="col">جهت روند</th><th scope="col">قدرت روند</th><th scope="col">ریسک نوسان</th><th scope="col">کیفیت ورود</th><th scope="col">پوشش داده</th></tr></thead><tbody id="overview-asset-comparison-body"><tr><td colspan="8">در انتظار دریافت داده</td></tr></tbody></table></div>
           <p id="overview-asset-comparison-summary" class="asset-comparison-summary">مقایسهٔ نسبی جهت، امتیاز و ریسک ورود پس از دریافت داده نمایش داده می‌شود.</p>
         </section>
 
@@ -125,7 +134,7 @@
 <th scope="col" tabindex="0" data-fund-sort="volume">حجم <span class="sort-indicator" aria-hidden="true">⇅</span></th>
 <th scope="col" tabindex="0" data-fund-sort="value">ارزش معامله (ریال) <span class="sort-indicator" aria-hidden="true">⇅</span></th>
 <th scope="col" tabindex="0" data-fund-sort="updated_at">آخرین به‌روزرسانی <span class="sort-indicator" aria-hidden="true">⇅</span></th>
-</tr></thead><tbody id="fund-table"><tr><td colspan="13"><div class="empty-state"><span>▤</span><b>هنوز صندوقی از ره‌آورد۳۶۵ دریافت نشده</b><small>آخرین وضعیت اتصال را در صفحه وضعیت سامانه ببینید.</small></div></td></tr></tbody></table></div><div class="table-footer"><span id="fund-table-source">فهرست و قیمت به ریال از ره‌آورد۳۶۵ · NAV و مشخصات کامل در نمایهٔ هر صندوق</span><span>امتیاز مدل میان‌مدتی ۷‌خانواده‌ای با پوشش و کیفیت داده نمایش داده می‌شود.</span></div></div>
+</tr></thead><tbody id="fund-table"><tr><td colspan="13"><div class="empty-state"><span>▤</span><b>هنوز صندوقی از ره‌آورد۳۶۵ دریافت نشده</b><small>آخرین وضعیت اتصال را در صفحه وضعیت سامانه ببینید.</small></div></td></tr></tbody></table></div><div class="table-footer"><span id="fund-table-source">فهرست و قیمت به ریال از ره‌آورد۳۶۵ · NAV و مشخصات کامل در نمایهٔ هر صندوق</span><span id="fund-score-model-note">امتیاز تکنیکال با مدل دید انتخاب‌شده محاسبه می‌شود.</span></div></div>
         <div id="fund-detail" class="panel fund-detail hidden"></div>
       </section>
 
@@ -162,6 +171,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=dashboard-market-summary-v2-20261011"></script>
+  <script src="/static/app.js?v=investment-horizon-v1-20261012"></script>
 </body>
 </html>

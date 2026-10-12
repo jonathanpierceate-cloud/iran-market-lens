@@ -1,9 +1,13 @@
 (() => {
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
-  const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], watchlist: [], currentView: "overview", watchlistRefreshTimer: null, watchlistRefreshSeconds: 900 };
+  const horizonStorageKey = "alivest.investmentHorizon";
+  let savedHorizon = "medium";
+  try { savedHorizon = localStorage.getItem(horizonStorageKey) === "short" ? "short" : "medium"; } catch {}
+  const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], watchlist: [], currentView: "overview", investmentHorizon: savedHorizon, watchlistRefreshTimer: null, watchlistRefreshSeconds: 900 };
   const fundSortState = { key: "data_timestamp", direction: -1 };
   let fundScoreFillRunning = false;
+  let fundScoreGeneration = 0;
   const fundScoreAttemptedKeys = new Set();
   const nf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const en = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
@@ -60,7 +64,11 @@
   const statusText = (status) => ({ available: "تازه", connected: "متصل", stale: "کهنه", cached_after_source_error: "آخرین داده", failed: "خطا", not_tested: "بررسی‌نشده", unavailable: "در دسترس نیست", disabled: "غیرفعال" }[status] || status || "نامشخص");
 
   async function api(path, options = {}) {
-    const response = await fetch(path, { headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options });
+    const requestUrl = new URL(path, location.origin);
+    if (requestUrl.origin === location.origin && requestUrl.pathname.startsWith("/api/")) {
+      requestUrl.searchParams.set("horizon", state.investmentHorizon);
+    }
+    const response = await fetch(requestUrl.pathname + requestUrl.search + requestUrl.hash, { headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.detail || data.error || `خطای ${response.status}`);
     return data;
@@ -110,8 +118,11 @@
     $(`#${prefix}-time`).textContent = formatDate(quote.data_timestamp);
     freshness($(`#${prefix}-freshness`), quote.status, quote.data_timestamp);
     const trend = $(`#${prefix}-trend`);
-    trend.textContent = trendText(quote.analysis?.medium_term_trend);
-    trend.className = `trend ${quote.analysis?.medium_term_trend || "neutral"}`;
+    const selectedTrend = quote.analysis?.trend || quote.analysis?.medium_term_trend;
+    trend.textContent = trendText(selectedTrend);
+    trend.className = `trend ${selectedTrend || "neutral"}`;
+    const trendHeading = trend.parentElement?.querySelector("span");
+    if (trendHeading) trendHeading.textContent = `روند ${quote.analysis?.investment_horizon_label || horizonLabel(state.investmentHorizon)}`;
     const scoreEl = $(`#${prefix}-score`);
     if (scoreEl) scoreEl.textContent = quote.analysis?.technical_score == null ? "—" : `${num(quote.analysis.technical_score, 0)} / ۱۰۰`;
   }
@@ -436,10 +447,10 @@
 
   function fundModelRecommendationHtml(a) {
     const labels = {
-      moving_averages: ["میانگین متحرک", "EMA، SMA، ابر ایچیموکو و باندها · وزن کلی ۳۵٪"],
-      oscillators: ["نوسان‌گر", "شتاب و قدرت روند؛ RSI فقط یکی از چند رأی است · وزن کلی ۳۵٪"],
-      volume: ["حجم", "جریان پول و حجم نسبی معاملات · وزن کلی ۱۵٪"],
-      support_resistance: ["حمایت و مقاومت", "پیوت‌ها و فاصلهٔ قیمت تا سطوح · وزن کلی ۱۵٪"]
+      moving_averages: ["میانگین متحرک", "جایگاه قیمت نسبت به میانگین‌ها و باندها"],
+      oscillators: ["نوسان‌گر", "شتاب و قدرت روند؛ RSI یکی از چند شاخص است"],
+      volume: ["حجم", "جریان پول و حجم نسبی معاملات"],
+      support_resistance: ["حمایت و مقاومت", "پیوت‌ها و فاصلهٔ قیمت تا سطوح"]
     };
     const indicatorLabels = {
       ema50: "EMA(50)", ema20: "EMA(20)", ichimoku: "Ichimoku Cloud (9, 26, 52, 26)",
@@ -465,6 +476,8 @@
     const validScore = Number.isFinite(score);
     const tone = !validScore ? "unknown" : score >= 60 ? "positive" : score < 45 ? "negative" : "neutral";
     const scoreWeights = a.score_weights || {};
+    const horizonName = a.investment_horizon_label || horizonLabel();
+    const scoreWeightText = `مدل ${horizonName} · میانگین متحرک ${num(scoreWeights.moving_averages ?? 0, 0)}٪ · نوسان‌گر ${num(scoreWeights.oscillators ?? 0, 0)}٪ · حجم ${num(scoreWeights.volume ?? 0, 0)}٪ · حمایت و مقاومت ${num(scoreWeights.support_resistance ?? 0, 0)}٪`;
     const effectiveScoreWeights = a.effective_score_weights || {};
     const familyScores = a.family_scores || {};
     const familyCards = Object.entries(labels).map(([key, [label, description]]) => {
@@ -526,9 +539,9 @@
     };
     return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       <div class="fund-model-score-head">
-        <div><span class="recommendation-kicker">مدل میان‌مدتی AliVest · محاسبه بر پایه داده‌های ره‌آورد</span>
+        <div><span class="recommendation-kicker">مدل ${horizonName} AliVest · محاسبه بر پایه داده‌های ره‌آورد</span>
           <h3>امتیاز تکنیکال صندوق: <strong>${validScore ? `${num(score, 0)} از ۱۰۰` : "داده کافی نیست"}</strong></h3>
-          <p>روند/میانگین‌ها ۳۵٪ · نوسان‌گر ۳۵٪ · حجم ۱۵٪ · حمایت و مقاومت ۱۵٪. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · RSI به‌تنهایی مبنای خرید نیست.</p>
+          <p>${scoreWeightText}. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · RSI به‌تنهایی مبنای خرید نیست.</p>
         </div>
         <div class="fund-model-meta">
           <span>پوشش کل داده‌ها <b>${Number.isFinite(coverage) ? `${num(coverage, 0)}٪` : "—"}</b></span>
@@ -549,6 +562,7 @@
     const scoreValue = finite(a.technical_score) ? Number(a.technical_score) : null;
     const scoreTone = scoreValue == null ? "unknown" : scoreValue >= 60 ? "positive" : scoreValue < 45 ? "negative" : "neutral";
     const weights = a.score_weights || {};
+    const horizonName = a.investment_horizon_label || horizonLabel();
     const effectiveWeights = a.effective_score_weights || {};
     const scores = a.family_scores || {};
     const trendLabels = { bullish: "صعودی", bearish: "نزولی", neutral: "خنثی", unavailable: "داده کافی نیست" };
@@ -556,11 +570,11 @@
     const riskLabels = { low: "کم", medium: "متوسط", high: "بالا", very_high: "بسیار بالا", unavailable: "نامشخص" };
     const entryLabels = { suitable: "مناسب", confirmation: "نیازمند تأیید", unsuitable: "نامناسب", unavailable: "داده کافی نیست" };
     const bandLabels = { very_strong: "بسیار قوی", strong: "قوی", relatively_positive: "نسبتاً مثبت", neutral: "خنثی", weak: "نسبتاً منفی", very_weak: "بسیار ضعیف", unavailable: "داده کافی نیست" };
-    const trend = trendLabels[a.medium_term_trend] || "داده کافی نیست";
+    const trend = trendLabels[a.trend || a.medium_term_trend] || "داده کافی نیست";
     const strength = strengthLabels[a.trend_strength] || "نامشخص";
     const risk = riskLabels[a.risk] || "نامشخص";
     const entry = entryLabels[a.entry_quality?.status] || "داده کافی نیست";
-    const scoreWeightText = "مدل میان‌مدتی · میانگین متحرک " + num(weights.moving_averages ?? 45, 0) + "٪ · نوسان‌گر " + num(weights.oscillators ?? 40, 0) + "٪ · حمایت و مقاومت " + num(weights.support_resistance ?? 15, 0) + "٪";
+    const scoreWeightText = "مدل " + horizonName + " · میانگین متحرک " + num(weights.moving_averages ?? 0, 0) + "٪ · نوسان‌گر " + num(weights.oscillators ?? 0, 0) + "٪ · حمایت و مقاومت " + num(weights.support_resistance ?? 0, 0) + "٪";
     const familyDefinitions = [
       { key: "moving_averages", label: "میانگین متحرک", description: "EMA، SMA، ایچیموکو و باندها" },
       { key: "oscillators", label: "نوسان‌گر", description: "مومنتوم و قدرت روند؛ RSI فقط یکی از چند رأی است" },
@@ -599,11 +613,11 @@
       : "<span>" + fallback + "</span>";
     const limitations = Array.isArray(a.data_limitations) ? a.data_limitations : [];
     return "<section class=\"fund-recommendation " + scoreTone + " fund-model-recommendation dashboard-model-recommendation\">" +
-      "<div class=\"fund-model-score-head\"><div><span class=\"recommendation-kicker\">مدل میان‌مدتی · امتیاز اختصاصی AliVest بر پایهٔ داده‌های ره‌آورد</span>" +
+      "<div class=\"fund-model-score-head\"><div><span class=\"recommendation-kicker\">مدل " + horizonName + " · امتیاز اختصاصی AliVest بر پایهٔ داده‌های ره‌آورد</span>" +
       "<h3>امتیاز تکنیکال: <strong>" + (scoreValue == null ? "داده کافی نیست" : num(scoreValue, 0) + " از ۱۰۰") + "</strong> · " + (bandLabels[a.score_band] || "نامشخص") + "</h3>" +
       "<p>" + scoreWeightText + " · وزن شاخص‌های بی‌داده در گروه متناسب می‌شود؛ RSI به‌تنهایی مبنای خرید نیست.</p></div>" +
       "<div class=\"fund-model-meta\"><span>قیمت فعلی <b>" + price + "</b></span><span>تغییر روزانه <b>" + daily + "</b></span>" +
-      "<span>جهت میان‌مدت <b>" + trend + "</b></span><span>قدرت روند <b>" + strength + "</b></span>" +
+      "<span>جهت " + horizonName + " <b>" + trend + "</b></span><span>قدرت روند <b>" + strength + "</b></span>" +
       "<span>ریسک نوسان <b>" + risk + (finite(a.risk_score) ? " · " + num(a.risk_score, 0) : "") + "</b></span>" +
       "<span>ارزیابی خرید <b>" + entry + (finite(a.entry_quality?.score) ? " · امتیاز کل " + num(a.entry_quality.score, 0) : "") + "</b></span>" +
       "<span>پوشش داده <b>" + (finite(a.data_coverage_pct) ? num(a.data_coverage_pct, 0) + "٪" : "—") + "</b></span>" +
@@ -623,7 +637,7 @@
     if (a?.score_method === "dashboard_rahavard_three_group_weighted_v1") {
       return dashboardModelRecommendationHtml(a);
     }
-    if (a?.score_method === "fund_rahavard_four_group_weighted_v1" && a.family_scores) {
+    if (a?.score_method?.startsWith("fund_rahavard_four_group_weighted_") && a.family_scores) {
       return fundModelRecommendationHtml(a);
     }
     const gauge = a.site_gauges?.main || {};
@@ -998,6 +1012,12 @@
     const strengthLabels = { strong: "قوی", medium: "متوسط", weak: "ضعیف", unavailable: "نامشخص" };
     const riskLabels = { low: "کم", medium: "متوسط", high: "بالا", very_high: "بسیار بالا", unavailable: "نامشخص" };
     const entryLabels = { suitable: "مساعد", confirmation: "نیازمند اصلاح و تثبیت", unsuitable: "نامساعد", unavailable: "نامشخص" };
+    const title = $("#asset-comparison-title");
+    if (title) title.textContent = `مقایسه تکنیکال چهار دارایی · ${horizonLabel(state.investmentHorizon)}`;
+    const kicker = $("#asset-comparison-kicker");
+    if (kicker) kicker.textContent = `نمای مقایسه‌ای · دید ${horizonLabel()}`;
+    const trendHeading = $("#asset-comparison-trend-heading");
+    if (trendHeading) trendHeading.textContent = `جهت ${horizonLabel()}`;
     const assets = [
       ["طلای جهانی · XAU/USD", state.gold],
       ["دلار · USD/IRT", state.dollar],
@@ -1010,12 +1030,12 @@
       const rawPrice = quote?.price ?? analysis.price;
       const price = rawPrice != null && Number.isFinite(Number(rawPrice)) ? `${money(rawPrice)} ${priceUnits[quote?.symbol] || ""}` : "—";
       const score = analysis.technical_score == null ? "—" : `${num(analysis.technical_score, 0)} / ۱۰۰`;
-      const direction = trendLabels[analysis.medium_term_trend] || "نامشخص";
+      const direction = trendLabels[analysis.trend || analysis.medium_term_trend] || "نامشخص";
       const strength = strengthLabels[analysis.trend_strength] || "نامشخص";
       const risk = riskLabels[analysis.risk] || "نامشخص";
       const entry = entryLabels[analysis.entry_quality?.status] || "نامشخص";
       const coverage = analysis.data_coverage_pct == null ? "—" : `${num(analysis.data_coverage_pct, 0)}٪`;
-      const tone = analysis.medium_term_trend || "unavailable";
+      const tone = analysis.trend || analysis.medium_term_trend || "unavailable";
       return `<tr><th scope="row">${name}</th><td>${price}</td><td>${score}</td><td><span class="asset-comparison-tag ${tone}">${direction}</span></td><td>${strength}</td><td>${risk}</td><td>${entry}</td><td>${coverage}</td></tr>`;
     });
     target.innerHTML = rows.join("");
@@ -1040,10 +1060,46 @@
     }
   }
 
+  function horizonLabel(horizon = state.investmentHorizon) {
+    return horizon === "short" ? "کوتاه‌مدت" : "میان‌مدت";
+  }
+
+  function syncInvestmentHorizonControl() {
+    const select = $("#investment-horizon");
+    if (select) select.value = state.investmentHorizon;
+    const description = $("#investment-horizon-description");
+    if (description) description.textContent = `امتیازهای داشبورد، صندوق‌ها و دیده‌بان با مدل ${horizonLabel()} محاسبه می‌شوند.`;
+    const fundNote = $("#fund-score-model-note");
+    if (fundNote) fundNote.textContent = `امتیاز تکنیکال با مدل ${horizonLabel()} محاسبه می‌شود؛ وزن خانواده‌ها و شاخص‌ها در نمایهٔ هر صندوق مشخص است.`;
+  }
+
+  async function changeInvestmentHorizon(horizon) {
+    const next = horizon === "short" ? "short" : "medium";
+    if (next === state.investmentHorizon) return;
+    state.investmentHorizon = next;
+    try { localStorage.setItem(horizonStorageKey, next); } catch {}
+    fundScoreGeneration += 1;
+    fundScoreAttemptedKeys.clear();
+    syncInvestmentHorizonControl();
+    toast(`امتیازدهی ${horizonLabel()} در حال به‌روزرسانی است…`);
+    const reloads = [loadOverview()];
+    if (state.currentView === "funds") reloads.push(loadFunds());
+    if (state.currentView === "watchlist") reloads.push(loadWatchlist());
+    const detail = $("#fund-detail");
+    if (state.currentView === "funds" && detail && !detail.classList.contains("hidden") && detail.dataset.fundSymbol) {
+      reloads.push(showFund(detail.dataset.fundSymbol));
+    }
+    await Promise.all(reloads);
+    toast(`مدل امتیازدهی ${horizonLabel()} اعمال شد.`);
+  }
+
   async function loadOverview() {
+    const requestedHorizon = state.investmentHorizon;
     try {
       const summary = await api("/api/market/summary");
+      if (requestedHorizon !== state.investmentHorizon) return;
       state.summary = summary;
+      syncInvestmentHorizonControl();
       state.gold = summary.gold; state.gold18k = summary.gold18k; state.dollar = summary.dollar; state.tepix = summary.tepix;
       renderOverviewMarketSummary();
       renderOverviewAssetComparison();
@@ -1081,6 +1137,7 @@
   }
 
   async function loadFunds(options = {}) {
+    const requestedHorizon = state.investmentHorizon;
     try {
       const url = new URL("/api/funds", location.origin);
       const search = options.search ?? $("#fund-search")?.value ?? "";
@@ -1088,6 +1145,7 @@
       const sort = options.sort ?? $("#fund-sort")?.value ?? "data_timestamp";
       url.searchParams.set("search", search); url.searchParams.set("category", category); url.searchParams.set("sort", sort);
       const data = await api(url.pathname + url.search);
+      if (requestedHorizon !== state.investmentHorizon) return;
       state.funds = sortedFundItems(data.items);
       const resultCount = $("#fund-result-count");
       if (resultCount) resultCount.textContent = `${nf.format(data.count)} صندوق`;
@@ -1179,7 +1237,7 @@
       const scoreValue = f.technical_score == null ? null : Number(f.technical_score);
       const scoreCoverage = f.data_coverage_pct == null ? null : Number(f.data_coverage_pct);
       const scoreTone = scoreValue == null || !Number.isFinite(scoreValue) ? "unknown" : scoreValue >= 70 ? "positive" : scoreValue >= 50 ? "neutral" : "negative";
-      const scoreTitle = `امتیاز میان‌مدتی AliVest · پوشش داده: ${scoreCoverage != null && Number.isFinite(scoreCoverage) ? `${num(scoreCoverage, 0)}٪` : "نامشخص"}`;
+      const scoreTitle = `امتیاز ${horizonLabel()} AliVest · پوشش داده: ${scoreCoverage != null && Number.isFinite(scoreCoverage) ? `${num(scoreCoverage, 0)}٪` : "نامشخص"}`;
       const scoreCell = scoreValue == null || !Number.isFinite(scoreValue) ? `<span class="technical-score-chip unknown" title="امتیاز هنوز محاسبه نشده">—</span>` : `<span class="technical-score-chip ${scoreTone}" title="${esc(scoreTitle)}">${num(scoreValue, 0)} / 100</span>`;
       const typeLabel = f.fund_type_label || f.category || "نامشخص";
       const assessment = f.purchase_assessment || {};
@@ -1192,6 +1250,8 @@
 
   async function fillVisibleFundScores() {
     if (fundScoreFillRunning) return;
+    const generation = fundScoreGeneration;
+    const requestedHorizon = state.investmentHorizon;
     const pending = [...new Set(state.funds
       .filter((fund) => fund.technical_score == null)
       .map((fund) => fund.fund_key || fund.symbol)
@@ -1214,11 +1274,13 @@
             body: JSON.stringify({ fund_keys: batch, category_id: $("#fund-category")?.value || "" })
           });
         } catch (error) {
+          if (generation !== fundScoreGeneration || requestedHorizon !== state.investmentHorizon) return;
           batch.forEach((key) => fundScoreAttemptedKeys.add(key));
           unavailable += batch.length;
           if (progress) progress.textContent = "دریافت امتیازها موقتاً متوقف شد؛ دوباره فهرست را به‌روز کنید.";
           break;
         }
+        if (generation !== fundScoreGeneration || requestedHorizon !== state.investmentHorizon) return;
 
         const returned = new Set();
         for (const result of response.items || []) {
@@ -1265,6 +1327,9 @@
       }
     } finally {
       fundScoreFillRunning = false;
+      if (generation !== fundScoreGeneration && state.currentView === "funds") {
+        queueMicrotask(() => void fillVisibleFundScores());
+      }
     }
   }
 
@@ -1284,9 +1349,12 @@
   }
 
   async function showFund(symbol) {
+    const requestedHorizon = state.investmentHorizon;
     try {
       const data = await api(`/api/funds/${encodeURIComponent(symbol)}`);
+      if (requestedHorizon !== state.investmentHorizon) return;
       const section = $("#fund-detail");
+      section.dataset.fundSymbol = symbol;
       section.classList.remove("hidden");
       const f = data.fund || {}, a = data.analysis;
       const id = f.rahavard_asset_id || f.symbol;
@@ -1387,6 +1455,7 @@
     }).join("");
   }
   async function loadWatchlist() {
+    const requestedHorizon = state.investmentHorizon;
     const body = $("#watchlist-items");
     if (!state.watchlist.length) body.innerHTML = `<div class="empty-state compact watchlist-empty"><b>در حال دریافت قیمت و تحلیل ره‌آورد…</b></div>`;
     try {
@@ -1394,6 +1463,7 @@
         api("/api/watchlist"),
         state.funds.length ? Promise.resolve({ items: state.funds }) : api("/api/funds")
       ]);
+      if (requestedHorizon !== state.investmentHorizon) return;
       state.watchlist = data.items || [];
       state.funds = fundsData.items || [];
       const seenAssetIds = new Set();
@@ -1522,6 +1592,8 @@
   }
 
   $$(".nav-item").forEach((button) => button.addEventListener("click", () => openView(button.dataset.view)));
+  $("#investment-horizon").value = state.investmentHorizon;
+  $("#investment-horizon").addEventListener("change", (event) => changeInvestmentHorizon(event.target.value));
   $$('[data-open-view]').forEach((button) => button.addEventListener("click", () => openView(button.dataset.openView)));
   $$('[data-refresh], #refresh-button, #refresh-primary').forEach((button) => button.addEventListener("click", doRefresh));
   $("#theme-toggle").addEventListener("click", async () => {
@@ -1637,7 +1709,7 @@
     event.preventDefault();
     sortFundTable(header.dataset.fundSort);
   });
-  $("#fund-detail").addEventListener("click", (event) => { if (event.target.closest("[data-close-fund]")) $("#fund-detail").classList.add("hidden"); });
+  $("#fund-detail").addEventListener("click", (event) => { if (event.target.closest("[data-close-fund]")) { $("#fund-detail").classList.add("hidden"); delete $("#fund-detail").dataset.fundSymbol; } });
   $(".market-strip").addEventListener("click", (event) => {
     const trigger = event.target.closest("[data-analysis-toggle]");
     if (trigger) toggleMarketAnalysis(trigger.dataset.analysisToggle);
@@ -1664,6 +1736,7 @@
  });
  localDateClock(); setInterval(localDateClock, 30_000);
   installEnglishDigits();
- api("/api/settings").then((s) => document.body.classList.toggle("light-mode", s.theme === "light")).catch(() => {});
+  syncInvestmentHorizonControl();
+  api("/api/settings").then((s) => document.body.classList.toggle("light-mode", s.theme === "light")).catch(() => {});
   loadOverview();
 })();

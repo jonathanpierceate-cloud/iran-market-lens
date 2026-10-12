@@ -1,4 +1,4 @@
-"""Four-family, medium-term technical score for Rahavard ETF data.
+"""Four-family technical scores for short- and medium-term Rahavard ETF data.
 
 Weights are configurable proposals from the product specification. They have
 not been optimized or backtested. Unknown vendor formulas are deliberately
@@ -10,12 +10,9 @@ import math
 import re
 from typing import Any
 
-FAMILY_WEIGHTS = {
-    "moving_averages": 0.35,
-    "oscillators": 0.35,
-    "volume": 0.15,
-    "support_resistance": 0.15,
-}
+from .scoring_profiles import FUND_SCORING_PROFILES, normalize_horizon, horizon_label
+
+FAMILY_WEIGHTS = FUND_SCORING_PROFILES["medium"]["family_weights"]
 
 FUND_TYPE_LABELS = {
     "fixed_income": "درآمد ثابت", "mixed": "مختلط", "equity": "سهامی",
@@ -26,27 +23,7 @@ FUND_TYPE_LABELS = {
     "leveraged": "اهرمی", "silver": "نقره",
 }
 
-INDICATOR_WEIGHTS = {
-    "moving_averages": {
-        "ema50": 0.16, "ema20": 0.14, "ichimoku": 0.14, "ema100": 0.12,
-        "bb20": 0.10, "sma50": 0.08, "sma20": 0.06, "ema10": 0.06,
-        "sma100": 0.04, "keltner16": 0.04, "ema30": 0.02, "sma10": 0.02,
-        "sma30": 0.01, "ema5": 0.005, "sma5": 0.005,
-    },
-    "oscillators": {
-        "macd26": 0.22, "rsi14": 0.20, "mfi14": 0.16, "adx14": 0.12,
-        "stochrsi14": 0.08, "trend": 0.06, "ao534": 0.05, "so14": 0.04,
-        "aroon25": 0.03, "cci14": 0.02, "mtm6": 0.01, "wr14": 0.01,
-    },
-    "volume": {
-        "obv20": 0.30, "sm15": 0.22, "rv30": 0.18, "rv90": 0.12,
-        "vmacd26": 0.08, "vrsi14": 0.06, "rv15": 0.04,
-    },
-    "support_resistance": {
-        "fibonacci": 0.32, "classic": 0.26, "camarilla": 0.20,
-        "woodie": 0.14, "demark": 0.08,
-    },
-}
+INDICATOR_WEIGHTS = FUND_SCORING_PROFILES["medium"]["indicator_weights"]
 
 FUND_TYPE_BY_CATEGORY_ID = {
     "255": "fixed_income", "256": "mixed", "257": "equity", "301": "gold",
@@ -214,8 +191,8 @@ def _band_position_score(item: dict[str, Any] | None, price: float | None) -> fl
     return score if score is not None else _signal_score(item)
 
 
-def _trend_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | None) -> dict[str, Any]:
-    weights = INDICATOR_WEIGHTS["moving_averages"]
+def _trend_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | None,
+                 weights: dict[str, float]) -> dict[str, Any]:
     items: dict[str, dict[str, Any] | None] = {"ichimoku": _find(rows, "IchimokuCloud", ("moving_averages",))}
     for key in weights:
         if key != "ichimoku":
@@ -336,8 +313,7 @@ def _bounded_oscillator_score(value: float, high: float = 70.0, low: float = 30.
 
 
 def _momentum_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | None,
-                    context: dict[str, Any]) -> dict[str, Any]:
-    weights = INDICATOR_WEIGHTS["oscillators"]
+                    context: dict[str, Any], weights: dict[str, float]) -> dict[str, Any]:
     rows_scored = []
     for key, weight in weights.items():
         lookup = "aroon25" if key == "aroon25" else "wr14" if key == "wr14" else key
@@ -357,8 +333,7 @@ def _momentum_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | 
 
 
 def _volume_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | None,
-                  context: dict[str, Any]) -> dict[str, Any]:
-    weights = INDICATOR_WEIGHTS["volume"]
+                  context: dict[str, Any], weights: dict[str, float]) -> dict[str, Any]:
     rows_scored = []
     history = context.get("fund_history")
     history = history if isinstance(history, list) else []
@@ -446,8 +421,8 @@ def _cluster_levels(values: list[float], price: float | None) -> list[float]:
     return [sum(cluster) / len(cluster) for cluster in clusters]
 
 
-def _pivot_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | None) -> dict[str, Any]:
-    weights = INDICATOR_WEIGHTS["support_resistance"]
+def _pivot_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | None,
+                 weights: dict[str, float]) -> dict[str, Any]:
     pivot_names = {
         "classic": "pivotpointclassic", "fibonacci": "pivotpointfibonacci",
         "camarilla": "pivotpointcamarilla", "woodie": "pivotpointwoodie",
@@ -675,21 +650,25 @@ def _date_distance_days(left: Any, right: Any) -> int | None:
 
 
 def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | None,
-                     context: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Score a fund with the same four weighted groups used on the dashboard."""
+                     context: dict[str, Any] | None = None,
+                     horizon: str = "medium") -> dict[str, Any]:
+    """Score a fund with its selected, four-family investment-horizon profile."""
     context = context or {}
+    horizon = normalize_horizon(horizon)
+    model = FUND_SCORING_PROFILES[horizon]
+    family_weights = model["family_weights"]
+    indicator_weights = model["indicator_weights"]
     kind = _type(context)
     rows = _group_items(groups)
     family = {
-        "moving_averages": _trend_score(rows, price),
+        "moving_averages": _trend_score(rows, price, indicator_weights["moving_averages"]),
     }
-    family["oscillators"] = _momentum_score(rows, price, context)
-    family["volume"] = _volume_score(rows, price, context)
-    family["support_resistance"] = _pivot_score(rows, price)
+    family["oscillators"] = _momentum_score(rows, price, context, indicator_weights["oscillators"])
+    family["volume"] = _volume_score(rows, price, context, indicator_weights["volume"])
+    family["support_resistance"] = _pivot_score(rows, price, indicator_weights["support_resistance"])
     entry_quality = _entry_quality_score(rows, price, context)
     nav_assessment = _nav_score(price, context)
 
-    family_weights = FAMILY_WEIGHTS
     valid_families = [(key, value["score"], family_weights[key])
                       for key, value in family.items() if value.get("score") is not None]
     available_family_weight = sum(weight for _, _, weight in valid_families)
@@ -736,12 +715,18 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     top_negative = min(scored_families, key=lambda row: row[1]) if scored_families else None
     return {
         "technical_score": round(final_score, 1) if final_score is not None else None,
-        "score_method": "fund_rahavard_four_group_weighted_v1",
+        "score_method": f"fund_rahavard_four_group_weighted_{horizon}_v1",
         "score_weights": {key: round(weight * 100) for key, weight in family_weights.items()},
+        "indicator_weights": {
+            family_key: {key: round(weight * 100, 1) for key, weight in weights.items()}
+            for family_key, weights in indicator_weights.items()
+        },
         "effective_score_weights": effective_family_weights,
         "fund_type": kind,
         "fund_type_label": FUND_TYPE_LABELS.get(kind, "نامشخص"),
-        "model_profile": "rahavard_four_group_medium_term_v1",
+        "model_profile": model["profile"],
+        "investment_horizon": horizon,
+        "investment_horizon_label": horizon_label(horizon),
         "family_scores": family,
         "data_coverage_pct": round(coverage, 1),
         "available_family_weight_pct": round(available_family_weight * 100, 1),

@@ -7,28 +7,29 @@ from typing import Any
 
 from .fund_scoring import score_fund_model
 from .dashboard_scoring import DASHBOARD_SCORE_WEIGHTS, analyze_dashboard_asset
+from .scoring_profiles import normalize_horizon
 
 
 MEDIUM_TERM_SCORE_WEIGHTS = DASHBOARD_SCORE_WEIGHTS
 
 
 def analyze(symbol: str, bars: list[dict[str, Any]],
-            weights: dict[str, float] | None = None) -> dict[str, Any]:
-    # The dashboard assets use the dedicated three-group medium-term model.
-    # `weights` remains in the signature for callers on older app versions;
-    # the canonical model weights are intentionally fixed in dashboard_scoring.
-    return analyze_dashboard_asset(symbol, bars)
+            weights: dict[str, float] | None = None,
+            horizon: str = "medium") -> dict[str, Any]:
+    # `weights` remains in the signature for callers on older app versions.
+    return analyze_dashboard_asset(symbol, bars, normalize_horizon(horizon))
 
 
 def analyze_rahavard(symbol: str, payload: dict[str, Any],
                      data_timestamp: str | None = None,
                      current_price: float | None = None,
-                     model_context: dict[str, Any] | None = None) -> dict[str, Any]:
+                     model_context: dict[str, Any] | None = None,
+                     horizon: str = "medium") -> dict[str, Any]:
     """Describe Rahavard's published indicator readings without recalculating them."""
     data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
     groups = {key: data.get(key) if isinstance(data.get(key), list) else []
               for key in ("oscillators", "moving_averages", "pivots", "bands", "volumes")}
-    fund_model = score_fund_model(groups, current_price, model_context)
+    fund_model = score_fund_model(groups, current_price, model_context, horizon=horizon)
     def indicator_values(items: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
         output: dict[str, dict[str, float]] = {}
         for item in items:
@@ -305,11 +306,14 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         "technical_score": fund_model["technical_score"],
         "score_method": fund_model["score_method"],
         "score_origin": "AliVest",
+        "investment_horizon": fund_model["investment_horizon"],
+        "investment_horizon_label": fund_model["investment_horizon_label"],
         "fund_type": fund_model.get("fund_type"),
         "fund_type_label": fund_model.get("fund_type_label"),
         "model_profile": fund_model.get("model_profile"),
         "score_timestamp": data_timestamp,
         "score_weights": fund_model["score_weights"],
+        "indicator_weights": fund_model["indicator_weights"],
         "effective_score_weights": fund_model["effective_score_weights"],
         "family_scores": fund_model["family_scores"],
         "data_coverage_pct": fund_model["data_coverage_pct"],

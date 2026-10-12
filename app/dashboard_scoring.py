@@ -4,12 +4,31 @@ import math
 from typing import Any
 
 from .indicators import compute_indicators, pivot_points
+from .scoring_profiles import DASHBOARD_SCORING_PROFILES, normalize_horizon, horizon_label
 
 
-DASHBOARD_SCORE_WEIGHTS = {
-    "moving_averages": 0.45,
-    "oscillators": 0.40,
-    "support_resistance": 0.15,
+DASHBOARD_SCORE_WEIGHTS = DASHBOARD_SCORING_PROFILES["medium"]["family_weights"]
+
+DASHBOARD_INDICATOR_NAMES = {
+    "moving_averages": {
+        "ema5": "EMA(5)", "ema10": "EMA(10)", "ema20": "EMA(20)",
+        "ema30": "EMA(30)", "ema50": "EMA(50)", "ema100": "EMA(100)",
+        "sma5": "SMA(5)", "sma10": "SMA(10)", "sma20": "SMA(20)",
+        "sma30": "SMA(30)", "sma50": "SMA(50)", "sma100": "SMA(100)",
+        "ichimoku": "Ichimoku(9,26,52,26)", "bb20": "BB(20)",
+        "keltner16": "KELTNER(16)",
+    },
+    "oscillators": {
+        "macd26": "MACD(26)", "rsi14": "RSI(14)", "mfi14": "MFI(14)",
+        "adx14": "ADX(14)", "stochrsi14": "StochRSI(14)", "trend": "Trend",
+        "ao534": "AO(5,34)", "so14": "SO(14)", "aroon25": "AROON(25)",
+        "cci14": "CCI(14)", "mtm6": "MTM(6)", "wr14": "WR(14)",
+    },
+    "support_resistance": {
+        "fibonacci": "PivotPointFibonacci(30)", "classic": "PivotPointClassic(30)",
+        "camarilla": "PivotPointCamarilla(30)", "woodie": "PivotPointWoodie(30)",
+        "demark": "PivotPointDeMark(30)",
+    },
 }
 
 
@@ -90,8 +109,17 @@ def _support_resistance_levels(bars: list[dict[str, Any]], tech: dict[str, Any],
     return result
 
 
-def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]]) -> dict[str, Any]:
-    """AliVest medium-term score using the three requested indicator families."""
+def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
+                            horizon: str = "medium") -> dict[str, Any]:
+    """AliVest score using the selected horizon's three indicator families."""
+    horizon = normalize_horizon(horizon)
+    model = DASHBOARD_SCORING_PROFILES[horizon]
+    family_weights = model["family_weights"]
+    weights = {
+        family: {DASHBOARD_INDICATOR_NAMES[family][key]: weight
+                 for key, weight in entries.items()}
+        for family, entries in model["indicator_weights"].items()
+    }
     bars = bars or []
     tech = compute_indicators(bars)
     indicators = tech.get("indicators", {})
@@ -99,24 +127,6 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]]) -> dict[str
     closes = [_number(row.get("close")) for row in bars]
     closes = [value for value in closes if value is not None and value > 0]
     volumes = [max(0.0, _number(row.get("volume")) or 0.0) for row in bars]
-    weights = {
-        "moving_averages": {
-            "EMA(50)": .16, "EMA(20)": .14, "Ichimoku(9,26,52,26)": .14,
-            "EMA(100)": .12, "BB(20)": .10, "SMA(50)": .08, "SMA(20)": .06,
-            "EMA(10)": .06, "SMA(100)": .04, "KELTNER(16)": .04, "EMA(30)": .02,
-            "SMA(10)": .02, "SMA(30)": .01, "EMA(5)": .005, "SMA(5)": .005,
-        },
-        "oscillators": {
-            "MACD(26)": .22, "RSI(14)": .20, "MFI(14)": .16, "ADX(14)": .12,
-            "StochRSI(14)": .08, "Trend": .06, "AO(5,34)": .05, "SO(14)": .04,
-            "AROON(25)": .03, "CCI(14)": .02, "MTM(6)": .01, "WR(14)": .01,
-        },
-        "support_resistance": {
-            "PivotPointFibonacci(30)": .32, "PivotPointClassic(30)": .26,
-            "PivotPointCamarilla(30)": .20, "PivotPointWoodie(30)": .14,
-            "PivotPointDeMark(30)": .08,
-        },
-    }
     names = {"moving_averages": "میانگین متحرک", "oscillators": "نوسان‌گر",
              "support_resistance": "حمایت و مقاومت"}
 
@@ -272,23 +282,23 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]]) -> dict[str
         rows[family].append(row(family, key, score, raw, "پیوت ۳۰ کندل کامل‌شده؛ موقعیت قیمت نسبت به سطوح"))
 
     family_scores = {}
-    for family, family_weights in weights.items():
+    for family, indicator_family_weights in weights.items():
         valid = [item for item in rows[family] if item["score"] is not None]
-        weight_sum = sum(family_weights[item["name"]] for item in valid)
-        score = sum(item["score"]*family_weights[item["name"]] for item in valid)/weight_sum if weight_sum else None
+        weight_sum = sum(indicator_family_weights[item["name"]] for item in valid)
+        score = sum(item["score"]*indicator_family_weights[item["name"]] for item in valid)/weight_sum if weight_sum else None
         family_scores[family] = {
             "score": round(score, 1) if score is not None else None,
             "coverage_pct": round(weight_sum*100, 1), "indicators": rows[family],
-            "missing_indicators": [key for key in family_weights if key not in {item["name"] for item in valid}],
+            "missing_indicators": [key for key in indicator_family_weights if key not in {item["name"] for item in valid}],
         }
-    valid_groups = [(family_scores[key]["score"], DASHBOARD_SCORE_WEIGHTS[key])
-                    for key in DASHBOARD_SCORE_WEIGHTS if family_scores[key]["score"] is not None]
+    valid_groups = [(family_scores[key]["score"], family_weights[key])
+                    for key in family_weights if family_scores[key]["score"] is not None]
     available_weight = sum(weight for _, weight in valid_groups)
     total = sum(score*weight for score, weight in valid_groups)/available_weight if available_weight else None
-    effective = {key: round(DASHBOARD_SCORE_WEIGHTS[key]/available_weight*100, 1)
-                 for key in DASHBOARD_SCORE_WEIGHTS if family_scores[key]["score"] is not None} if available_weight else {}
-    coverage = sum(DASHBOARD_SCORE_WEIGHTS[key]*family_scores[key]["coverage_pct"]/100
-                   for key in DASHBOARD_SCORE_WEIGHTS)*100
+    effective = {key: round(family_weights[key]/available_weight*100, 1)
+                 for key in family_weights if family_scores[key]["score"] is not None} if available_weight else {}
+    coverage = sum(family_weights[key]*family_scores[key]["coverage_pct"]/100
+                   for key in family_weights)*100
     direction = "unavailable" if total is None else "bullish" if total >= 56 else "bearish" if total <= 44 else "neutral"
     band = ("unavailable" if total is None else "very_strong" if total >= 80 else "strong" if total >= 70
             else "relatively_positive" if total >= 60 else "neutral" if total >= 45 else "weak" if total >= 30 else "very_weak")
@@ -327,14 +337,14 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]]) -> dict[str
     negative = [{"family": key, "name": names[key], "score": family_scores[key]["score"]}
                 for key in sorted(family_scores, key=lambda k: family_scores[k]["score"] or 101)
                 if family_scores[key]["score"] is not None and family_scores[key]["score"] <= 40][:2]
-    factors = [{"name": key, "score": family_scores[key]["score"], "weight": DASHBOARD_SCORE_WEIGHTS[key],
+    factors = [{"name": key, "score": family_scores[key]["score"], "weight": family_weights[key],
                 "evidence": ", ".join(item["name"] for item in rows[key] if item["score"] is not None)}
-               for key in DASHBOARD_SCORE_WEIGHTS if family_scores[key]["score"] is not None]
+               for key in family_weights if family_scores[key]["score"] is not None]
     missing = [f"{names[family]}: {key}" for family in weights for key in family_scores[family]["missing_indicators"]]
     limitations = [
         "این امتیاز محاسبهٔ اختصاصی AliVest است، نه امتیاز رسمی ره‌آورد یا احتمال آماری موفقیت.",
         "وزن شاخص‌های بدون داده در همان گروه متناسب می‌شود؛ در نبود کامل یک گروه، وزن گروه‌های دیگر متناسب می‌شود و پوشش نمایش داده می‌شود.",
-        "RSI یکی از ۱۲ شاخص نوسان‌گر و ۸٪ از وزن پایهٔ کل است؛ خرید بر پایه برآیند هر سه گروه ارزیابی می‌شود.",
+        f"RSI یکی از ۱۲ شاخص نوسان‌گر و {family_weights['oscillators'] * weights['oscillators']['RSI(14)'] * 100:.1f}٪ از وزن پایهٔ کل است؛ خرید بر پایهٔ برآیند هر سه گروه ارزیابی می‌شود.",
         "حجم نسبی فقط به‌عنوان دادهٔ زمینه‌ای نمایش داده می‌شود و در امتیاز کل وزن ندارد؛ ریسک با نوسان تاریخی و ATR سنجیده می‌شود.",
     ]
     if missing:
@@ -378,8 +388,9 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]]) -> dict[str
         "trend_direction_score": round(total, 1) if total is not None else None,
         "trend_strength": strength, "technical_score": round(total, 1) if total is not None else None,
         "score_method": "dashboard_rahavard_three_group_weighted_v1",
-        "score_origin": "AliVest", "score_profile": "three_group_midterm_custom",
-        "score_weights": {key: round(value*100) for key, value in DASHBOARD_SCORE_WEIGHTS.items()},
+        "score_origin": "AliVest", "score_profile": model["profile"],
+        "investment_horizon": horizon, "investment_horizon_label": horizon_label(horizon),
+        "score_weights": {key: round(value*100) for key, value in family_weights.items()},
         "indicator_weights": {family: {key: round(value*100, 1) for key, value in values.items()}
                               for family, values in weights.items()},
         "effective_score_weights": effective, "family_scores": family_scores, "score_band": band,

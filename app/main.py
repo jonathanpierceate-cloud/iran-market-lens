@@ -29,6 +29,7 @@ from .config import (MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
                      REFRESH_INTERVAL_SECONDS, ROOT)
 from .db import db, utc_now
 from .fund_scoring import FUND_TYPE_BY_CATEGORY_ID, FUND_TYPE_LABELS, resolve_fund_type
+from .scoring_profiles import normalize_horizon, horizon_label
 from .sources import (SourceError, fetch_fund_indicators, fetch_fund_nav_history,
                       fetch_fund_price_history, fetch_rahavard_fund_profile,
                       rahavard_etf_fund_asset_ids, refresh_all)
@@ -106,7 +107,8 @@ def _refresh_interval() -> int:
         return REFRESH_INTERVAL_SECONDS
 
 
-def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None) -> dict[str, Any]:
+def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None,
+                  horizon: str = "medium") -> dict[str, Any]:
     is_usd_quote = symbol == "USD_IR_FREE"
     bars = _market_history(symbol, 10000)
     quote_bars = db.history(symbol, 10, source="Tabdeal") if is_usd_quote else bars
@@ -188,7 +190,7 @@ def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None)
             return True
 
     output["price_is_cached"] = is_cached(observed_timestamp)
-    output["analysis"] = analyze(symbol, bars, weights=analysis_weights)
+    output["analysis"] = analyze(symbol, bars, weights=analysis_weights, horizon=horizon)
     output["analysis"]["source"] = "Rahavard365" if is_usd_quote else output.get("source")
     output["analysis"]["data_timestamp"] = analysis_timestamp
     output["analysis"]["status"] = status_for(analysis_source, analysis_stale)
@@ -418,18 +420,21 @@ def _gold18k_valuation(gold_quote: dict[str, Any], dollar_quote: dict[str, Any],
 
 
 @app.get("/api/market/summary")
-def market_summary():
+def market_summary(horizon: str = Query(default="medium")):
+    horizon = normalize_horizon(horizon)
     funds = _exclude_fixed_income_funds(db.funds(sort="data_timestamp", source="Rahavard365"))
-    gold_quote = _market_quote("GOLD", DASHBOARD_SCORE_WEIGHTS)
-    gold18k_quote = _market_quote("GOLD_18K", DASHBOARD_SCORE_WEIGHTS)
-    dollar_quote = _market_quote("USD_IR_FREE", DASHBOARD_SCORE_WEIGHTS)
-    tepix_quote = _market_quote("TEPIX", DASHBOARD_SCORE_WEIGHTS)
+    gold_quote = _market_quote("GOLD", DASHBOARD_SCORE_WEIGHTS, horizon)
+    gold18k_quote = _market_quote("GOLD_18K", DASHBOARD_SCORE_WEIGHTS, horizon)
+    dollar_quote = _market_quote("USD_IR_FREE", DASHBOARD_SCORE_WEIGHTS, horizon)
+    tepix_quote = _market_quote("TEPIX", DASHBOARD_SCORE_WEIGHTS, horizon)
     gold_quote.pop("history", None)
     gold18k_quote.pop("history", None)
     dollar_quote.pop("history", None)
     tepix_quote.pop("history", None)
     gold18k_quote["valuation"] = _gold18k_valuation(gold_quote, dollar_quote, gold18k_quote)
-    return {"as_of": utc_now(), "gold": gold_quote, "gold18k": gold18k_quote,
+    return {"as_of": utc_now(), "investment_horizon": horizon,
+            "investment_horizon_label": horizon_label(horizon),
+            "gold": gold_quote, "gold18k": gold18k_quote,
             "dollar": dollar_quote,
             "tepix": tepix_quote,
             "funds_total": len(funds),
@@ -438,13 +443,13 @@ def market_summary():
 
 
 @app.get("/api/gold")
-def gold():
-    return _market_quote("GOLD", DASHBOARD_SCORE_WEIGHTS)
+def gold(horizon: str = Query(default="medium")):
+    return _market_quote("GOLD", DASHBOARD_SCORE_WEIGHTS, normalize_horizon(horizon))
 
 
 @app.get("/api/gold-18k")
-def gold_18k():
-    return _market_quote("GOLD_18K", DASHBOARD_SCORE_WEIGHTS)
+def gold_18k(horizon: str = Query(default="medium")):
+    return _market_quote("GOLD_18K", DASHBOARD_SCORE_WEIGHTS, normalize_horizon(horizon))
 
 
 @app.get("/api/gold/history")
@@ -459,13 +464,13 @@ def gold_history(limit: int = Query(default=1000, ge=1, le=5000)):
 
 
 @app.get("/api/dollar")
-def dollar():
-    return _market_quote("USD_IR_FREE", DASHBOARD_SCORE_WEIGHTS)
+def dollar(horizon: str = Query(default="medium")):
+    return _market_quote("USD_IR_FREE", DASHBOARD_SCORE_WEIGHTS, normalize_horizon(horizon))
 
 
 @app.get("/api/tepix")
-def tepix():
-    return _market_quote("TEPIX", DASHBOARD_SCORE_WEIGHTS)
+def tepix(horizon: str = Query(default="medium")):
+    return _market_quote("TEPIX", DASHBOARD_SCORE_WEIGHTS, normalize_horizon(horizon))
 
 
 @app.get("/api/dollar/history")
@@ -726,7 +731,9 @@ def _dedupe_rahavard_funds(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 @app.get("/api/funds")
-def funds(search: str = "", category: str = "", sort: str = "data_timestamp"):
+def funds(search: str = "", category: str = "", sort: str = "data_timestamp",
+          horizon: str = Query(default="medium")):
+    horizon = normalize_horizon(horizon)
     if category == "255":
         return {"items": [], "count": 0, "source": "Rahavard365", "data_status": "available"}
     db_category = "" if category.isdigit() else category
@@ -786,7 +793,7 @@ def funds(search: str = "", category: str = "", sort: str = "data_timestamp"):
         if snapshot:
             result = analyze_rahavard(item["symbol"], snapshot["data"],
                                       snapshot.get("data_timestamp") or item.get("data_timestamp"),
-                                      current_price, model_context)
+                                      current_price, model_context, horizon=horizon)
             _record_fund_score_history(result, item["fund_key"],
                                        item.get("data_timestamp") or snapshot.get("data_timestamp"))
         item["analysis"] = result
@@ -820,7 +827,9 @@ def _fund_or_error(identifier: str) -> dict[str, Any]:
 
 
 @app.post("/api/funds/scores/batch")
-async def fund_score_batch(payload: FundScoreBatchInput):
+async def fund_score_batch(payload: FundScoreBatchInput,
+                           horizon: str = Query(default="medium")):
+    horizon = normalize_horizon(horizon)
     keys = list(dict.fromkeys(key.strip() for key in payload.fund_keys if key.strip()))
     if not keys:
         raise HTTPException(status_code=422, detail="شناسه‌ای برای محاسبه امتیاز ارسال نشده است")
@@ -864,11 +873,13 @@ async def fund_score_batch(payload: FundScoreBatchInput):
                     peer_items=peer_groups.get(peer_key or ""))
                 analysis_result = analyze_rahavard(
                     fund.get("symbol"), indicators, fund.get("data_timestamp"), current_price,
-                    model_context)
+                    model_context, horizon=horizon)
                 _record_fund_score_history(analysis_result, fund["fund_key"],
                                            fund.get("data_timestamp"))
                 purchase_assessment = _fund_purchase_assessment(current_price, analysis_result)
                 return {"fund_key": fund["fund_key"], "technical_score": analysis_result.get("technical_score"),
+                        "investment_horizon": analysis_result.get("investment_horizon"),
+                        "investment_horizon_label": analysis_result.get("investment_horizon_label"),
                         "medium_term_exit_price": analysis_result.get("medium_term_exit_price"),
                         "purchase_assessment": purchase_assessment,
                         "buy_suitability_rank": purchase_assessment["rank"],
@@ -904,6 +915,7 @@ def _fund_purchase_assessment(price: Any, analysis: dict[str, Any] | None) -> di
     current_price = _watchlist_number(price)
     if not isinstance(analysis, dict):
         return {"status": "unknown", "label": "داده کافی نیست", "reason": "تحلیل تکنیکال این نماد هنوز آماده نیست.", "rank": None}
+    score_horizon = analysis.get("investment_horizon_label") or horizon_label(analysis.get("investment_horizon"))
     exit_price = _watchlist_number(analysis.get("medium_term_exit_price"))
     score = _watchlist_number(analysis.get("technical_score"))
     breakdown = analysis.get("score_breakdown") if isinstance(analysis.get("score_breakdown"), dict) else {}
@@ -923,13 +935,13 @@ def _fund_purchase_assessment(price: Any, analysis: dict[str, Any] | None) -> di
         return {"status": "wait", "label": "صبر · ریسک بالا",
                 "reason": "رتبهٔ ریسک نوسان بالاست؛ امتیاز تکنیکال به‌تنهایی برای ورود کافی نیست.", "rank": 2}
     if score >= 70 and near_resistance_count == 0:
-        return {"status": "suitable", "label": "مناسب", "reason": "برآیند امتیاز چهارگروهی میان‌مدت قوی است؛ قیمت بالای حد خروج و دور از مقاومت نزدیک است.", "rank": 3}
+        return {"status": "suitable", "label": "مناسب", "reason": f"برآیند امتیاز چهارگروهی {score_horizon} قوی است؛ قیمت بالای حد خروج میان‌مدت و دور از مقاومت نزدیک است.", "rank": 3}
     if score >= 55:
         reason = ("امتیاز مناسب است، اما مقاومت نزدیک وجود دارد؛ برای ورود صبر کن."
                   if score >= 70 and near_resistance_count > 0
                   else "شرایط متوسط است؛ برای ورود منتظر اصلاح یا تأیید روند بمان.")
         return {"status": "wait", "label": "صبر برای تأیید", "reason": reason, "rank": 2}
-    return {"status": "unsuitable", "label": "فعلاً نامناسب", "reason": "امتیاز میان‌مدت برای خرید در قیمت فعلی پایین است.", "rank": 1}
+    return {"status": "unsuitable", "label": "فعلاً نامناسب", "reason": f"امتیاز {score_horizon} برای خرید در قیمت فعلی پایین است.", "rank": 1}
 
 
 def _watchlist_match_key(value: Any) -> str:
@@ -1104,7 +1116,8 @@ def _watchlist_levels(indicator_data: dict[str, Any] | None,
 
 
 @app.get("/api/watchlist")
-async def get_watchlist():
+async def get_watchlist(horizon: str = Query(default="medium")):
+    horizon = normalize_horizon(horizon)
     _seed_default_watchlist()
     records = db.watchlist_items()
     snapshots = db.fund_indicator_snapshots()
@@ -1174,7 +1187,9 @@ async def get_watchlist():
         stamp = (trade.get("end_date_time") if live_price is not None else None) \
             or ((cached_history[-1].get("timestamp") if cached_history else None)) \
             or (cached or {}).get("data_timestamp") or fund.get("data_timestamp")
-        analysis_result = analyze_rahavard(asset.get("trade_symbol") or fund["symbol"], indicator_data, stamp, price) if indicator_data else None
+        analysis_result = analyze_rahavard(
+            asset.get("trade_symbol") or fund["symbol"], indicator_data, stamp, price,
+            horizon=horizon) if indicator_data else None
         levels = _watchlist_levels(indicator_data, price)
         signal = analysis_result.get("signal") if analysis_result else None
         trend = analysis_result.get("trend") if analysis_result else None
@@ -1196,6 +1211,7 @@ async def get_watchlist():
             outlook, tone = "داده تکنیکال کافی نیست", "unknown"
         signal_fa = {"buy": "مثبت", "sell": "منفی", "hold": "خنثی"}.get(signal, "نامشخص")
         technical_score = _watchlist_number(analysis_result.get("technical_score")) if analysis_result else None
+        score_horizon = analysis_result.get("investment_horizon_label") if analysis_result else horizon_label(horizon)
         score_breakdown = analysis_result.get("score_breakdown") if analysis_result and isinstance(analysis_result.get("score_breakdown"), dict) else {}
         near_resistance_count = _watchlist_number(score_breakdown.get("near_resistance_count"))
         if price is None or medium_term_exit_price is None or technical_score is None:
@@ -1206,25 +1222,25 @@ async def get_watchlist():
             if price <= medium_term_exit_price:
                 add_position_decision = {"label": "خیر · حد خروج شکسته", "tone": "negative", "reason": "قیمت به حد خروج میان‌مدت رسیده یا پایین‌تر است."}
             elif technical_score >= 70 and (near_resistance_count or 0) == 0:
-                add_position_decision = {"label": "بله · پله‌ای", "tone": "positive", "reason": "برآیند امتیاز چهارگروهی میان‌مدت مناسب است و مقاومت نزدیکی ثبت نشده."}
+                add_position_decision = {"label": "بله · پله‌ای", "tone": "positive", "reason": f"برآیند امتیاز چهارگروهی {score_horizon} مناسب است و مقاومت نزدیکی ثبت نشده."}
             elif technical_score >= 55:
                 add_position_decision = {"label": "صبر برای تأیید", "tone": "neutral", "reason": "برای ورود، تأیید روند یا فاصله‌گرفتن از مقاومت لازم است."}
             else:
-                add_position_decision = {"label": "خیر · فعلاً", "tone": "negative", "reason": "امتیاز میان‌مدت برای افزودن موقعیت کافی نیست."}
+                add_position_decision = {"label": "خیر · فعلاً", "tone": "negative", "reason": f"امتیاز {score_horizon} برای افزودن موقعیت کافی نیست."}
         elif price <= medium_term_exit_price:
             holding_decision = {"label": "فروش / کاهش", "tone": "negative", "reason": "قیمت به حد خروج میان‌مدت رسیده یا پایین‌تر است؛ طبق قاعدهٔ خروج، موقعیت را کاهش بده."}
             add_position_decision = {"label": "خیر · حد خروج شکسته", "tone": "negative", "reason": "تا بازپس‌گیری و تثبیت بالای حد خروج، حجم اضافه نکن."}
         elif technical_score < 40:
-            holding_decision = {"label": "کاهش ریسک", "tone": "negative", "reason": "امتیاز تکنیکال میان‌مدت ضعیف است؛ نگهداری کامل ریسک بالاتری دارد."}
-            add_position_decision = {"label": "خیر · فعلاً", "tone": "negative", "reason": "امتیاز میان‌مدت ضعیف است."}
+            holding_decision = {"label": "کاهش ریسک", "tone": "negative", "reason": f"امتیاز تکنیکال {score_horizon} ضعیف است؛ نگهداری کامل ریسک بالاتری دارد."}
+            add_position_decision = {"label": "خیر · فعلاً", "tone": "negative", "reason": f"امتیاز {score_horizon} ضعیف است."}
         else:
             holding_decision = {"label": "نگهداری", "tone": "positive", "reason": "قیمت بالای حد خروج میان‌مدت است؛ شکست این سطح را زیر نظر بگیر."}
             if technical_score >= 70 and (near_resistance_count or 0) == 0:
-                add_position_decision = {"label": "بله · پله‌ای", "tone": "positive", "reason": "برآیند امتیاز چهارگروهی مناسب است و مقاومت نزدیکی ثبت نشده؛ خرید را مرحله‌ای انجام بده."}
+                add_position_decision = {"label": "بله · پله‌ای", "tone": "positive", "reason": f"برآیند امتیاز چهارگروهی {score_horizon} مناسب است و مقاومت نزدیکی ثبت نشده؛ خرید را مرحله‌ای انجام بده."}
             elif technical_score >= 55:
                 add_position_decision = {"label": "صبر برای تأیید", "tone": "neutral", "reason": "برای افزایش حجم، تأیید روند یا اصلاح مناسب‌تر لازم است."}
             else:
-                add_position_decision = {"label": "خیر · فعلاً", "tone": "negative", "reason": "امتیاز میان‌مدت برای افزایش حجم کافی نیست."}
+                add_position_decision = {"label": "خیر · فعلاً", "tone": "negative", "reason": f"امتیاز {score_horizon} برای افزایش حجم کافی نیست."}
         asset_id = str(raw.get("rahavard_asset_id") or fund.get("registration_no") or fund["symbol"])
         display_symbol = _WATCHLIST_DISPLAY_BY_ASSET_ID.get(asset_id) or asset.get("trade_symbol") or fund["symbol"]
         return {
@@ -1245,6 +1261,8 @@ async def get_watchlist():
             "signal_fa": signal_fa,
             "trend": trend,
             "technical_score": technical_score,
+            "investment_horizon": analysis_result.get("investment_horizon") if analysis_result else horizon,
+            "investment_horizon_label": score_horizon,
             "medium_term_exit_price": medium_term_exit_price,
             "distance_to_exit": {"value": distance_value, "pct": distance_pct} if distance_value is not None else None,
             "holding_decision": holding_decision,
@@ -1304,7 +1322,8 @@ def delete_watchlist_item(fund_key: str):
 
 
 @app.get("/api/funds/{symbol}")
-async def fund_detail(symbol: str):
+async def fund_detail(symbol: str, horizon: str = Query(default="medium")):
+    horizon = normalize_horizon(horizon)
     fund = _fund_or_error(symbol)
     fund_key = fund["fund_key"]
     profile_result, bars_result, indicators_result = await asyncio.gather(
@@ -1386,7 +1405,8 @@ async def fund_detail(symbol: str):
         nav_timestamp=latest_nav_timestamp)
     analysis_result = analyze_rahavard(
         fund.get("display_symbol") or fund["symbol"], indicator_data,
-        fund.get("data_timestamp"), fund.get("market_price"), model_context) if indicator_data else None
+        fund.get("data_timestamp"), fund.get("market_price"), model_context,
+        horizon=horizon) if indicator_data else None
     if analysis_result:
         _record_fund_score_history(analysis_result, fund_key, fund.get("data_timestamp"))
         analysis_result["price_is_cached"] = fund.get("price_is_cached", False)
@@ -1419,44 +1439,52 @@ async def fund_portfolio(symbol: str):
 
 
 @app.get("/api/funds/{symbol}/technical")
-async def fund_technical(symbol: str):
+async def fund_technical(symbol: str, horizon: str = Query(default="medium")):
+    horizon = normalize_horizon(horizon)
     fund = _fund_or_error(symbol)
     try:
         data = await fetch_fund_indicators(fund["fund_key"])
     except SourceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     result = analyze_rahavard(fund.get("symbol"), data, fund.get("data_timestamp"),
-                              fund.get("market_price"), _fund_model_context(fund))
+                              fund.get("market_price"), _fund_model_context(fund),
+                              horizon=horizon)
     _record_fund_score_history(result, fund["fund_key"], fund.get("data_timestamp"))
     return result
 
 
 @app.get("/api/funds/{symbol}/signals")
-async def fund_signals(symbol: str):
+async def fund_signals(symbol: str, horizon: str = Query(default="medium")):
+    horizon = normalize_horizon(horizon)
     fund = _fund_or_error(symbol)
     try:
         data = await fetch_fund_indicators(fund["fund_key"])
     except SourceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     result = analyze_rahavard(fund["symbol"], data, fund.get("data_timestamp"),
-                              fund.get("market_price"), _fund_model_context(fund))
+                              fund.get("market_price"), _fund_model_context(fund),
+                              horizon=horizon)
     _record_fund_score_history(result, fund["fund_key"], fund.get("data_timestamp"))
     return {"symbol": fund["symbol"], "fund_key": fund["fund_key"], "source": "Rahavard365",
             "signal": result["signal"], "score": result["technical_score"],
+            "investment_horizon": result["investment_horizon"],
+            "investment_horizon_label": result["investment_horizon_label"],
             "gauges": result["site_gauges"], "indicator_notes": result["indicator_notes"],
             "explanation": result["explanation"], "scenarios": result.get("scenarios", []),
             "scenario_note": result.get("scenario_note")}
 
 
 @app.get("/api/funds/{symbol}/analysis")
-async def fund_analysis(symbol: str):
+async def fund_analysis(symbol: str, horizon: str = Query(default="medium")):
+    horizon = normalize_horizon(horizon)
     fund = _fund_or_error(symbol)
     try:
         data = await fetch_fund_indicators(fund["fund_key"])
     except SourceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     result = analyze_rahavard(fund["symbol"], data, fund.get("data_timestamp"),
-                              fund.get("market_price"), _fund_model_context(fund))
+                              fund.get("market_price"), _fund_model_context(fund),
+                              horizon=horizon)
     _record_fund_score_history(result, fund["fund_key"], fund.get("data_timestamp"))
     return result
 
@@ -1587,5 +1615,7 @@ def export_funds_json():
 
 
 @app.get("/api/export/analysis.json")
-def export_analysis_json():
-    return {symbol: analyze(symbol, _market_history(symbol)) for symbol in ["GOLD", "DXY", "USD_IR_FREE"] if _market_history(symbol, 1)}
+def export_analysis_json(horizon: str = Query(default="medium")):
+    horizon = normalize_horizon(horizon)
+    return {symbol: analyze(symbol, _market_history(symbol), horizon=horizon)
+            for symbol in ["GOLD", "DXY", "USD_IR_FREE"] if _market_history(symbol, 1)}

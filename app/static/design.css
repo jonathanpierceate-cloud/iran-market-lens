@@ -97,6 +97,34 @@ button, a, .market-card, .panel, input, select { transition: background-color .1
 #view-overview .page-heading p { color: #c0cfcb; }
 #view-overview .eyebrow { color: #b8d9d1; background: rgba(13, 28, 32, .56); }
 
+.investment-horizon-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: -8px 0 18px;
+  padding: 11px 15px;
+  border: 1px solid rgba(90, 145, 139, .35);
+  border-radius: 13px;
+  background: linear-gradient(110deg, rgba(27, 55, 59, .92), rgba(19, 36, 47, .94));
+}
+.investment-horizon-toolbar label { color: #d7e7e2; font-size: 13px; font-weight: 700; white-space: nowrap; }
+.investment-horizon-toolbar select {
+  min-height: 36px;
+  padding: 5px 28px 5px 10px;
+  border: 1px solid #42736f;
+  border-radius: 9px;
+  background: #142a31;
+  color: #83dec1;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+}
+.investment-horizon-toolbar span { color: #91aaa6; font-size: 12px; line-height: 1.7; }
+body.light-mode .investment-horizon-toolbar { background: linear-gradient(110deg, #edf7f3, #f5f8fb); border-color: #c7ded4; }
+body.light-mode .investment-horizon-toolbar label { color: #35534b; }
+body.light-mode .investment-horizon-toolbar select { background: #fff; border-color: #b7d5ca; color: #187c68; }
+body.light-mode .investment-horizon-toolbar span { color: #627b73; }
+
 .button {
   min-height: 42px;
   height: auto;
@@ -336,6 +364,8 @@ tbody tr:hover { background: rgba(81, 158, 143, .08); }
   .page-heading h1 { font-size: 23px; }
   .page-heading p { font-size: 14px; }
   .heading-actions { width: 100%; }
+  .investment-horizon-toolbar { flex-wrap: wrap; gap: 8px; margin: -5px 0 15px; }
+  .investment-horizon-toolbar span { flex-basis: 100%; }
   .market-strip, .market-detail-grid, .two-col, .lower-grid, .market-lower { grid-template-columns: 1fr; }
   .breadth-card { grid-column: auto; }
   .market-card { min-height: 220px; padding: 17px; }
