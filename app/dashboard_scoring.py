@@ -322,14 +322,11 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
     adx_value = val("ADX(14)")
     strength = "unavailable" if adx_value is None else "strong" if adx_value >= 25 else "medium" if adx_value >= 20 else "weak"
     daily = closes[-1]/closes[-2]-1 if len(closes) > 1 else None
-    ema20, ema50, ema100 = val("EMA(20)"), val("EMA(50)"), val("EMA(100)")
-    sma50, sma100 = val("SMA(50)"), val("SMA(100)")
-    immediate = sma50 or ema50 or (near_support["midpoint"] if near_support else None)
-    structural = sma100 or ema100 or (near_support["midpoint"] if near_support else None)
-    medium_exit = round(immediate*.995) if immediate else None
-    structural_exit = round(structural*.998) if structural else None
-    if medium_exit and structural_exit and structural_exit >= medium_exit:
-        structural_exit = round(medium_exit*.985)
+    ema20, ema100 = val("EMA(20)"), val("EMA(100)")
+    sma10 = val("SMA(10)")
+    sma50 = val("SMA(50)")
+    short_exit = round(sma10) if sma10 is not None else None
+    medium_exit = round(sma50) if sma50 is not None else None
 
     positive = [{"family": key, "name": names[key], "score": family_scores[key]["score"]}
                 for key in sorted(family_scores, key=lambda k: family_scores[k]["score"] or -1, reverse=True)
@@ -378,10 +375,11 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
     return {
         "symbol": symbol, "data_timestamp": bars[-1].get("timestamp") if bars else None,
         "price": current, "daily_return_pct": daily*100 if daily is not None else None,
-        "medium_term_exit_price": medium_exit, "structural_exit_price": structural_exit,
-        "medium_term_exit": {"price": medium_exit, "trigger": "تثبیت زیر SMA(50) یا حمایت نزدیک",
-                             "action": "سطح هشدار تکنیکال است؛ شکست را با بسته‌شدن کندل بررسی کن.",
-                             "structural_price": structural_exit, "structural_trigger": "شکست و تثبیت زیر SMA(100) یا حمایت ساختاری"},
+        "short_term_exit_price": short_exit, "medium_term_exit_price": medium_exit,
+        "short_term_exit": {"price": short_exit, "trigger": "بسته‌شدن کندل روزانه زیر SMA(10)",
+                            "action": "اگر کندل روزانه زیر SMA(10) بسته شد، حد ضرر کوتاه‌مدت فعال است."},
+        "medium_term_exit": {"price": medium_exit, "trigger": "بسته‌شدن کندل روزانه زیر SMA(50)",
+                             "action": "اگر کندل روزانه زیر SMA(50) بسته شد، حد ضرر میان‌مدت فعال است."},
         "trend": direction, "medium_term_trend": direction,
         "short_term_trend": "unavailable" if current is None or ema20 is None else "bullish" if current > ema20 else "bearish" if current < ema20 else "neutral",
         "long_term_trend": "unavailable" if current is None or ema100 is None else "bullish" if current > ema100 else "bearish" if current < ema100 else "neutral",

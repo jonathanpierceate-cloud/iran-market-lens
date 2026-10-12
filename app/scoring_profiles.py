@@ -1,7 +1,7 @@
 """Selectable short- and long-term technical scoring profiles."""
 from __future__ import annotations
 
-HORIZON_LABELS = {"short": "کوتاه‌مدت", "long": "بلندمدت"}
+HORIZON_LABELS = {"short": "کوتاه‌مدت", "long": "میان‌مدت"}
 DEFAULT_HORIZON = "long"
 
 _SHORT_MA = {

@@ -769,6 +769,20 @@
     return `<section class="scenario-section"><div class="scenario-section-head"><div><span class="panel-kicker">بررسی چندوجهی بازار</span><h3>سناریوهای پیش‌رو</h3></div><span class="scenario-note">احتمال، شواهد، سطوح و شرط تغییر مسیر</span></div><div class="scenario-grid">${cards}</div><p class="scenario-disclaimer"><span>i</span>${esc(note)}</p></section>`;
   }
 
+  function exitManagementHtml(a) {
+    const shortExit = Number(a?.short_term_exit_price) > 0 ? Number(a.short_term_exit_price) : null;
+    const mediumExit = Number(a?.medium_term_exit_price) > 0 ? Number(a.medium_term_exit_price) : null;
+    const symbol = String(a?.symbol || "").toUpperCase();
+    const unit = ({ GOLD: "دلار / اونس", GOLD_18K: "ریال / گرم", USD_IR_FREE: "تومان", TEPIX: "واحد" })[symbol] || "ریال";
+    const current = Number(a?.price);
+    const currentBadge = Number.isFinite(current) && current > 0 ? `<span class="trade-plan-badge">قیمت مبنا: ${money(current)} ${unit}</span>` : "";
+    if (shortExit == null && mediumExit == null) {
+      return `<div class="risk-exit-panel unavailable"><b>میانگین SMA(10) و SMA(50) در دادهٔ فعلی موجود نیست</b><small>سطح خروج معتبر پس از دریافت دادهٔ روزانه نمایش داده می‌شود.</small></div>`;
+    }
+    const exitCard = (kind, label, average, value) => `<article class="risk-exit-card ${kind}"><span>${label} · ${average}</span><b>${value == null ? "—" : `${money(value)} ${unit}`}</b><small>${value == null ? `مقدار ${average} در دادهٔ فعلی موجود نیست.` : `حد ضرر با بسته‌شدن کندل روزانه زیر ${average} فعال می‌شود؛ افت لحظه‌ای به‌تنهایی سیگنال خروج نیست.`}</small></article>`;
+    return `<div class="risk-exit-panel"><div class="risk-exit-head"><div><span class="panel-kicker">قاعدهٔ خروج</span><h4>خروج از موقعیت و حد ضرر</h4><p>ملاک خروج، بسته‌شدن کندل روزانه زیر میانگین مربوط است.</p></div>${currentBadge}</div><div class="risk-exit-grid">${exitCard("short", "کوتاه‌مدت", "SMA(10)", shortExit)}${exitCard("medium", "میان‌مدت", "SMA(50)", mediumExit)}</div></div>`;
+  }
+
   function tradePlanHtml(a) {
     const price = Number(a?.price ?? a?.indicators?.latest);
     if (!Number.isFinite(price) || price <= 0) return "";
@@ -811,16 +825,7 @@
     const pullback3 = support3;
     const measuredResistance = above.length > 0;
     const measuredSupport = below.length > 0;
-    const lastSupport = below.length ? below[below.length - 1] : null;
-    const apiExitPrice = Number(a?.medium_term_exit_price) > 0 ? Number(a.medium_term_exit_price) : null;
-    const structuralApiPrice = Number(a?.structural_exit_price) > 0 ? Number(a.structural_exit_price) : null;
-    const mediumTermExitPrice = apiExitPrice ?? (lastSupport != null ? Math.round(lastSupport * .993) : null);
-    const structuralExitPrice = structuralApiPrice ?? (lastSupport != null ? Math.round(lastSupport * .993) : null);
-    const exitSupportText = lastSupport != null ? ` بر پایهٔ حمایت ساختاری ${money(lastSupport)}` : "";
-    const priceUnit = ({ GOLD: "دلار / اونس", GOLD_18K: "ریال / گرم", USD_IR_FREE: "تومان", TEPIX: "واحد" })[String(a?.symbol || "").toUpperCase()] || "ریال";
-    const riskExitHtml = mediumTermExitPrice == null && structuralExitPrice == null
-      ? `<div class="risk-exit-panel unavailable"><b>سطح خروج و حد ضرر در داده فعلی محاسبه نشد</b><small>حمایت یا میانگین معتبر برای این دارایی در دسترس نیست.</small></div>`
-      : `<div class="risk-exit-panel"><div class="risk-exit-head"><div><span class="panel-kicker">مدیریت ریسک</span><h4>خروج از موقعیت و حد ضرر</h4><p>با شکست و تثبیت زیر هر سطح، همان افق زمانی را مدیریت کن.</p></div><span class="trade-plan-badge">${priceBadge}: ${money(price)} ${priceUnit}</span></div><div class="risk-exit-grid"><article class="risk-exit-card short"><span>کوتاه‌مدت</span><b>${mediumTermExitPrice == null ? "—" : `${money(mediumTermExitPrice)} ${priceUnit}`}</b><small>خروج مرحله‌ای / توقف خرید اگر قیمت زیر حمایت کوتاه‌مدت تثبیت شود.</small></article><article class="risk-exit-card medium"><span>میان‌مدت</span><b>${structuralExitPrice == null ? "—" : `${money(structuralExitPrice)} ${priceUnit}`}</b><small>خروج کامل و فعال‌شدن حد ضرر ساختاری${exitSupportText}.</small></article></div></div>`;
+    const mediumTermExitPrice = Number(a?.medium_term_exit_price) > 0 ? Number(a.medium_term_exit_price) : null;
     const priceCard = (kind, label, value, note) => `<article class="trade-level ${kind}"><span>${label}</span><b>${money(value)}</b><small>${note}</small></article>`;
     const pathCard = ({ direction, title, subtitle, condition, entries, invalidation }) => `<article class="trade-path ${direction}">
       <header class="trade-path-head"><div><span>${subtitle}</span><h4>${title}</h4></div><span class="trade-path-mark">${direction === "bullish" ? "↗" : "↘"}</span></header>
@@ -839,20 +844,24 @@
       ],
       invalidation: `اگر قیمت پس از شکست دوباره زیر ${money(r1)} تثبیت شد، ورودهای باقی‌مانده این مسیر را متوقف کن.`,
     });
-    const pullbackEntries = [
+    const pullbackEntries = mediumTermExitPrice == null ? [] : [
       { label: "حمایت نزدیک", value: pullback1, note: `${measuredSupport ? "حمایت اول؛ منتظر واکنش مثبت بمان" : "سطح تخمینی؛ حمایت در داده نیست"} · تخصیص 35٪` },
       { label: "اصلاح عمیق‌تر", value: pullback2, note: `${below.length > 1 ? "حمایت بعدی؛ ورود مشروط به حفظ سطح" : "سطح تخمینی با دامنه نوسان"} · تخصیص 35٪` },
       { label: "پله آخر", value: pullback3, note: `${below.length > 2 ? "حمایت پایین‌تر؛ فقط با تأیید برگشت" : "سطح تخمینی؛ از میانگین‌کم‌کردن بی‌شرط پرهیز کن"} · تخصیص 30٪` },
-    ].filter((entry) => mediumTermExitPrice == null || entry.value > mediumTermExitPrice);
+    ].filter((entry) => entry.value > mediumTermExitPrice);
     const lastAllowedPullback = pullbackEntries.length ? pullbackEntries[pullbackEntries.length - 1].value : mediumTermExitPrice;
     const pullbackPath = pathCard({
       direction: "pullback", subtitle: "مسیر دوم · ورود در اصلاح با تأیید برگشت", title: "خرید در صورت نزول و پولبک",
-      condition: `قیمت به حمایت‌ها اصلاح کند؛ هر پله فقط با حفظ سطح و نشانه برگشت بررسی شود و تا وقتی قیمت بالای حد خروج ${money(mediumTermExitPrice)} است اجرا شود.`,
+      condition: mediumTermExitPrice == null
+        ? "قیمت به حمایت‌ها اصلاح کند؛ اما تا وقتی SMA(50) در دادهٔ معتبر موجود نیست، برای این مسیر پلهٔ خرید تعیین نمی‌شود."
+        : `قیمت به حمایت‌ها اصلاح کند؛ هر پله فقط با حفظ سطح و نشانه برگشت بررسی شود و تا وقتی قیمت بالای حد میان‌مدت SMA(50) ${money(mediumTermExitPrice)} است اجرا شود.`,
       entries: pullbackEntries,
-      invalidation: `اگر سطح ${money(lastAllowedPullback)} با فشار فروش شکسته شد، پله‌های بعدی را اجرا نکن و حد خروج فوری را رعایت کن.`,
+      invalidation: mediumTermExitPrice == null
+        ? "با دریافت دادهٔ SMA(50)، حد خروج میان‌مدت مشخص می‌شود."
+        : `اگر سطح ${money(lastAllowedPullback)} با فشار فروش شکسته شد، پله‌های بعدی را اجرا نکن و قاعدهٔ حد ضرر SMA(50) را رعایت کن.`,
     });
     const fallbackNote = (!measuredResistance || !measuredSupport) ? " هرجا سطح رسمی حمایت یا مقاومت موجود نبوده، سطح جایگزین با دامنه نوسان قیمت برآورد شده است." : "";
-    return `<section class="trade-plan"><div class="trade-plan-head"><div><span class="panel-kicker">برنامه ورود و مدیریت ریسک</span><h3>پله‌های خرید دقیق</h3><p>دو مسیر جایگزین‌اند؛ فقط مسیری را اجرا کن که شرط شروعش برقرار شده باشد.</p></div><span class="trade-plan-badge">${priceBadge}: ${money(price)}</span></div>${riskExitHtml}<div class="trade-path-grid">${bullishPath}${pullbackPath}</div><p class="trade-plan-note">سطوح ورود با قیمت، حمایت/مقاومت و ATR ره‌آورد محاسبه می‌شوند و با تازه‌شدن داده تغییر می‌کنند.${fallbackNote}</p></section>`;
+    return `<section class="trade-plan"><div class="trade-plan-head"><div><span class="panel-kicker">برنامه ورود و مدیریت ریسک</span><h3>پله‌های خرید دقیق</h3><p>دو مسیر جایگزین‌اند؛ فقط مسیری را اجرا کن که شرط شروعش برقرار شده باشد.</p></div><span class="trade-plan-badge">${priceBadge}: ${money(price)}</span></div>${exitManagementHtml(a)}<div class="trade-path-grid">${bullishPath}${pullbackPath}</div><p class="trade-plan-note">سطوح ورود با قیمت، حمایت/مقاومت و ATR ره‌آورد محاسبه می‌شوند و با تازه‌شدن داده تغییر می‌کنند.${fallbackNote}</p></section>`;
   }
 
   function pivotTableHtml(pivots, currentPrice = null) {
@@ -983,7 +992,8 @@
       summary("میانگین‌های EMA", maAlignment.length ? `${maAlignment.filter(Boolean).length} از ${maAlignment.length}` : "—", maState, `${maLabel} · نسبت قیمت به EMA20/50/200`)
     ].join("");
     const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
-    const tradePlan = a.score_method?.startsWith("dashboard_rahavard_three_group_weighted_") ? "" : tradePlanHtml(a);
+    const isDashboardModel = a.score_method?.startsWith("dashboard_rahavard_three_group_weighted_");
+    const tradePlan = isDashboardModel ? exitManagementHtml(a) : tradePlanHtml(a);
     return `${overview}${tradePlan}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(entries.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div>${pivotTable}<div class="indicator-readouts">${summaryCards}</div><div class="indicator-card-grid">${cards}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
 
@@ -1061,14 +1071,14 @@
   }
 
   function horizonLabel(horizon = state.investmentHorizon) {
-    return horizon === "short" ? "کوتاه‌مدت" : "بلندمدت";
+    return horizon === "short" ? "کوتاه‌مدت" : "میان‌مدت";
   }
 
   function syncInvestmentHorizonControl() {
-    const select = $("#investment-horizon");
-    if (select) select.value = state.investmentHorizon;
-    const description = $("#investment-horizon-description");
-    if (description) description.textContent = `امتیازهای داشبورد، صندوق‌ها و دیده‌بان با مدل ${horizonLabel()} محاسبه می‌شوند.`;
+    $$(".investment-horizon-select").forEach((select) => { select.value = state.investmentHorizon; });
+    $$(".investment-horizon-description").forEach((description) => {
+      description.textContent = `امتیازها با مدل ${horizonLabel()} محاسبه می‌شوند.`;
+    });
     const fundNote = $("#fund-score-model-note");
     if (fundNote) fundNote.textContent = `امتیاز تکنیکال با مدل ${horizonLabel()} محاسبه می‌شود؛ وزن خانواده‌ها و شاخص‌ها در نمایهٔ هر صندوق مشخص است.`;
   }
@@ -1425,10 +1435,12 @@
       const distance = item.distance_to_exit;
       const distanceValue = distance?.value == null ? null : Number(distance.value);
       const exitDistanceClass = distanceValue == null ? "unknown" : distanceValue > 0 ? "positive" : "negative";
-      const exitDistanceLabel = distanceValue == null ? "" : distanceValue > 0 ? "تا حد خروج" : distanceValue < 0 ? "زیر حد خروج" : "روی حد خروج";
+      const exitDistanceLabel = distanceValue == null ? "" : distanceValue > 0 ? "قیمت فعلی بالای سطح" : distanceValue < 0 ? "قیمت فعلی پایین‌تر از سطح" : "قیمت فعلی روی سطح";
       const exitDistanceHtml = distance?.value == null
         ? `<small class="watch-exit-distance unknown">فاصله محاسبه نشد</small>`
         : `<small class="watch-exit-distance ${exitDistanceClass}">${exitDistanceLabel}: ${money(Math.abs(distanceValue))} ریال · ${pct(Math.abs(Number(distance.pct)))} از قیمت فعلی</small>`;
+      const activeExitHorizon = item.active_exit_horizon || "میان‌مدت";
+      const activeExitAverage = item.active_exit_average || "SMA(50)";
       const decisionHtml = (decision) => {
         const tone = ["positive", "negative", "neutral"].includes(decision?.tone) ? decision.tone : "unknown";
         const reason = decision?.reason || "اطلاعات تحلیلی کافی نیست.";
@@ -1448,7 +1460,7 @@
             <div class="watch-position-value"><span>تعداد واحد</span><b>${num(item.units, 2)} <small>واحد</small></b></div>
           </div></section>
           <section class="watch-item-panel watch-result-panel"><div class="watch-item-panel-head"><span>سود و زیان</span><small>بر اساس قیمت فعلی</small></div>${profitSummaryHtml}</section>
-          <section class="watch-item-panel watch-exit-panel"><div class="watch-item-panel-head"><span>خروج میان‌مدت</span><small>مدل AliVest</small></div><div class="watch-exit-price"><b>${money(item.medium_term_exit_price)} <small>ریال</small></b></div>${exitDistanceHtml}</section>
+          <section class="watch-item-panel watch-exit-panel"><div class="watch-item-panel-head"><span>حد خروج ${esc(activeExitHorizon)}</span><small>${esc(activeExitAverage)} · مدل AliVest</small></div><div class="watch-exit-price"><b>${money(item.active_exit_price)} <small>ریال</small></b></div><small class="watch-exit-distance unknown">فقط با بسته‌شدن کندل روزانه زیر ${esc(activeExitAverage)} فعال می‌شود.</small>${exitDistanceHtml}</section>
         </div>
         <div class="watch-item-decisions"><section class="watch-decision-block"><span>نگهداری یا فروش</span>${decisionHtml(item.holding_decision)}</section><section class="watch-decision-block"><span>افزایش حجم</span>${decisionHtml(item.add_position_decision)}</section></div>
       </article>`;
@@ -1579,8 +1591,10 @@
   }
 
   $$(".nav-item").forEach((button) => button.addEventListener("click", () => openView(button.dataset.view)));
-  $("#investment-horizon").value = state.investmentHorizon;
-  $("#investment-horizon").addEventListener("change", (event) => changeInvestmentHorizon(event.target.value));
+  $$(".investment-horizon-select").forEach((select) => {
+    select.value = state.investmentHorizon;
+    select.addEventListener("change", (event) => changeInvestmentHorizon(event.target.value));
+  });
   $$('[data-open-view]').forEach((button) => button.addEventListener("click", () => openView(button.dataset.openView)));
   $$('[data-refresh], #refresh-button, #refresh-primary').forEach((button) => button.addEventListener("click", doRefresh));
   $("#theme-toggle").addEventListener("click", async () => {

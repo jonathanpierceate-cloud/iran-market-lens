@@ -199,17 +199,10 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     correction_label = "بالا" if correction_probability >= 55 else "متوسط" if correction_probability >= 30 else "پایین"
     nearest_support = nearest_level(supports, below=True)
     nearest_resistance = nearest_level(resistances, below=False)
-    exit_support = min((value for value in supports if price is not None and value < price), default=None)
+    sma10 = find_values("SMA(10)").get("value")
     sma50 = find_values("SMA(50)").get("value")
-    ema50 = find_values("EMA(50)").get("value")
-    sma100 = find_values("SMA(100)").get("value")
-    ema100 = find_values("EMA(100)").get("value")
-    immediate_exit_base = sma50 or ema50 or (nearest_support if nearest_support is not None else None)
-    structural_exit_base = sma100 or ema100 or exit_support
-    immediate_exit_price = round(immediate_exit_base * 0.995) if immediate_exit_base is not None else None
-    structural_exit_price = round(structural_exit_base * 0.998) if structural_exit_base is not None else None
-    if structural_exit_price is not None and immediate_exit_price is not None and structural_exit_price >= immediate_exit_price:
-        structural_exit_price = round(immediate_exit_price * 0.985)
+    short_term_exit_price = round(sma10) if sma10 is not None else None
+    medium_term_exit_price = round(sma50) if sma50 is not None else None
     resistance_above_price = price is None or any(value > price for value in resistances)
     mfi = find_values("MFI").get("mfi")
     cci = find_values("CCI").get("cci")
@@ -295,14 +288,17 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     return {
         "source": "Rahavard365", "symbol": symbol, "data_timestamp": data_timestamp,
         "price": price, "support_levels": supports, "resistance_levels": resistances,
-        "medium_term_exit_price": immediate_exit_price,
-        "structural_exit_price": structural_exit_price,
+        "short_term_exit_price": short_term_exit_price,
+        "medium_term_exit_price": medium_term_exit_price,
+        "short_term_exit": {
+            "price": short_term_exit_price,
+            "trigger": "بسته‌شدن کندل روزانه زیر SMA(10)",
+            "action": "اگر کندل روزانه زیر SMA(10) بسته شد، حد ضرر کوتاه‌مدت فعال است.",
+        },
         "medium_term_exit": {
-            "price": immediate_exit_price,
-            "trigger": "تثبیت قیمت زیر SMA(50) یا حمایت میانی ره‌آورد",
-            "action": "تثبیت زیر این سطح یعنی ریسک کوتاه‌مدت بالا رفته است؛ خرید جدید را متوقف و خروج را مرحله‌ای اجرا کن.",
-            "structural_price": structural_exit_price,
-            "structural_trigger": "شکست و تثبیت زیر SMA(100) یا حمایت ساختاری ره‌آورد",
+            "price": medium_term_exit_price,
+            "trigger": "بسته‌شدن کندل روزانه زیر SMA(50)",
+            "action": "اگر کندل روزانه زیر SMA(50) بسته شد، حد ضرر میان‌مدت فعال است.",
         },
         "technical_score": fund_model["technical_score"],
         "score_method": fund_model["score_method"],

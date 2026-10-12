@@ -916,7 +916,11 @@ def _fund_purchase_assessment(price: Any, analysis: dict[str, Any] | None) -> di
     if not isinstance(analysis, dict):
         return {"status": "unknown", "label": "داده کافی نیست", "reason": "تحلیل تکنیکال این نماد هنوز آماده نیست.", "rank": None}
     score_horizon = analysis.get("investment_horizon_label") or horizon_label(analysis.get("investment_horizon"))
-    exit_price = _watchlist_number(analysis.get("medium_term_exit_price"))
+    short_horizon = analysis.get("investment_horizon") == "short"
+    exit_price = _watchlist_number(
+        analysis.get("short_term_exit_price" if short_horizon else "medium_term_exit_price"))
+    exit_average = "SMA(10)" if short_horizon else "SMA(50)"
+    exit_horizon = "کوتاه‌مدت" if short_horizon else "میان‌مدت"
     score = _watchlist_number(analysis.get("technical_score"))
     breakdown = analysis.get("score_breakdown") if isinstance(analysis.get("score_breakdown"), dict) else {}
     near_resistance_count = _watchlist_number(breakdown.get("near_resistance_count"))
@@ -926,7 +930,8 @@ def _fund_purchase_assessment(price: Any, analysis: dict[str, Any] | None) -> di
     if current_price is None or current_price <= 0 or exit_price is None or exit_price <= 0 or score is None or near_resistance_count is None:
         return {"status": "unknown", "label": "داده کافی نیست", "reason": "برای ارزیابی قیمت فعلی، قیمت و دادهٔ کامل تکنیکال لازم است.", "rank": None}
     if current_price <= exit_price:
-        return {"status": "unsuitable", "label": "نامناسب", "reason": "قیمت فعلی روی حد خروج میان‌مدت یا پایین‌تر از آن است.", "rank": 0}
+        return {"status": "wait", "label": f"صبر · زیر {exit_average}",
+                "reason": f"قیمت فعلی زیر میانگین {exit_average} است؛ برای تشخیص شکست حد خروج {exit_horizon}، بسته‌شدن کندل روزانه را بررسی کن.", "rank": 2}
     if ((coverage is not None and coverage < 30)
             or (available_weight is not None and available_weight < 50)):
         return {"status": "wait", "label": "صبر · پوشش داده کم",
@@ -935,7 +940,7 @@ def _fund_purchase_assessment(price: Any, analysis: dict[str, Any] | None) -> di
         return {"status": "wait", "label": "صبر · ریسک بالا",
                 "reason": "رتبهٔ ریسک نوسان بالاست؛ امتیاز تکنیکال به‌تنهایی برای ورود کافی نیست.", "rank": 2}
     if score >= 70 and near_resistance_count == 0:
-        return {"status": "suitable", "label": "مناسب", "reason": f"برآیند امتیاز چهارگروهی {score_horizon} قوی است؛ قیمت بالای حد خروج میان‌مدت و دور از مقاومت نزدیک است.", "rank": 3}
+        return {"status": "suitable", "label": "مناسب", "reason": f"برآیند امتیاز چهارگروهی {score_horizon} قوی است؛ قیمت بالای سطح {exit_average} و دور از مقاومت نزدیک است.", "rank": 3}
     if score >= 55:
         reason = ("امتیاز مناسب است، اما مقاومت نزدیک وجود دارد؛ برای ورود صبر کن."
                   if score >= 70 and near_resistance_count > 0
@@ -1144,7 +1149,10 @@ async def get_watchlist(horizon: str = Query(default="long")):
                     "supports": [], "resistances": [],
                     "midterm_outlook": "نماد سفارشی · دادهٔ قیمت موجود نیست" if is_custom_symbol else "صندوق در فهرست ره‌آورد پیدا نشد",
                     "overall_status": "داده در دسترس نیست", "technical_score": None,
-                    "medium_term_exit_price": None, "distance_to_exit": None,
+                    "short_term_exit_price": None, "medium_term_exit_price": None,
+                    "active_exit_price": None, "active_exit_horizon": horizon_label(horizon),
+                    "active_exit_average": "SMA(10)" if horizon == "short" else "SMA(50)",
+                    "distance_to_exit": None,
                     "holding_decision": {"label": "داده کافی نیست", "tone": "unknown", "reason": "قیمت و تحلیل تکنیکال این نماد در دسترس نیست."},
                     "add_position_decision": {"label": "فعلاً اضافه نکن", "tone": "neutral", "reason": "تا دریافت قیمت و تحلیل معتبر صبر کن."},
                     "explanation": "برای این نماد، نمایه و دادهٔ تحلیلی در فهرست فعلی صندوق‌های ره‌آورد موجود نیست."}
@@ -1174,13 +1182,14 @@ async def get_watchlist(horizon: str = Query(default="long")):
                 live_price_is_today = False
         cached_history = db.history(record["fund_key"], 1, source="Rahavard365")
         cached_price = _watchlist_number(fund.get("market_price"))
-        if cached_price is None and not cached_history:
+        if not cached_history:
             try:
                 cached_history = await fetch_fund_price_history(record["fund_key"])
             except Exception:
                 cached_history = db.history(record["fund_key"], 1, source="Rahavard365")
         if cached_price is None and cached_history:
             cached_price = _watchlist_number(cached_history[-1].get("close"))
+        last_daily_close = _watchlist_number(cached_history[-1].get("close")) if cached_history else None
         price = live_price or cached_price
         price_is_cached = price is not None and not live_price_is_today
         price_note = ("قیمت پایانی آخرین روز معاملاتی؛ با ثبت معامله جدید به‌روز می‌شود"
@@ -1203,8 +1212,14 @@ async def get_watchlist(horizon: str = Query(default="long")):
         levels = _watchlist_levels(indicator_data, price)
         signal = analysis_result.get("signal") if analysis_result else None
         trend = analysis_result.get("trend") if analysis_result else None
+        short_term_exit_price = _watchlist_number(analysis_result.get("short_term_exit_price")) if analysis_result else None
         medium_term_exit_price = _watchlist_number(analysis_result.get("medium_term_exit_price")) if analysis_result else None
-        distance_value = price - medium_term_exit_price if price is not None and medium_term_exit_price is not None else None
+        active_exit_price = short_term_exit_price if horizon == "short" else medium_term_exit_price
+        active_exit_horizon = horizon_label(horizon)
+        active_exit_average = "SMA(10)" if horizon == "short" else "SMA(50)"
+        exit_confirmed = (last_daily_close is not None and active_exit_price is not None
+                          and last_daily_close < active_exit_price)
+        distance_value = price - active_exit_price if price is not None and active_exit_price is not None else None
         distance_pct = distance_value / price * 100 if distance_value is not None and price else None
         break_even = _watchlist_number(record.get("break_even_price"))
         units = _watchlist_number(record.get("units"))
@@ -1224,27 +1239,32 @@ async def get_watchlist(horizon: str = Query(default="long")):
         score_horizon = analysis_result.get("investment_horizon_label") if analysis_result else horizon_label(horizon)
         score_breakdown = analysis_result.get("score_breakdown") if analysis_result and isinstance(analysis_result.get("score_breakdown"), dict) else {}
         near_resistance_count = _watchlist_number(score_breakdown.get("near_resistance_count"))
-        if price is None or medium_term_exit_price is None or technical_score is None:
+        if price is None or active_exit_price is None or technical_score is None:
             holding_decision = {"label": "داده کافی نیست", "tone": "unknown", "reason": "برای تعیین نگهداری یا خروج، قیمت و تحلیل کامل لازم است."}
             add_position_decision = {"label": "فعلاً اضافه نکن", "tone": "neutral", "reason": "تا کامل‌شدن داده‌ها برای افزایش حجم صبر کن."}
+        elif last_daily_close is None:
+            holding_decision = ({"label": "موقعیتی ثبت نشده", "tone": "neutral", "reason": "برای این نماد تعداد واحدی در دیده‌بان ثبت نشده است."}
+                                if (units or 0) <= 0 else
+                                {"label": "در انتظار کندل روزانه", "tone": "neutral", "reason": f"آخرین قیمت پایانی روزانه برای تأیید قاعدهٔ SMA در دسترس نیست؛ قیمت لحظه‌ای به‌تنهایی مبنای خروج نیست."})
+            add_position_decision = {"label": "صبر تا تأیید روزانه", "tone": "neutral", "reason": "تا دریافت قیمت پایانی روزانه، شکست SMA و شرایط افزودن حجم را تأیید نمی‌کنم."}
+        elif exit_confirmed:
+            holding_decision = ({"label": "موقعیتی ثبت نشده", "tone": "neutral", "reason": "برای این نماد تعداد واحدی در دیده‌بان ثبت نشده است."}
+                                if (units or 0) <= 0 else
+                                {"label": "فروش / کاهش", "tone": "negative", "reason": f"آخرین کندل روزانه زیر {active_exit_average} بسته شده و حد خروج {active_exit_horizon} تأیید شده است."})
+            add_position_decision = {"label": "خیر · حد خروج تأیید شد", "tone": "negative", "reason": f"تا زمانی که کندل روزانه بالای {active_exit_average} تثبیت نشده، حجم اضافه نکن."}
         elif (units or 0) <= 0:
             holding_decision = {"label": "موقعیتی ثبت نشده", "tone": "neutral", "reason": "برای این نماد تعداد واحدی در دیده‌بان ثبت نشده است."}
-            if price <= medium_term_exit_price:
-                add_position_decision = {"label": "خیر · حد خروج شکسته", "tone": "negative", "reason": "قیمت به حد خروج میان‌مدت رسیده یا پایین‌تر است."}
-            elif technical_score >= 70 and (near_resistance_count or 0) == 0:
+            if technical_score >= 70 and (near_resistance_count or 0) == 0:
                 add_position_decision = {"label": "بله · پله‌ای", "tone": "positive", "reason": f"برآیند امتیاز چهارگروهی {score_horizon} مناسب است و مقاومت نزدیکی ثبت نشده."}
             elif technical_score >= 55:
                 add_position_decision = {"label": "صبر برای تأیید", "tone": "neutral", "reason": "برای ورود، تأیید روند یا فاصله‌گرفتن از مقاومت لازم است."}
             else:
                 add_position_decision = {"label": "خیر · فعلاً", "tone": "negative", "reason": f"امتیاز {score_horizon} برای افزودن موقعیت کافی نیست."}
-        elif price <= medium_term_exit_price:
-            holding_decision = {"label": "فروش / کاهش", "tone": "negative", "reason": "قیمت به حد خروج میان‌مدت رسیده یا پایین‌تر است؛ طبق قاعدهٔ خروج، موقعیت را کاهش بده."}
-            add_position_decision = {"label": "خیر · حد خروج شکسته", "tone": "negative", "reason": "تا بازپس‌گیری و تثبیت بالای حد خروج، حجم اضافه نکن."}
         elif technical_score < 40:
             holding_decision = {"label": "کاهش ریسک", "tone": "negative", "reason": f"امتیاز تکنیکال {score_horizon} ضعیف است؛ نگهداری کامل ریسک بالاتری دارد."}
             add_position_decision = {"label": "خیر · فعلاً", "tone": "negative", "reason": f"امتیاز {score_horizon} ضعیف است."}
         else:
-            holding_decision = {"label": "نگهداری", "tone": "positive", "reason": "قیمت بالای حد خروج میان‌مدت است؛ شکست این سطح را زیر نظر بگیر."}
+            holding_decision = {"label": "نگهداری", "tone": "positive", "reason": f"آخرین کندل روزانه بالای {active_exit_average} بسته شده؛ حد خروج فقط با بسته‌شدن روزانه زیر آن فعال می‌شود."}
             if technical_score >= 70 and (near_resistance_count or 0) == 0:
                 add_position_decision = {"label": "بله · پله‌ای", "tone": "positive", "reason": f"برآیند امتیاز چهارگروهی {score_horizon} مناسب است و مقاومت نزدیکی ثبت نشده؛ خرید را مرحله‌ای انجام بده."}
             elif technical_score >= 55:
@@ -1273,7 +1293,12 @@ async def get_watchlist(horizon: str = Query(default="long")):
             "technical_score": technical_score,
             "investment_horizon": analysis_result.get("investment_horizon") if analysis_result else horizon,
             "investment_horizon_label": score_horizon,
+            "short_term_exit_price": short_term_exit_price,
             "medium_term_exit_price": medium_term_exit_price,
+            "active_exit_price": active_exit_price,
+            "active_exit_horizon": active_exit_horizon,
+            "active_exit_average": active_exit_average,
+            "last_daily_close": last_daily_close,
             "distance_to_exit": {"value": distance_value, "pct": distance_pct} if distance_value is not None else None,
             "holding_decision": holding_decision,
             "add_position_decision": add_position_decision,

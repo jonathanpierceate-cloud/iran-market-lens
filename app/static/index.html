@@ -57,12 +57,12 @@
         </div>
 
         <div class="investment-horizon-toolbar">
-          <label for="investment-horizon">دید سرمایه‌گذاری</label>
-          <select id="investment-horizon" aria-label="انتخاب دید سرمایه‌گذاری">
+          <label for="investment-horizon-overview">دید سرمایه‌گذاری</label>
+          <select id="investment-horizon-overview" class="investment-horizon-select" aria-label="انتخاب دید سرمایه‌گذاری">
             <option value="short">کوتاه‌مدت</option>
-            <option value="long" selected>بلندمدت</option>
+            <option value="long" selected>میان‌مدت</option>
           </select>
-          <span id="investment-horizon-description">امتیازهای داشبورد، صندوق‌ها و دیده‌بان با مدل بلندمدت محاسبه می‌شوند.</span>
+          <span id="investment-horizon-description-overview" class="investment-horizon-description">امتیازها با مدل میان‌مدت محاسبه می‌شوند.</span>
         </div>
 
         <div class="market-strip">
@@ -70,14 +70,14 @@
             <div class="card-top"><span class="asset-icon gold-icon">Au</span><span class="card-kicker">طلای جهانی · XAU/USD</span><span class="freshness" id="gold-freshness"><i></i> در حال بررسی</span></div>
             <div class="quote-line"><strong class="quote-value" id="gold-price">—</strong><span class="quote-unit">دلار / اونس</span><span class="change-pill" id="gold-change">—</span></div>
             <div class="quote-meta"><span>منبع: <b id="gold-source">—</b></span><span>زمان داده: <b id="gold-time">—</b></span></div>
-            <div class="card-bottom"><span>روند بلندمدت</span><strong id="gold-trend" class="trend neutral">داده ناکافی</strong><span class="card-action">تحلیل با کلیک ←</span></div>
+            <div class="card-bottom"><span>روند میان‌مدت</span><strong id="gold-trend" class="trend neutral">داده ناکافی</strong><span class="card-action">تحلیل با کلیک ←</span></div>
           </article>
 
           <article class="market-card dollar-card market-analysis-trigger" data-analysis-toggle="dollar" role="button" tabindex="0" aria-controls="dollar-analysis" aria-expanded="false">
             <div class="card-top"><span class="asset-icon dollar-icon">$</span><span class="card-kicker">دلار · USD/IRT</span><span class="freshness" id="dollar-freshness"><i></i> در حال بررسی</span></div>
             <div class="quote-line"><strong class="quote-value" id="dollar-price">—</strong><span class="quote-unit">تومان</span><span class="change-pill" id="dollar-change">—</span></div>
             <div class="quote-meta"><span>منبع: <b id="dollar-source">—</b></span><span>زمان داده: <b id="dollar-time">—</b></span></div>
-            <div class="card-bottom"><span>روند بلندمدت</span><strong id="dollar-trend" class="trend neutral">داده ناکافی</strong><span class="card-action">تحلیل با کلیک ←</span></div>
+            <div class="card-bottom"><span>روند میان‌مدت</span><strong id="dollar-trend" class="trend neutral">داده ناکافی</strong><span class="card-action">تحلیل با کلیک ←</span></div>
           </article>
 
           <article class="market-card index-card market-analysis-trigger" data-analysis-toggle="tepix" role="button" tabindex="0" aria-controls="tepix-analysis" aria-expanded="false">
@@ -96,12 +96,12 @@
               <p>مبنای محاسبه: اونس جهانی × نرخ تتر به تومان × تبدیل به ریال × خلوص ۷۵٪</p>
             </div>
             <div class="quote-meta"><span>منبع قیمت ره‌آورد: <b id="gold18k-source">—</b></span><span>زمان داده: <b id="gold18k-time">—</b></span></div>
-            <div class="card-bottom"><span>روند بلندمدت</span><strong id="gold18k-trend" class="trend neutral">داده ناکافی</strong><span class="card-action">تحلیل با کلیک ←</span></div>
+            <div class="card-bottom"><span>روند میان‌مدت</span><strong id="gold18k-trend" class="trend neutral">داده ناکافی</strong><span class="card-action">تحلیل با کلیک ←</span></div>
           </article>
         </div>
 
         <section class="panel asset-comparison-panel" aria-labelledby="asset-comparison-title">
-          <div class="asset-comparison-heading"><div><span id="asset-comparison-kicker" class="panel-kicker">نمای مقایسه‌ای · دید بلندمدت</span><h2 id="asset-comparison-title">مقایسه تکنیکال چهار دارایی</h2></div><small>امتیاز مدل اختصاصی AliVest · بر پایه داده‌های موجود ره‌آورد</small></div>
+          <div class="asset-comparison-heading"><div><span id="asset-comparison-kicker" class="panel-kicker">نمای مقایسه‌ای · دید میان‌مدت</span><h2 id="asset-comparison-title">مقایسه تکنیکال چهار دارایی</h2></div><small>امتیاز مدل اختصاصی AliVest · بر پایه داده‌های موجود ره‌آورد</small></div>
           <div class="asset-comparison-scroll"><table class="asset-comparison-table"><thead><tr><th scope="col">دارایی</th><th scope="col">آخرین قیمت</th><th scope="col">امتیاز از ۱۰۰</th><th id="asset-comparison-trend-heading" scope="col">جهت روند</th><th scope="col">قدرت روند</th><th scope="col">ریسک نوسان</th><th scope="col">کیفیت ورود</th><th scope="col">پوشش داده</th></tr></thead><tbody id="overview-asset-comparison-body"><tr><td colspan="8">در انتظار دریافت داده</td></tr></tbody></table></div>
           <p id="overview-asset-comparison-summary" class="asset-comparison-summary">مقایسهٔ نسبی جهت، امتیاز و ریسک ورود پس از دریافت داده نمایش داده می‌شود.</p>
         </section>
@@ -119,6 +119,7 @@
 
       <section class="view" id="view-funds">
         <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span>ETF Explorer</div><h1>صندوق‌های قابل معامله</h1><p>قیمت، بازده و تحلیل اندیکاتورها از ره‌آورد۳۶۵.</p></div><div class="heading-actions"><a class="button button-quiet" href="/api/export/funds.csv">↓ خروجی CSV</a><a class="button button-quiet" href="/api/export/funds.xlsx">↓ Excel</a><button class="button button-primary" data-refresh><span>⟳</span> به‌روزرسانی فهرست</button></div></div>
+        <div class="investment-horizon-toolbar"><label for="investment-horizon-funds">دید سرمایه‌گذاری</label><select id="investment-horizon-funds" class="investment-horizon-select" aria-label="انتخاب دید سرمایه‌گذاری"><option value="short">کوتاه‌مدت</option><option value="long" selected>میان‌مدت</option></select><span class="investment-horizon-description">امتیازها با مدل میان‌مدت محاسبه می‌شوند.</span></div>
         <div class="fund-toolbar"><label class="table-search"><span>⌕</span><input id="fund-search" type="search" placeholder="نام یا شناسه ره‌آورد صندوق را بنویسید…"></label><select id="fund-category" aria-label="نوع صندوق"><option value="">همه انواع صندوق</option><option value="604">در اوراق بهادار مبتنی بر کالا- گواهی سپرده کالایی</option><option value="544">صندوق در صندوق</option><option value="256">سرمایه‌گذاری در اوراق بهادار - مختلط</option><option value="303">سرمایه‌گذاری قابل معامله شاخصی</option><option value="547">خصوصی</option><option value="612">سهامی اهرمی</option><option value="572">سرمایه‌گذاری در اوراق بهادار مبتنی بر کالا-کشاورزی</option><option value="568">سرمایه‌گذاری در اوراق بهادار - بخشی</option><option value="560">صندوق سرمایه‌گذاری املاک و مستغلات</option><option value="623">سرمایه‌گذاری در اوراق بهادار مبتنی بر کالا - نقره</option><option value="257">سرمایه‌گذاری در سهام</option><option value="543">زمین و ساختمان</option><option value="302">جسورانه</option><option value="542">پروژه</option><option value="301">سرمایه‌گذاری در اوراق بهادار مبتنی بر کالا - طلا</option></select><select id="fund-mobile-score-sort" class="fund-mobile-score-sort" aria-label="مرتب‌سازی فهرست صندوق‌ها"><option value="">مرتب‌سازی فهرست</option><option value="desc">بیشترین امتیاز</option><option value="asc">کمترین امتیاز</option><option value="buy_suitability_rank">بهترین وضعیت خرید</option><option value="type_asc">نوع صندوق (الف تا ی)</option><option value="type_desc">نوع صندوق (ی تا الف)</option></select><span class="fund-count-label" id="fund-result-count">۰ صندوق</span><span class="fund-score-progress" id="fund-score-progress" aria-live="polite"></span></div>
         <div class="panel table-panel"><div class="table-scroll"><table id="fund-table-grid"><thead><tr>
 <th scope="col" tabindex="0" data-fund-sort="name">صندوق / شناسه ره‌آورد <span class="sort-indicator" aria-hidden="true">⇅</span></th>
@@ -140,6 +141,7 @@
 
       <section class="view" id="view-watchlist">
         <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span>صندوق‌های منتخب من</div><h1>دیده‌بان شخصی</h1><p>قیمت، تحلیل و برنامهٔ معاملاتی هر نماد را یکجا ببین.</p></div><div class="heading-actions"><button class="button button-quiet" id="watchlist-refresh" type="button"><span>⟳</span> تازه‌سازی قیمت و تحلیل</button></div></div>
+        <div class="investment-horizon-toolbar"><label for="investment-horizon-watchlist">دید سرمایه‌گذاری</label><select id="investment-horizon-watchlist" class="investment-horizon-select" aria-label="انتخاب دید سرمایه‌گذاری"><option value="short">کوتاه‌مدت</option><option value="long" selected>میان‌مدت</option></select><span class="investment-horizon-description">امتیازها با مدل میان‌مدت محاسبه می‌شوند.</span></div>
         <div class="panel watchlist-panel">
           <section class="watchlist-overview" aria-label="خلاصه دیده‌بان">
             <div class="watchlist-overview-head"><div><span class="watchlist-section-kicker">نمای کلی</span><h2>خلاصهٔ سبد</h2></div><span id="watchlist-count" class="watchlist-count">۰ صندوق</span></div>
@@ -162,6 +164,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=dashboard-analysis-v4-20261012"></script>
+  <script src="/static/app.js?v=investment-horizon-exit-rules-20261012"></script>
 </body>
 </html>
