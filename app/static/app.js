@@ -1459,22 +1459,9 @@
     const body = $("#watchlist-items");
     if (!state.watchlist.length) body.innerHTML = `<div class="empty-state compact watchlist-empty"><b>در حال دریافت قیمت و تحلیل ره‌آورد…</b></div>`;
     try {
-      const [data, fundsData] = await Promise.all([
-        api("/api/watchlist"),
-        state.funds.length ? Promise.resolve({ items: state.funds }) : api("/api/funds")
-      ]);
+      const data = await api("/api/watchlist");
       if (requestedHorizon !== state.investmentHorizon) return;
       state.watchlist = data.items || [];
-      state.funds = fundsData.items || [];
-      const seenAssetIds = new Set();
-      $("#watchlist-symbol-options").innerHTML = state.funds.map((fund) => {
-        const raw = fund.raw || {};
-        const id = fund.rahavard_asset_id || raw.rahavard_asset_id || fund.fund_key || fund.symbol;
-        if (seenAssetIds.has(String(id))) return "";
-        seenAssetIds.add(String(id));
-        const label = `${fund.name || "صندوق"} · ${fund.display_symbol || `شناسه ${id}`}`;
-        return `<option value="${esc(id)}" label="${esc(label)}"></option>`;
-      }).join("");
       renderPersonalWatchlist(state.watchlist, data.totals || {});
     } catch (err) {
       body.innerHTML = `<div class="empty-state watchlist-empty"><b>دیده‌بان بارگیری نشد</b><small>${esc(err.message)}</small></div>`;
@@ -1641,17 +1628,6 @@
     control.addEventListener(id === "#fund-search" ? "input" : "change", () => {
       clearTimeout(loadFunds.timer); loadFunds.timer = setTimeout(() => loadFunds(), id === "#fund-search" ? 250 : 0);
     });
-  });
-  $("#watchlist-add-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const symbol = $("#watchlist-symbol").value.trim();
-    if (!symbol) return;
-    try {
-      const result = await api("/api/watchlist", { method: "POST", body: JSON.stringify({ symbol }) });
-      $("#watchlist-symbol").value = "";
-      toast(result.created ? "صندوق به دیده‌بان اضافه شد" : "این صندوق از قبل در دیده‌بان است");
-      await loadWatchlist();
-    } catch (err) { toast(`افزودن صندوق انجام نشد: ${err.message}`, true); }
   });
   $("#watchlist-items").addEventListener("click", async (event) => {
     const open = event.target.closest("[data-watch-open]");
