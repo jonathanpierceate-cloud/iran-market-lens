@@ -634,7 +634,7 @@
 
 
   function rahavardRecommendationHtml(a) {
-    if (a?.score_method === "dashboard_rahavard_three_group_weighted_v1") {
+    if (a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")) {
       return dashboardModelRecommendationHtml(a);
     }
     if (a?.score_method?.startsWith("fund_rahavard_four_group_weighted_") && a.family_scores) {

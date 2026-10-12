@@ -715,7 +715,7 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     top_negative = min(scored_families, key=lambda row: row[1]) if scored_families else None
     return {
         "technical_score": round(final_score, 1) if final_score is not None else None,
-        "score_method": f"fund_rahavard_four_group_weighted_{horizon}_v1",
+        "score_method": f"fund_rahavard_four_group_weighted_{horizon}_v2",
         "score_weights": {key: round(weight * 100) for key, weight in family_weights.items()},
         "indicator_weights": {
             family_key: {key: round(weight * 100, 1) for key, weight in weights.items()}
