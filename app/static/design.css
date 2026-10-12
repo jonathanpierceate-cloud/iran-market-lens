@@ -801,26 +801,91 @@ body.light-mode #view-settings .alert-form { background: #f5f9f6; border-color: 
 }
 
 /* ETF table: compact, scannable rows with a highlighted symbol column. */
+#view-funds .page-heading { align-items: center; gap: 18px; }
+#view-funds .page-heading > div:first-child { min-width: 0; }
+#view-funds .heading-actions { flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+#view-funds .fund-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(230px, 320px) max-content;
+  align-items: center;
+  gap: 11px;
+  margin: 0 0 13px;
+  padding: 13px;
+  border: 1px solid #2e4b54;
+  border-radius: 15px;
+  background: linear-gradient(135deg, rgba(28, 51, 59, .84), rgba(18, 35, 43, .88));
+}
+#view-funds .fund-toolbar .table-search {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+  padding: 0 12px;
+}
+#view-funds .fund-toolbar .table-search > span { color: #82cdbb; font-size: 18px; }
+#view-funds .fund-toolbar .table-search input { min-width: 0; width: 100%; }
+#view-funds .fund-toolbar #fund-category { width: 100%; min-width: 0; }
+#view-funds .fund-count-label {
+  justify-self: end;
+  padding: 7px 11px;
+  border: 1px solid rgba(94, 140, 151, .3);
+  border-radius: 10px;
+  background: rgba(11, 27, 34, .48);
+  color: #c5d8d3;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+#view-funds .fund-score-progress { grid-column: 1 / -1; min-width: 0; }
+#view-funds .fund-score-progress:empty { display: none; }
 #view-funds .table-panel {
   padding: 0;
   overflow: hidden;
   border-color: #355661;
   background: linear-gradient(145deg, #182b34, #13232c);
 }
-#view-funds .table-scroll { overflow: auto; scrollbar-color: #527f7c #14242c; }
+#view-funds .table-panel::before {
+  content: "برای دیدن ستون‌های بیشتر، جدول را افقی حرکت بدهید  ←  →";
+  display: flex;
+  align-items: center;
+  min-height: 37px;
+  padding: 7px 15px;
+  border-bottom: 1px solid rgba(87, 122, 125, .18);
+  background: rgba(10, 25, 32, .25);
+  color: #91aaa6;
+  font-size: 11px;
+}
+#view-funds .table-scroll { overflow: auto; overscroll-behavior-inline: contain; scrollbar-color: #668f8c #14242c; scrollbar-width: thin; }
+#view-funds .table-scroll::-webkit-scrollbar { height: 10px; }
+#view-funds .table-scroll::-webkit-scrollbar-track { background: #14242c; }
+#view-funds .table-scroll::-webkit-scrollbar-thumb { border: 2px solid #14242c; border-radius: 99px; background: #668f8c; }
 #view-funds #fund-table-grid {
   width: 100%;
-  min-width: 1580px;
+  min-width: 1710px;
   border-collapse: separate;
   border-spacing: 0;
-  table-layout: auto;
+  table-layout: fixed;
   direction: rtl;
 }
+#view-funds #fund-table-grid th:nth-child(1), #view-funds #fund-table-grid td:nth-child(1) { width: 230px; }
+#view-funds #fund-table-grid th:nth-child(2), #view-funds #fund-table-grid td:nth-child(2) { width: 145px; }
+#view-funds #fund-table-grid th:nth-child(3), #view-funds #fund-table-grid td:nth-child(3) { width: 115px; }
+#view-funds #fund-table-grid th:nth-child(4), #view-funds #fund-table-grid td:nth-child(4) { width: 130px; }
+#view-funds #fund-table-grid th:nth-child(5), #view-funds #fund-table-grid td:nth-child(5) { width: 230px; }
+#view-funds #fund-table-grid th:nth-child(6), #view-funds #fund-table-grid td:nth-child(6) { width: 100px; }
+#view-funds #fund-table-grid th:nth-child(7), #view-funds #fund-table-grid td:nth-child(7),
+#view-funds #fund-table-grid th:nth-child(8), #view-funds #fund-table-grid td:nth-child(8),
+#view-funds #fund-table-grid th:nth-child(9), #view-funds #fund-table-grid td:nth-child(9),
+#view-funds #fund-table-grid th:nth-child(10), #view-funds #fund-table-grid td:nth-child(10) { width: 95px; }
+#view-funds #fund-table-grid th:nth-child(11), #view-funds #fund-table-grid td:nth-child(11) { width: 100px; }
+#view-funds #fund-table-grid th:nth-child(12), #view-funds #fund-table-grid td:nth-child(12) { width: 145px; }
+#view-funds #fund-table-grid th:nth-child(13), #view-funds #fund-table-grid td:nth-child(13) { width: 130px; }
 #view-funds #fund-table-grid thead th {
   position: sticky;
   top: 0;
   z-index: 3;
-  padding: 15px 16px;
+  padding: 13px 11px;
   border-bottom: 1px solid #3b5a63;
   background: linear-gradient(180deg, #233d46, #1d343d);
   color: #c8d9d5;
@@ -853,7 +918,8 @@ body.light-mode #view-settings .alert-form { background: #f5f9f6; border-color: 
   font: 500 13px "DM Mono", Tahoma, sans-serif;
   direction: ltr;
   text-align: right;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.55;
   vertical-align: middle;
 }
 #view-funds #fund-table-grid tbody tr:last-child td { border-bottom: 0; }
@@ -966,6 +1032,11 @@ body.light-mode #view-funds .table-footer { border-color: #dce8e2; background: #
 body.light-mode #view-funds .table-footer span:last-child { color: #7a918a; }
 
 @media (max-width: 700px) {
+  #view-funds .fund-toolbar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 11px; }
+  #view-funds .fund-toolbar .table-search { grid-column: 1 / -1; }
+  #view-funds .fund-toolbar #fund-category, #view-funds .fund-toolbar #fund-mobile-score-sort { width: 100%; min-width: 0; }
+  #view-funds .fund-count-label, #view-funds .fund-score-progress { grid-column: 1 / -1; justify-self: stretch; }
+  #view-funds .fund-count-label { text-align: center; }
   .fund-mobile-score-sort { display: block; flex: 1 1 160px; }
   #view-funds #fund-table-grid { min-width: 980px; }
   #view-funds #fund-table-grid thead th, #view-funds #fund-table-grid tbody td { padding-left: 11px; padding-right: 11px; }
@@ -975,8 +1046,10 @@ body.light-mode #view-funds .table-footer span:last-child { color: #7a918a; }
 
 /* On phones the ETF table becomes a readable stack of metric cards instead of a clipped wide table. */
 @media (max-width: 700px) {
+  #view-funds .table-panel::before { display: none; }
   #view-funds .table-scroll { overflow: visible; }
   #view-funds #fund-table-grid { display: block; width: 100%; min-width: 0; }
+  #view-funds #fund-table-grid thead th, #view-funds #fund-table-grid tbody td { width: auto; }
   #view-funds #fund-table-grid thead { display: none; }
   #view-funds #fund-table-grid tbody { display: grid; gap: 12px; padding: 12px; }
   #view-funds #fund-table-grid tbody tr {
