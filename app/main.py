@@ -25,6 +25,7 @@ from .config import (MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
                      RAHAVARD_GOLD_18K_PAGE_URL,
                      RAHAVARD_LIGHT_BARS_URL, RAHAVARD_TEPIX_PAGE_URL,
                      RAHAVARD_USDT_PAGE_URL,
+                     TABDEAL_USDT_PAGE_URL,
                      REFRESH_INTERVAL_SECONDS, ROOT)
 from .db import db, utc_now
 from .fund_scoring import FUND_TYPE_BY_CATEGORY_ID, FUND_TYPE_LABELS, resolve_fund_type
@@ -106,64 +107,90 @@ def _refresh_interval() -> int:
 
 
 def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None) -> dict[str, Any]:
+    is_usd_quote = symbol == "USD_IR_FREE"
     bars = _market_history(symbol, 10000)
+    quote_bars = db.history(symbol, 10, source="Tabdeal") if is_usd_quote else bars
+    quote_bar = quote_bars[-1] if quote_bars else (bars[-1] if bars and not is_usd_quote else None)
+    history_latest = bars[-1] if bars else None
     with db.connect() as conn:
         asset = conn.execute("SELECT * FROM assets WHERE symbol=?", (symbol,)).fetchone()
     asset_defaults = {
         "GOLD": {"name": "طلای جهانی", "source": "Rahavard365", "source_url": RAHAVARD_GOLD_PAGE_URL},
         "GOLD_18K": {"name": "طلای ۱۸ عیار", "source": "Rahavard365", "source_url": RAHAVARD_GOLD_18K_PAGE_URL},
-        "USD_IR_FREE": {"name": "دلار به تومان", "source": "Rahavard365", "source_url": RAHAVARD_USDT_PAGE_URL},
+        "USD_IR_FREE": {"name": "دلار", "source": "Tabdeal", "source_url": TABDEAL_USDT_PAGE_URL},
         "TEPIX": {"name": "شاخص کل بورس", "source": "Rahavard365", "source_url": RAHAVARD_TEPIX_PAGE_URL},
     }
     data = dict(asset) if asset else asset_defaults.get(symbol)
     if data is None:
         raise HTTPException(status_code=404, detail="دارایی پیدا نشد")
     display_name = asset_defaults.get(symbol, {}).get("name") or data["name"]
-    source_url = RAHAVARD_USDT_PAGE_URL if symbol == "USD_IR_FREE" else data.get("source_url")
-    if not bars:
-        return {"symbol": symbol, "name": display_name, "price": None, "history": [],
-                "source": data.get("source"), "source_url": source_url,
-                "data_timestamp": None, "fetched_at": None, "stale": None,
-                "status": "unavailable", "error": "هنوز مشاهده معتبری ذخیره نشده است"}
-    latest = bars[-1]
+    source_url = TABDEAL_USDT_PAGE_URL if is_usd_quote else data.get("source_url")
+    source_key = {"GOLD": "rahavard_gold", "GOLD_18K": "rahavard_gold_18k", "DXY": "yahoo_dxy",
+                  "USD_IR_FREE": "tabdeal_usdt", "TEPIX": "rahavard_tepix"}.get(symbol)
+    quote_source = _source_map().get(source_key) if source_key else None
+    analysis_source_key = "rahavard_usdt" if is_usd_quote else source_key
+    analysis_source = _source_map().get(analysis_source_key) if analysis_source_key else None
+
+    history_returns = {}
+    for label, periods in [("daily", 1), ("weekly", 5), ("monthly", 21), ("three_month", 63), ("six_month", 126), ("one_year", 252)]:
+        if len(bars) > periods and bars[-periods-1].get("close") and history_latest:
+            history_returns[label] = round((history_latest["close"] / bars[-periods-1]["close"] - 1) * 100, 3)
+        else:
+            history_returns[label] = None
+
+    price = quote_bar.get("close") if quote_bar else None
     returns = {}
     for label, periods in [("daily", 1), ("weekly", 5), ("monthly", 21), ("three_month", 63), ("six_month", 126), ("one_year", 252)]:
-        if len(bars) > periods and bars[-periods-1].get("close"):
-            returns[label] = round((latest["close"] / bars[-periods-1]["close"] - 1) * 100, 3)
-        else:
-            returns[label] = None
-    source_key = {"GOLD": "rahavard_gold", "GOLD_18K": "rahavard_gold_18k", "DXY": "yahoo_dxy", "USD_IR_FREE": "rahavard_usdt",
-                  "TEPIX": "rahavard_tepix"}.get(symbol)
-    source = _source_map().get(source_key) if source_key else None
-    observed_timestamp = (source.get("last_data_timestamp") if source and symbol in {"GOLD", "GOLD_18K", "USD_IR_FREE", "TEPIX"}
-                          else latest["timestamp"])
-    observed_timestamp = observed_timestamp or latest["timestamp"]
-    is_stale = stale_status(observed_timestamp, max_hours=MAX_STALE_HOURS)
-    if source and source["status"] == "stale":
-        status = "stale"
-    elif source and source["status"] == "failed":
-        status = "stale" if is_stale else "cached_after_source_error"
-    else:
-        status = "stale" if is_stale else "available"
-    output = {"symbol": symbol, "name": display_name, "price": latest["close"],
-              "open": latest.get("open"), "high": latest.get("high"), "low": latest.get("low"),
-              "volume": latest.get("volume"), "history": bars, "returns": returns,
-              "source": latest.get("source"), "source_url": source_url,
-              "data_timestamp": observed_timestamp, "fetched_at": latest.get("fetched_at"),
-              "stale": bool(is_stale), "status": status}
+        baseline = bars[-periods-1].get("close") if len(bars) > periods else None
+        returns[label] = round((price / baseline - 1) * 100, 3) if price is not None and baseline else None
+
+    observed_timestamp = ((quote_source or {}).get("last_data_timestamp")
+                         or (quote_bar or {}).get("timestamp"))
+    analysis_timestamp = ((analysis_source or {}).get("last_data_timestamp")
+                          or (history_latest or {}).get("timestamp"))
+    price_stale = stale_status(observed_timestamp, max_hours=MAX_STALE_HOURS) if observed_timestamp else True
+    analysis_stale = stale_status(analysis_timestamp, max_hours=MAX_STALE_HOURS) if analysis_timestamp else True
+
+    def status_for(feed: dict[str, Any] | None, stale: bool) -> str:
+        if feed and feed.get("status") == "stale":
+            return "stale"
+        if feed and feed.get("status") == "failed":
+            return "stale" if stale else "cached_after_source_error"
+        return "stale" if stale else "available"
+
+    status = status_for(quote_source, price_stale) if price is not None else "unavailable"
+    output = {
+        "symbol": symbol, "name": display_name, "price": price,
+        "open": quote_bar.get("open") if quote_bar else None,
+        "high": quote_bar.get("high") if quote_bar else None,
+        "low": quote_bar.get("low") if quote_bar else None,
+        "volume": quote_bar.get("volume") if quote_bar else None,
+        "history": bars, "returns": returns,
+        "source": "Tabdeal" if is_usd_quote and price is not None else (quote_bar.get("source") if quote_bar else data.get("source")),
+        "source_url": source_url, "data_timestamp": observed_timestamp,
+        "fetched_at": quote_bar.get("fetched_at") if quote_bar else None,
+        "stale": bool(price_stale), "status": status,
+    }
     iran_tz = timezone(timedelta(hours=3, minutes=30))
-    try:
-        observed_day = datetime.fromisoformat(str(observed_timestamp).replace("Z", "+00:00"))
-        if observed_day.tzinfo is None:
-            observed_day = observed_day.replace(tzinfo=iran_tz)
-        output["price_is_cached"] = observed_day.astimezone(iran_tz).date() != datetime.now(iran_tz).date()
-    except (TypeError, ValueError, OverflowError):
-        output["price_is_cached"] = bool(is_stale)
+
+    def is_cached(timestamp: str | None) -> bool:
+        if not timestamp:
+            return True
+        try:
+            observed_day = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+            if observed_day.tzinfo is None:
+                observed_day = observed_day.replace(tzinfo=iran_tz)
+            return observed_day.astimezone(iran_tz).date() != datetime.now(iran_tz).date()
+        except (TypeError, ValueError, OverflowError):
+            return True
+
+    output["price_is_cached"] = is_cached(observed_timestamp)
     output["analysis"] = analyze(symbol, bars, weights=analysis_weights)
-    output["analysis"]["source"] = output.get("source")
-    output["analysis"]["data_timestamp"] = observed_timestamp
-    output["analysis"]["daily_return_pct"] = returns.get("daily")
-    output["analysis"]["price_is_cached"] = output["price_is_cached"]
+    output["analysis"]["source"] = "Rahavard365" if is_usd_quote else output.get("source")
+    output["analysis"]["data_timestamp"] = analysis_timestamp
+    output["analysis"]["status"] = status_for(analysis_source, analysis_stale)
+    output["analysis"]["daily_return_pct"] = history_returns.get("daily")
+    output["analysis"]["price_is_cached"] = is_cached(analysis_timestamp)
     return output
 
 
@@ -263,7 +290,8 @@ async def lifespan(_: FastAPI):
     for key, label, url in [
         ("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL),
         ("rahavard_gold_18k", "طلای ۱۸ عیار / ره‌آورد۳۶۵", RAHAVARD_GOLD_18K_PAGE_URL),
-        ("rahavard_usdt", "قیمت دلار به تومان / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL),
+        ("rahavard_usdt", "اندیکاتور و تحلیل دلار / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL),
+        ("tabdeal_usdt", "قیمت دلار / تتر · Tabdeal", TABDEAL_USDT_PAGE_URL),
         ("rahavard_tepix", "شاخص کل بورس / ره‌آورد۳۶۵", RAHAVARD_TEPIX_PAGE_URL),
         ("yahoo_dxy", "شاخص دلار آمریکا", "https://finance.yahoo.com/quote/DX-Y.NYB/"),
         ("rahavard_funds", "صندوق‌های قابل معامله / ره‌آورد۳۶۵", RAHAVARD_ETF_FUNDS_URL),
@@ -274,12 +302,13 @@ async def lifespan(_: FastAPI):
         existing_source = _source_map().get(key)
         if existing_source is None:
             db.save_source(key, label, "not_tested", url, None, "هنوز بررسی نشده است", None)
+        elif key == "tabdeal_usdt" and existing_source.get("status") == "disabled":
+            db.save_source(key, label, "not_tested", url, None, None, None)
         elif existing_source.get("label") != label:
             db.update_source_label(key, label)
     legacy_sources = _source_map()
     for key, label in [("tsetmc", "منبع قبلی قیمت صندوق‌ها · غیرفعال"),
-                       ("fipiran", "منبع قبلی مشخصات صندوق‌ها · غیرفعال"),
-                       ("tabdeal_usdt", "منبع قبلی قیمت دلار به تومان · غیرفعال")]:
+                       ("fipiran", "منبع قبلی مشخصات صندوق‌ها · غیرفعال")]:
         previous = legacy_sources.get(key)
         if previous and previous.get("status") != "disabled":
             db.save_source(key, label, "disabled", previous.get("source_url"),
@@ -349,7 +378,7 @@ def health():
 
 
 def _gold18k_valuation(gold_quote: dict[str, Any], dollar_quote: dict[str, Any], rahavard_quote: dict[str, Any]) -> dict[str, Any]:
-    """Estimate 18K gold per gram from XAU/USD and the Rahavard dollar-to-toman rate."""
+    """Estimate 18K gold per gram from XAU/USD and Tabdeal USDT price in toman."""
     def number(value: Any) -> float | None:
         try:
             result = float(value)
@@ -369,15 +398,13 @@ def _gold18k_valuation(gold_quote: dict[str, Any], dollar_quote: dict[str, Any],
         "usdt_toman": usdt_toman,
         "purity": 0.75,
         "ounce_grams": 31.1034768,
-        "method": "XAU/USD * USD/IRT * 75% / 31.1034768",
+        "method": "XAU/USD * USDT(Toman) * 10 * 75% / 31.1034768",
     }
     if gold_usd_per_ounce is None or usdt_toman is None or rahavard_irr_per_gram is None:
         return valuation
 
-    # Rahavard supplies the USDT quote in the numeric scale used by its
-    # local rial-denominated gold feed; applying another factor of 10 would
-    # overstate the result and create a false tenfold bubble.
-    theoretical = gold_usd_per_ounce * usdt_toman * 0.75 / 31.1034768
+    # Tabdeal quotes USDT in toman; the Rahavard 18K gold feed is in rial.
+    theoretical = gold_usd_per_ounce * usdt_toman * 10 * 0.75 / 31.1034768
     bubble = rahavard_irr_per_gram - theoretical
     valuation.update({
         "theoretical_price": round(theoretical),

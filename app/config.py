@@ -83,3 +83,4 @@ RAHAVARD_TEPIX_PAGE_URL = os.getenv(
 TABDEAL_TRADES_URL = os.getenv(
     "TABDEAL_TRADES_URL", "https://api1.tabdeal.org/r/api/v1/trades"
 )
+TABDEAL_USDT_PAGE_URL = "https://tabdeal.org/usdt-price"

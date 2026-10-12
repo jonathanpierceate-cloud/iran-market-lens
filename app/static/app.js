@@ -1051,7 +1051,7 @@
       renderGold18kValuation(summary.gold18k?.valuation);
       freshness($("#gold-analysis-status"), state.gold?.status, state.gold?.data_timestamp);
       freshness($("#gold18k-analysis-status"), state.gold18k?.status, state.gold18k?.data_timestamp);
-      freshness($("#dollar-analysis-status"), state.dollar?.status, state.dollar?.data_timestamp);
+      freshness($("#dollar-analysis-status"), state.dollar?.analysis?.status || state.dollar?.status, state.dollar?.analysis?.data_timestamp || state.dollar?.data_timestamp);
       freshness($("#tepix-analysis-status"), state.tepix?.status, state.tepix?.data_timestamp);
       $("#gold-analysis").innerHTML = analysisHtml(state.gold?.analysis);
       $("#gold18k-analysis").innerHTML = analysisHtml(state.gold18k?.analysis);

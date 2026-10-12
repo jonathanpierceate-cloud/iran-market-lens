@@ -383,6 +383,19 @@ class Database:
                 conn.execute("INSERT OR IGNORE INTO historical_prices(symbol,data_timestamp,open,high,low,close,volume,source) VALUES(?,?,?,?,?,?,?,?)",
                              (symbol, ts, bar.get("open"), bar.get("high"), bar.get("low"), bar.get("close"), bar.get("volume"), source))
 
+    def save_price_observation(self, symbol: str, source: str, source_url: str,
+                               observation: dict[str, Any]) -> None:
+        """Save a current quote without changing the asset's canonical history source."""
+        timestamp = str(observation["timestamp"])
+        values = (symbol, timestamp, observation.get("fetched_at") or utc_now(),
+                  observation.get("open"), observation.get("high"), observation.get("low"),
+                  observation["close"], observation.get("volume"), source, source_url)
+        with self.connect() as conn:
+            conn.execute("""INSERT INTO prices(asset_symbol,data_timestamp,fetched_at,open,high,low,close,volume,source,source_url)
+                VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(asset_symbol,data_timestamp,source) DO UPDATE SET
+                fetched_at=excluded.fetched_at,open=excluded.open,high=excluded.high,low=excluded.low,
+                close=excluded.close,volume=excluded.volume,source_url=excluded.source_url""", values)
+
     def history(self, symbol: str, limit: int = 1000, source: str | None = None) -> list[dict[str, Any]]:
         where = "asset_symbol=?"
         params: list[Any] = [symbol]

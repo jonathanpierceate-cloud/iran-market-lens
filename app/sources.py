@@ -21,7 +21,8 @@ from .config import (HTTP_TIMEOUT_SECONDS, NEWS_RSS_URLS,
                      RAHAVARD_PUBLIC_BARS_URL, RAHAVARD_INDEX_BASE_URL,
                      RAHAVARD_TEPIX_INDEX_ID, RAHAVARD_TEPIX_PAGE_URL,
                      RAHAVARD_USDT_ASSET_ID,
-                     RAHAVARD_USDT_PAGE_URL)
+                     RAHAVARD_USDT_PAGE_URL, TABDEAL_TRADES_URL,
+                     TABDEAL_USDT_PAGE_URL)
 from .db import db, utc_now
 
 YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
@@ -214,6 +215,28 @@ def rahavard_usdt_history() -> list[dict[str, Any]]:
     if not bars:
         raise SourceError("کندل‌های دلار به تومان از ره‌آورد۳۶۵ معتبر نیستند")
     return bars
+
+
+def tabdeal_usdt_quote() -> dict[str, Any]:
+    """Return Tabdeal's latest public USDT/IRT trade as a quote observation."""
+    query = urllib.parse.urlencode({"symbol": "USDTIRT", "limit": 1})
+    payload = _json(f"{TABDEAL_TRADES_URL}?{query}", referer=TABDEAL_USDT_PAGE_URL)
+    trades = payload if isinstance(payload, list) else payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(trades, list):
+        raise SourceError("Tabdeal returned an invalid USDT trade response")
+    candidates = []
+    for trade in trades:
+        if not isinstance(trade, dict):
+            continue
+        price, stamp = _num(trade.get("price")), _num(trade.get("time"))
+        if price is not None and price > 0 and stamp is not None and stamp > 0:
+            candidates.append((stamp, price))
+    if not candidates:
+        raise SourceError("Tabdeal did not return a valid USDT/IRT trade")
+    stamp, price = max(candidates)
+    timestamp = datetime.fromtimestamp(stamp / 1000, timezone.utc).isoformat(timespec="seconds")
+    return {"timestamp": timestamp, "fetched_at": utc_now(), "open": None,
+            "high": None, "low": None, "close": price, "volume": None}
 
 
 def rahavard_gold_18k_history() -> list[dict[str, Any]]:
@@ -599,6 +622,10 @@ async def refresh_all() -> dict[str, Any]:
         return (len(bars), observed,
                 {"status": "stale", "message": "آخرین مشاهدهٔ دلار به تومان از آستانه تازگی عبور کرده است"} if stale else {})
 
+    def apply_tabdeal_usdt(result):
+        db.save_price_observation("USD_IR_FREE", "Tabdeal", TABDEAL_USDT_PAGE_URL, result)
+        return 1, result["timestamp"]
+
     def apply_tepix(result):
         bars = result
         db.save_bars("TEPIX", "شاخص کل بورس", "index", "POINT", "واحد",
@@ -632,8 +659,10 @@ async def refresh_all() -> dict[str, Any]:
                    rahavard_gold_18k_history, apply_gold_18k),
         run_source("yahoo_dxy", "شاخص دلار آمریکا", YAHOO_CHART.format(symbol="DX-Y.NYB"),
                    lambda: yahoo_history("DX-Y.NYB"), apply_dxy),
-        run_source("rahavard_usdt", "قیمت دلار به تومان / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL,
+        run_source("rahavard_usdt", "اندیکاتور و تحلیل دلار / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL,
                    rahavard_usdt_history, apply_usd),
+        run_source("tabdeal_usdt", "قیمت دلار / تتر · Tabdeal", TABDEAL_USDT_PAGE_URL,
+                   tabdeal_usdt_quote, apply_tabdeal_usdt),
         run_source("rahavard_tepix", "شاخص کل بورس / ره‌آورد۳۶۵",
                    RAHAVARD_TEPIX_PAGE_URL, rahavard_tepix_history, apply_tepix),
         funds_from_rahavard(),
