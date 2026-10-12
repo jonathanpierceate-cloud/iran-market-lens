@@ -949,7 +949,7 @@
   }
 
   function analysisHtml(a) {
-    if (a?.source === "Rahavard365" && a?.score_method !== "dashboard_rahavard_three_group_weighted_v1") return rahavardAnalysisHtml(a);
+    if (a?.source === "Rahavard365" && !a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")) return rahavardAnalysisHtml(a);
     if (!a || a.technical_score == null) return `<div class="empty-state compact"><b>داده کافی برای محاسبه امتیاز موجود نیست</b><small>مدل فقط داده ذخیره‌شده از منبع را تحلیل می‌کند.</small></div>`;
     const all = a.indicators?.indicators || {};
     const seen = new Set();
@@ -983,7 +983,7 @@
       summary("میانگین‌های EMA", maAlignment.length ? `${maAlignment.filter(Boolean).length} از ${maAlignment.length}` : "—", maState, `${maLabel} · نسبت قیمت به EMA20/50/200`)
     ].join("");
     const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
-    const tradePlan = a.score_method === "dashboard_rahavard_three_group_weighted_v1" ? "" : tradePlanHtml(a);
+    const tradePlan = a.score_method?.startsWith("dashboard_rahavard_three_group_weighted_") ? "" : tradePlanHtml(a);
     return `${overview}${tradePlan}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(entries.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div>${pivotTable}<div class="indicator-readouts">${summaryCards}</div><div class="indicator-card-grid">${cards}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
 
