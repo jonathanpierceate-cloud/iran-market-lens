@@ -142,6 +142,9 @@ def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None)
     returns = {}
     for label, periods in [("daily", 1), ("weekly", 5), ("monthly", 21), ("three_month", 63), ("six_month", 126), ("one_year", 252)]:
         baseline = bars[-periods-1].get("close") if len(bars) > periods else None
+        if is_usd_quote and baseline:
+            # Tabdeal quotes toman; Rahavard's dollar candles are stored in rial.
+            baseline /= 10
         returns[label] = round((price / baseline - 1) * 100, 3) if price is not None and baseline else None
 
     observed_timestamp = ((quote_source or {}).get("last_data_timestamp")
