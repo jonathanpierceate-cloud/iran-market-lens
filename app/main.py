@@ -985,6 +985,7 @@ _DEFAULT_WATCHLIST_ITEMS = [
     ("سینرژی", 1000, 63651),
     ("آگاس", 100, 460104),
     ("متال", 1000, 30639),
+    ("اهرم", 1500, 76341),
 ]
 _LEGACY_WATCHLIST_SYMBOLS = {"سبزآبنوس", "تکپاد"}
 _WATCHLIST_DISPLAY_BY_ASSET_ID = {
@@ -993,6 +994,7 @@ _WATCHLIST_DISPLAY_BY_ASSET_ID = {
     "35129": "سینرژی",
     "820": "آگاس",
     "25249": "متال",
+    "18335": "اهرم",
 }
 _DEFAULT_WATCHLIST_ASSET_ID_BY_SYMBOL = {
     symbol: asset_id for asset_id, symbol in _WATCHLIST_DISPLAY_BY_ASSET_ID.items()
@@ -1045,6 +1047,8 @@ def _seed_default_watchlist() -> None:
             saved_break_even = existing.get("break_even_price")
             if symbol == "آلتون" and (saved_units, saved_break_even) == (6000, 73837):
                 saved_units, saved_break_even = units, break_even_price
+            if symbol == "اهرم":
+                saved_units, saved_break_even = units, break_even_price
             db.update_watchlist_item(target_key, {
                 "units": saved_units,
                 "break_even_price": saved_break_even,
@@ -1056,6 +1060,8 @@ def _seed_default_watchlist() -> None:
         elif existing:
             # Keep saved values exactly as entered, including an intentional blank.
             if symbol == "آلتون" and (existing.get("units"), existing.get("break_even_price")) == (6000, 73837):
+                db.update_watchlist_item(target_key, {"units": units, "break_even_price": break_even_price})
+            elif symbol == "اهرم" and (existing.get("units"), existing.get("break_even_price")) != (units, break_even_price):
                 db.update_watchlist_item(target_key, {"units": units, "break_even_price": break_even_price})
         else:
             record = db.add_watchlist_item(target_key)
