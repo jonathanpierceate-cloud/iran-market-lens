@@ -10,12 +10,13 @@ from .dashboard_scoring import DASHBOARD_SCORE_WEIGHTS, analyze_dashboard_asset
 from .scoring_profiles import normalize_horizon
 
 
-MEDIUM_TERM_SCORE_WEIGHTS = DASHBOARD_SCORE_WEIGHTS
+LONG_TERM_SCORE_WEIGHTS = DASHBOARD_SCORE_WEIGHTS
+MEDIUM_TERM_SCORE_WEIGHTS = LONG_TERM_SCORE_WEIGHTS
 
 
 def analyze(symbol: str, bars: list[dict[str, Any]],
             weights: dict[str, float] | None = None,
-            horizon: str = "medium") -> dict[str, Any]:
+            horizon: str = "long") -> dict[str, Any]:
     # `weights` remains in the signature for callers on older app versions.
     return analyze_dashboard_asset(symbol, bars, normalize_horizon(horizon))
 
@@ -24,7 +25,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
                      data_timestamp: str | None = None,
                      current_price: float | None = None,
                      model_context: dict[str, Any] | None = None,
-                     horizon: str = "medium") -> dict[str, Any]:
+                     horizon: str = "long") -> dict[str, Any]:
     """Describe Rahavard's published indicator readings without recalculating them."""
     data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
     groups = {key: data.get(key) if isinstance(data.get(key), list) else []

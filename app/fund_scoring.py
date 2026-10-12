@@ -1,4 +1,4 @@
-"""Four-family technical scores for short- and medium-term Rahavard ETF data.
+"""Four-family technical scores for short- and long-term Rahavard ETF data.
 
 Weights are configurable proposals from the product specification. They have
 not been optimized or backtested. Unknown vendor formulas are deliberately
@@ -12,7 +12,7 @@ from typing import Any
 
 from .scoring_profiles import FUND_SCORING_PROFILES, normalize_horizon, horizon_label
 
-FAMILY_WEIGHTS = FUND_SCORING_PROFILES["medium"]["family_weights"]
+FAMILY_WEIGHTS = FUND_SCORING_PROFILES["long"]["family_weights"]
 
 FUND_TYPE_LABELS = {
     "fixed_income": "درآمد ثابت", "mixed": "مختلط", "equity": "سهامی",
@@ -23,7 +23,7 @@ FUND_TYPE_LABELS = {
     "leveraged": "اهرمی", "silver": "نقره",
 }
 
-INDICATOR_WEIGHTS = FUND_SCORING_PROFILES["medium"]["indicator_weights"]
+INDICATOR_WEIGHTS = FUND_SCORING_PROFILES["long"]["indicator_weights"]
 
 FUND_TYPE_BY_CATEGORY_ID = {
     "255": "fixed_income", "256": "mixed", "257": "equity", "301": "gold",
@@ -651,7 +651,7 @@ def _date_distance_days(left: Any, right: Any) -> int | None:
 
 def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | None,
                      context: dict[str, Any] | None = None,
-                     horizon: str = "medium") -> dict[str, Any]:
+                     horizon: str = "long") -> dict[str, Any]:
     """Score a fund with its selected, four-family investment-horizon profile."""
     context = context or {}
     horizon = normalize_horizon(horizon)

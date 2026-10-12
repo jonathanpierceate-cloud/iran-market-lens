@@ -7,7 +7,7 @@ from .indicators import compute_indicators, pivot_points
 from .scoring_profiles import DASHBOARD_SCORING_PROFILES, normalize_horizon, horizon_label
 
 
-DASHBOARD_SCORE_WEIGHTS = DASHBOARD_SCORING_PROFILES["medium"]["family_weights"]
+DASHBOARD_SCORE_WEIGHTS = DASHBOARD_SCORING_PROFILES["long"]["family_weights"]
 
 DASHBOARD_INDICATOR_NAMES = {
     "moving_averages": {
@@ -110,7 +110,7 @@ def _support_resistance_levels(bars: list[dict[str, Any]], tech: dict[str, Any],
 
 
 def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
-                            horizon: str = "medium") -> dict[str, Any]:
+                            horizon: str = "long") -> dict[str, Any]:
     """AliVest score using the selected horizon's three indicator families."""
     horizon = normalize_horizon(horizon)
     model = DASHBOARD_SCORING_PROFILES[horizon]

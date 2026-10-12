@@ -108,7 +108,7 @@ def _refresh_interval() -> int:
 
 
 def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None,
-                  horizon: str = "medium") -> dict[str, Any]:
+                  horizon: str = "long") -> dict[str, Any]:
     is_usd_quote = symbol == "USD_IR_FREE"
     bars = _market_history(symbol, 10000)
     quote_bars = db.history(symbol, 10, source="Tabdeal") if is_usd_quote else bars
@@ -420,7 +420,7 @@ def _gold18k_valuation(gold_quote: dict[str, Any], dollar_quote: dict[str, Any],
 
 
 @app.get("/api/market/summary")
-def market_summary(horizon: str = Query(default="medium")):
+def market_summary(horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)
     funds = _exclude_fixed_income_funds(db.funds(sort="data_timestamp", source="Rahavard365"))
     gold_quote = _market_quote("GOLD", DASHBOARD_SCORE_WEIGHTS, horizon)
@@ -443,12 +443,12 @@ def market_summary(horizon: str = Query(default="medium")):
 
 
 @app.get("/api/gold")
-def gold(horizon: str = Query(default="medium")):
+def gold(horizon: str = Query(default="long")):
     return _market_quote("GOLD", DASHBOARD_SCORE_WEIGHTS, normalize_horizon(horizon))
 
 
 @app.get("/api/gold-18k")
-def gold_18k(horizon: str = Query(default="medium")):
+def gold_18k(horizon: str = Query(default="long")):
     return _market_quote("GOLD_18K", DASHBOARD_SCORE_WEIGHTS, normalize_horizon(horizon))
 
 
@@ -464,12 +464,12 @@ def gold_history(limit: int = Query(default=1000, ge=1, le=5000)):
 
 
 @app.get("/api/dollar")
-def dollar(horizon: str = Query(default="medium")):
+def dollar(horizon: str = Query(default="long")):
     return _market_quote("USD_IR_FREE", DASHBOARD_SCORE_WEIGHTS, normalize_horizon(horizon))
 
 
 @app.get("/api/tepix")
-def tepix(horizon: str = Query(default="medium")):
+def tepix(horizon: str = Query(default="long")):
     return _market_quote("TEPIX", DASHBOARD_SCORE_WEIGHTS, normalize_horizon(horizon))
 
 
@@ -732,7 +732,7 @@ def _dedupe_rahavard_funds(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 @app.get("/api/funds")
 def funds(search: str = "", category: str = "", sort: str = "data_timestamp",
-          horizon: str = Query(default="medium")):
+          horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)
     if category == "255":
         return {"items": [], "count": 0, "source": "Rahavard365", "data_status": "available"}
@@ -828,7 +828,7 @@ def _fund_or_error(identifier: str) -> dict[str, Any]:
 
 @app.post("/api/funds/scores/batch")
 async def fund_score_batch(payload: FundScoreBatchInput,
-                           horizon: str = Query(default="medium")):
+                           horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)
     keys = list(dict.fromkeys(key.strip() for key in payload.fund_keys if key.strip()))
     if not keys:
@@ -1122,7 +1122,7 @@ def _watchlist_levels(indicator_data: dict[str, Any] | None,
 
 
 @app.get("/api/watchlist")
-async def get_watchlist(horizon: str = Query(default="medium")):
+async def get_watchlist(horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)
     _seed_default_watchlist()
     records = db.watchlist_items()
@@ -1328,7 +1328,7 @@ def delete_watchlist_item(fund_key: str):
 
 
 @app.get("/api/funds/{symbol}")
-async def fund_detail(symbol: str, horizon: str = Query(default="medium")):
+async def fund_detail(symbol: str, horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)
     fund = _fund_or_error(symbol)
     fund_key = fund["fund_key"]
@@ -1445,7 +1445,7 @@ async def fund_portfolio(symbol: str):
 
 
 @app.get("/api/funds/{symbol}/technical")
-async def fund_technical(symbol: str, horizon: str = Query(default="medium")):
+async def fund_technical(symbol: str, horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)
     fund = _fund_or_error(symbol)
     try:
@@ -1460,7 +1460,7 @@ async def fund_technical(symbol: str, horizon: str = Query(default="medium")):
 
 
 @app.get("/api/funds/{symbol}/signals")
-async def fund_signals(symbol: str, horizon: str = Query(default="medium")):
+async def fund_signals(symbol: str, horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)
     fund = _fund_or_error(symbol)
     try:
@@ -1481,7 +1481,7 @@ async def fund_signals(symbol: str, horizon: str = Query(default="medium")):
 
 
 @app.get("/api/funds/{symbol}/analysis")
-async def fund_analysis(symbol: str, horizon: str = Query(default="medium")):
+async def fund_analysis(symbol: str, horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)
     fund = _fund_or_error(symbol)
     try:
@@ -1621,7 +1621,7 @@ def export_funds_json():
 
 
 @app.get("/api/export/analysis.json")
-def export_analysis_json(horizon: str = Query(default="medium")):
+def export_analysis_json(horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)
     return {symbol: analyze(symbol, _market_history(symbol), horizon=horizon)
             for symbol in ["GOLD", "DXY", "USD_IR_FREE"] if _market_history(symbol, 1)}
