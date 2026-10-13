@@ -12,7 +12,7 @@
   <title>AliVest | تحلیل سرمایه‌گذاری</title>
   <link rel="stylesheet" href="/static/app.css?v=market-summary-period-20261011">
   <link rel="stylesheet" href="/static/analysis.css?v=watchlist-readonly-v1-20261011">
-  <link rel="stylesheet" href="/static/design.css?v=watchlist-compact-table-20261013">
+  <link rel="stylesheet" href="/static/design.css?v=watchlist-portfolio-summary-20261013">
 </head>
 <body>
   <div class="app-shell">
@@ -139,6 +139,15 @@
 
       <section class="view" id="view-watchlist">
         <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span>صندوق‌های منتخب من</div><h1>دیده‌بان شخصی</h1><p>قیمت، سود و زیان، حد خروج و امتیاز تکنیکال نمادها را یکجا ببین.</p></div><div class="heading-actions"><button class="button button-quiet" id="watchlist-refresh" type="button"><span>⟳</span> تازه‌سازی قیمت و تحلیل</button></div></div>
+        <section class="watchlist-summary panel" aria-labelledby="watchlist-summary-title">
+          <div class="watchlist-summary-heading"><span class="watchlist-section-kicker">نمای کلی سبد</span><h2 id="watchlist-summary-title">خلاصهٔ پرتفوی</h2></div>
+          <div id="watchlist-summary-values" class="watchlist-summary-grid" aria-live="polite">
+            <article class="watchlist-summary-card"><span>ارزش پرتفوی</span><b>—</b></article>
+            <article class="watchlist-summary-card"><span>ارزش خرید</span><b>—</b></article>
+            <article class="watchlist-summary-card"><span>سود/زیان کل</span><b>—</b></article>
+            <article class="watchlist-summary-card"><span>درصد سود/زیان کل</span><b>—</b></article>
+          </div>
+        </section>
         <div class="panel watchlist-panel">
           <div id="watchlist-items" class="watchlist-table-wrap" aria-live="polite"><div class="empty-state"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b></div></div>
         </div>
@@ -156,6 +165,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=watchlist-compact-table-20261013"></script>
+  <script src="/static/app.js?v=watchlist-portfolio-summary-20261013"></script>
 </body>
 </html>

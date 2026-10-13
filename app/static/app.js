@@ -1430,8 +1430,19 @@
     }
   }
 
-  function renderPersonalWatchlist(items) {
+  function renderPersonalWatchlist(items, totals = {}) {
     const body = $("#watchlist-items");
+    const summary = $("#watchlist-summary-values");
+    const pnlTone = totals.pnl == null ? "" : Number(totals.pnl) > 0 ? "positive" : Number(totals.pnl) < 0 ? "negative" : "neutral";
+    const summaryValues = [
+      ["ارزش پرتفوی", money(totals.market_value), ""],
+      ["ارزش خرید", money(totals.cost_basis), ""],
+      ["سود/زیان کل", money(totals.pnl), pnlTone],
+      ["درصد سود/زیان کل", pct(totals.pnl_pct), pnlTone],
+    ];
+    if (summary) {
+      summary.innerHTML = summaryValues.map(([label, value, tone]) => `<article class="watchlist-summary-card ${tone}"><span>${label}</span><b>${value}</b></article>`).join("");
+    }
     if (!items.length) {
       body.innerHTML = `<div class="empty-state watchlist-empty"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b></div>`;
       return;
