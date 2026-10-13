@@ -955,7 +955,7 @@
       up: "Aroon صعودی", down: "Aroon نزولی", adx: "قدرت روند", awesome: "AO", stochrsi: "StochRSI",
       macd: "خط MACD", signal: "خط سیگنال", MTM: "مومنتوم", value: "مقدار",
       tenken_sen_formula: "تنکن‌سن", kijun_sen_formula: "کیجون‌سن", senkou_span_a_formula: "ابر A",
-      senkou_span_b_formula: "ابر B", upper: "باند بالا", lower: "باند پایین", distance: "فاصله از باند بالا",
+      senkou_span_b_formula: "ابر B", upper: "سقف باند", middle: "خط میانی", lower: "کف باند", distance: "فاصله از باند بالا",
       dl: "فاصله از باند پایین", pivot: "نقطه پیوت", r1: "مقاومت ۱", r2: "مقاومت ۲", r3: "مقاومت ۳",
       r4: "مقاومت ۴", s1: "حمایت ۱", s2: "حمایت ۲", s3: "حمایت ۳", s4: "حمایت ۴",
       rv: "حجم نسبی", sm: "جریان پول هوشمند", vrsi: "VRSI", vmacd: "VMACD", obv: "OBV"
