@@ -12,7 +12,7 @@
   <title>AliVest | تحلیل سرمایه‌گذاری</title>
   <link rel="stylesheet" href="/static/app.css?v=market-summary-period-20261011">
   <link rel="stylesheet" href="/static/analysis.css?v=watchlist-readonly-v1-20261011">
-  <link rel="stylesheet" href="/static/design.css?v=fund-list-readable-v1-20261012">
+  <link rel="stylesheet" href="/static/design.css?v=global-investment-horizon-20261013">
 </head>
 <body>
   <div class="app-shell">
@@ -42,6 +42,13 @@
         <div class="breadcrumbs"><span>بازار ایران</span><b>/</b><strong id="crumb-current">داشبورد</strong></div>
         <div class="mobile-brand"><strong>AliVest</strong></div>
         <div class="top-actions">
+          <div class="global-investment-horizon">
+            <label for="investment-horizon-global">دید سرمایه‌گذاری</label>
+            <select id="investment-horizon-global" class="investment-horizon-select" aria-label="انتخاب دید سرمایه‌گذاری">
+              <option value="short">کوتاه‌مدت</option>
+              <option value="long" selected>میان‌مدت</option>
+            </select>
+          </div>
           <label class="global-search"><span>⌕</span><input id="global-search" type="search" placeholder="جستجوی صندوق یا نماد…" autocomplete="off"><kbd>⌘ K</kbd></label>
           <button class="icon-button" id="theme-toggle" title="تغییر تم" aria-label="تغییر تم">◐</button>
           <button class="icon-button" id="refresh-button" title="به‌روزرسانی داده‌ها" aria-label="به‌روزرسانی">⟳</button>
@@ -56,14 +63,6 @@
           <div class="heading-actions"><span class="updated-label" id="last-updated">در انتظار دریافت داده</span><button class="button button-primary" id="refresh-primary"><span>⟳</span> دریافت آخرین داده</button></div>
         </div>
 
-        <div class="investment-horizon-toolbar">
-          <label for="investment-horizon-overview">دید سرمایه‌گذاری</label>
-          <select id="investment-horizon-overview" class="investment-horizon-select" aria-label="انتخاب دید سرمایه‌گذاری">
-            <option value="short">کوتاه‌مدت</option>
-            <option value="long" selected>میان‌مدت</option>
-          </select>
-          <span id="investment-horizon-description-overview" class="investment-horizon-description">امتیازها با مدل میان‌مدت محاسبه می‌شوند.</span>
-        </div>
 
         <div class="market-strip">
           <article class="market-card gold-card market-analysis-trigger" data-analysis-toggle="gold" role="button" tabindex="0" aria-controls="gold-analysis" aria-expanded="false">
@@ -119,7 +118,6 @@
 
       <section class="view" id="view-funds">
         <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span>ETF Explorer</div><h1>صندوق‌های قابل معامله</h1><p>قیمت، بازده و تحلیل اندیکاتورها از ره‌آورد۳۶۵.</p></div><div class="heading-actions"><a class="button button-quiet" href="/api/export/funds.csv">↓ خروجی CSV</a><a class="button button-quiet" href="/api/export/funds.xlsx">↓ Excel</a><button class="button button-primary" data-refresh><span>⟳</span> به‌روزرسانی فهرست</button></div></div>
-        <div class="investment-horizon-toolbar"><label for="investment-horizon-funds">دید سرمایه‌گذاری</label><select id="investment-horizon-funds" class="investment-horizon-select" aria-label="انتخاب دید سرمایه‌گذاری"><option value="short">کوتاه‌مدت</option><option value="long" selected>میان‌مدت</option></select><span class="investment-horizon-description">امتیازها با مدل میان‌مدت محاسبه می‌شوند.</span></div>
         <div class="fund-toolbar"><label class="table-search"><span>⌕</span><input id="fund-search" type="search" placeholder="نام یا شناسه ره‌آورد صندوق را بنویسید…"></label><select id="fund-category" aria-label="نوع صندوق"><option value="">همه انواع صندوق</option><option value="604">در اوراق بهادار مبتنی بر کالا- گواهی سپرده کالایی</option><option value="544">صندوق در صندوق</option><option value="256">سرمایه‌گذاری در اوراق بهادار - مختلط</option><option value="303">سرمایه‌گذاری قابل معامله شاخصی</option><option value="547">خصوصی</option><option value="612">سهامی اهرمی</option><option value="572">سرمایه‌گذاری در اوراق بهادار مبتنی بر کالا-کشاورزی</option><option value="568">سرمایه‌گذاری در اوراق بهادار - بخشی</option><option value="560">صندوق سرمایه‌گذاری املاک و مستغلات</option><option value="623">سرمایه‌گذاری در اوراق بهادار مبتنی بر کالا - نقره</option><option value="257">سرمایه‌گذاری در سهام</option><option value="543">زمین و ساختمان</option><option value="302">جسورانه</option><option value="542">پروژه</option><option value="301">سرمایه‌گذاری در اوراق بهادار مبتنی بر کالا - طلا</option></select><select id="fund-mobile-score-sort" class="fund-mobile-score-sort" aria-label="مرتب‌سازی فهرست صندوق‌ها"><option value="">مرتب‌سازی فهرست</option><option value="desc">بیشترین امتیاز</option><option value="asc">کمترین امتیاز</option><option value="buy_suitability_rank">بهترین وضعیت خرید</option><option value="type_asc">نوع صندوق (الف تا ی)</option><option value="type_desc">نوع صندوق (ی تا الف)</option></select><span class="fund-count-label" id="fund-result-count">۰ صندوق</span><span class="fund-score-progress" id="fund-score-progress" aria-live="polite"></span></div>
         <div class="panel table-panel"><div class="table-scroll"><table id="fund-table-grid"><thead><tr>
 <th scope="col" tabindex="0" data-fund-sort="name">صندوق / شناسه ره‌آورد <span class="sort-indicator" aria-hidden="true">⇅</span></th>
@@ -141,7 +139,6 @@
 
       <section class="view" id="view-watchlist">
         <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span>صندوق‌های منتخب من</div><h1>دیده‌بان شخصی</h1><p>قیمت، تحلیل و برنامهٔ معاملاتی هر نماد را یکجا ببین.</p></div><div class="heading-actions"><button class="button button-quiet" id="watchlist-refresh" type="button"><span>⟳</span> تازه‌سازی قیمت و تحلیل</button></div></div>
-        <div class="investment-horizon-toolbar"><label for="investment-horizon-watchlist">دید سرمایه‌گذاری</label><select id="investment-horizon-watchlist" class="investment-horizon-select" aria-label="انتخاب دید سرمایه‌گذاری"><option value="short">کوتاه‌مدت</option><option value="long" selected>میان‌مدت</option></select><span class="investment-horizon-description">امتیازها با مدل میان‌مدت محاسبه می‌شوند.</span></div>
         <div class="panel watchlist-panel">
           <section class="watchlist-overview" aria-label="خلاصه دیده‌بان">
             <div class="watchlist-overview-head"><div><span class="watchlist-section-kicker">نمای کلی</span><h2>خلاصهٔ سبد</h2></div><span id="watchlist-count" class="watchlist-count">۰ صندوق</span></div>
@@ -164,6 +161,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=investment-horizon-exit-rules-20261012"></script>
+  <script src="/static/app.js?v=global-investment-horizon-20261013"></script>
 </body>
 </html>

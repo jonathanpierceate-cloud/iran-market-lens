@@ -1076,9 +1076,6 @@
 
   function syncInvestmentHorizonControl() {
     $$(".investment-horizon-select").forEach((select) => { select.value = state.investmentHorizon; });
-    $$(".investment-horizon-description").forEach((description) => {
-      description.textContent = `امتیازها با مدل ${horizonLabel()} محاسبه می‌شوند.`;
-    });
     const fundNote = $("#fund-score-model-note");
     if (fundNote) fundNote.textContent = `امتیاز تکنیکال با مدل ${horizonLabel()} محاسبه می‌شود؛ وزن خانواده‌ها و شاخص‌ها در نمایهٔ هر صندوق مشخص است.`;
   }

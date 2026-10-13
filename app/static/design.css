@@ -97,33 +97,32 @@ button, a, .market-card, .panel, input, select { transition: background-color .1
 #view-overview .page-heading p { color: #c0cfcb; }
 #view-overview .eyebrow { color: #b8d9d1; background: rgba(13, 28, 32, .56); }
 
-.investment-horizon-toolbar {
+.global-investment-horizon {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: -8px 0 18px;
-  padding: 11px 15px;
+  flex: 0 0 auto;
+  gap: 8px;
+  min-height: 42px;
+  padding: 4px 10px;
   border: 1px solid rgba(90, 145, 139, .35);
-  border-radius: 13px;
+  border-radius: 12px;
   background: linear-gradient(110deg, rgba(27, 55, 59, .92), rgba(19, 36, 47, .94));
 }
-.investment-horizon-toolbar label { color: #d7e7e2; font-size: 13px; font-weight: 700; white-space: nowrap; }
-.investment-horizon-toolbar select {
-  min-height: 36px;
-  padding: 5px 28px 5px 10px;
+.global-investment-horizon label { color: #d7e7e2; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.global-investment-horizon select {
+  min-height: 32px;
+  padding: 4px 24px 4px 8px;
   border: 1px solid #42736f;
-  border-radius: 9px;
+  border-radius: 8px;
   background: #142a31;
   color: #83dec1;
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
 }
-.investment-horizon-toolbar span { color: #91aaa6; font-size: 12px; line-height: 1.7; }
-body.light-mode .investment-horizon-toolbar { background: linear-gradient(110deg, #edf7f3, #f5f8fb); border-color: #c7ded4; }
-body.light-mode .investment-horizon-toolbar label { color: #35534b; }
-body.light-mode .investment-horizon-toolbar select { background: #fff; border-color: #b7d5ca; color: #187c68; }
-body.light-mode .investment-horizon-toolbar span { color: #627b73; }
+body.light-mode .global-investment-horizon { background: linear-gradient(110deg, #edf7f3, #f5f8fb); border-color: #c7ded4; }
+body.light-mode .global-investment-horizon label { color: #35534b; }
+body.light-mode .global-investment-horizon select { background: #fff; border-color: #b7d5ca; color: #187c68; }
 
 .button {
   min-height: 42px;
@@ -358,14 +357,15 @@ tbody tr:hover { background: rgba(81, 158, 143, .08); }
   .top-actions { width: 100%; min-width: 0; justify-content: flex-start; gap: 7px; }
   .global-search { width: auto; min-width: 0; flex: 1 1 auto; }
   .top-actions .icon-button { flex: 0 0 38px; width: 38px; height: 38px; }
+  .global-investment-horizon { min-height: 38px; gap: 4px; padding: 3px 6px; }
+  .global-investment-horizon label { display: none; }
+  .global-investment-horizon select { max-width: 104px; min-height: 30px; padding: 3px 19px 3px 5px; font-size: 11px; }
   .page-heading { gap: 10px; margin-bottom: 19px; }
   #view-overview .page-heading { min-height: 205px; padding: 20px 18px; background-size: 100% 100%, 86% auto; background-position: center, left -45px bottom -5px; }
   #view-overview .page-heading h1 { font-size: 25px; }
   .page-heading h1 { font-size: 23px; }
   .page-heading p { font-size: 14px; }
   .heading-actions { width: 100%; }
-  .investment-horizon-toolbar { flex-wrap: wrap; gap: 8px; margin: -5px 0 15px; }
-  .investment-horizon-toolbar span { flex-basis: 100%; }
   .market-strip, .market-detail-grid, .two-col, .lower-grid, .market-lower { grid-template-columns: 1fr; }
   .breadth-card { grid-column: auto; }
   .market-card { min-height: 220px; padding: 17px; }
@@ -1182,6 +1182,7 @@ body.light-mode #view-funds #fund-table-grid tbody td::before { color: #6d8980; 
 
 @media (max-width: 850px) {
   .brand-lockup { display: none !important; }
+  .global-investment-horizon label { display: none; }
 }
 
 /* Personal watchlist: clickable symbols and a compact, horizontally scrollable layout. */
