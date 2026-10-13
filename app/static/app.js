@@ -1208,12 +1208,13 @@
 
   function _sourceByName(name) { return (state.summary?.sources || []).find((s) => s.name === name) || null; }
 
-  const fundSortTextKeys = new Set(["name", "updated_at", "fund_type_label"]);
+  const fundSortTextKeys = new Set(["name", "updated_at", "data_timestamp", "fund_type_label"]);
   function sortedFundItems(items) {
     const rows = [...(items || [])];
     const key = fundSortState.key;
     rows.sort((a, b) => {
-      const left = a?.[key], right = b?.[key];
+      const left = key === "name" ? (a?.display_symbol || a?.symbol || a?.name) : a?.[key];
+      const right = key === "name" ? (b?.display_symbol || b?.symbol || b?.name) : b?.[key];
       if (fundSortTextKeys.has(key)) {
         return String(left ?? "").localeCompare(String(right ?? ""), "fa") * fundSortState.direction;
       }
@@ -1248,9 +1249,16 @@
     const mobileScoreSort = $("#fund-mobile-score-sort");
     if (mobileScoreSort) {
       const values = {
-        technical_score: fundSortState.direction === 1 ? "asc" : "desc",
+        technical_score: fundSortState.direction === 1 ? "score_asc" : "score_desc",
         buy_suitability_rank: "buy_suitability_rank",
         fund_type_label: fundSortState.direction === 1 ? "type_asc" : "type_desc",
+        monthly_return: "monthly_return",
+        three_month_return: "three_month_return",
+        six_month_return: "six_month_return",
+        one_year_return: "one_year_return",
+        nav_premium_pct: "nav_premium_pct",
+        market_price: "market_price",
+        data_timestamp: "data_timestamp",
       };
       mobileScoreSort.value = values[key] || "";
     }
@@ -1264,7 +1272,7 @@
       const category = $("#fund-category")?.value.trim() || "";
       const filtered = search || category;
       const filterLabel = search || $("#fund-category")?.selectedOptions?.[0]?.textContent?.trim() || "";
-      target.innerHTML = `<tr><td colspan="13"><div class="empty-state fund-empty-state"><span>&#9632;</span><b>${filtered ? "نتیجه‌ای برای فیلتر فعلی پیدا نشد" : "صندوقی از ره‌آورد۳۶۵ دریافت نشده"}</b><small>${filtered ? `فیلتر فعال: ${esc(filterLabel)} · برای نمایش همه صندوق‌ها فیلتر را پاک کنید.` : "وضعیت اتصال ره‌آورد را در صفحه وضعیت سامانه ببینید."}</small>${filtered ? `<button class="button button-quiet fund-clear-filter" type="button" data-clear-fund-filters>پاک کردن فیلترها</button>` : ""}</div></td></tr>`;
+      target.innerHTML = `<tr><td colspan="11"><div class="empty-state fund-empty-state"><span>&#9632;</span><b>${filtered ? "نتیجه‌ای برای فیلتر فعلی پیدا نشد" : "صندوقی از ره‌آورد۳۶۵ دریافت نشده"}</b><small>${filtered ? `فیلتر فعال: ${esc(filterLabel)} · برای نمایش همه صندوق‌ها فیلتر را پاک کنید.` : "وضعیت اتصال ره‌آورد را در صفحه وضعیت سامانه ببینید."}</small>${filtered ? `<button class="button button-quiet fund-clear-filter" type="button" data-clear-fund-filters>پاک کردن فیلترها</button>` : ""}</div></td></tr>`;
       return;
     }
     const amount = (value) => value == null ? "—" : money(value);
@@ -1280,7 +1288,12 @@
       const assessment = f.purchase_assessment || {};
       const assessmentStatus = ["suitable", "wait", "unsuitable"].includes(assessment.status) ? assessment.status : "unknown";
       const assessmentCell = `<div class="fund-purchase-assessment"><span class="fund-purchase-chip ${assessmentStatus}">${esc(assessment.label || "داده کافی نیست")}</span><small>${esc(assessment.reason || "ارزیابی پس از دریافت دادهٔ تکنیکال نمایش داده می‌شود.")}</small></div>`;
-      return `<tr><td><button class="row-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><strong>${esc(f.name)}</strong><small class="fund-symbol">شناسه ره‌آورد: ${esc(id)}</small></span></button></td><td><span class="fund-type-chip">${esc(typeLabel)}</span></td><td class="fund-technical-score">${scoreCell}</td><td>${amount(price)}</td><td class="fund-buy-cell">${assessmentCell}</td><td><span class="${changeClass(f.daily_return)}">${pct(f.daily_return)}</span></td><td>${pct(f.monthly_return)}</td><td>${pct(f.three_month_return)}</td><td>${pct(f.six_month_return)}</td><td>${pct(f.one_year_return)}</td><td>${amount(f.volume)}</td><td>${amount(f.value)}</td><td class="fund-update-time">${esc(formatDate(f.updated_at))}</td></tr>`;
+      const symbol = f.display_symbol || f.symbol || f.name || "—";
+      const name = f.name && f.name !== symbol ? f.name : `شناسه ره‌آورد: ${id}`;
+      const priceCell = `<span class="watch-cell-primary">${amount(price)}</span><small class="watch-cell-secondary ${changeClass(f.daily_return)}">${pct(f.daily_return)}</small>`;
+      const premiumCell = `<span class="watch-cell-primary ${changeClass(f.nav_premium_pct)}">${pct(f.nav_premium_pct)}</span>`;
+      const timestamp = f.data_timestamp || f.updated_at;
+      return `<tr><td data-label="نام نماد"><button class="row-open fund-symbol-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><strong>${esc(symbol)}</strong><small>${esc(name)}</small></span></button></td><td data-label="نوع صندوق"><span class="fund-type-chip">${esc(typeLabel)}</span></td><td data-label="امتیاز" class="fund-technical-score">${scoreCell}</td><td data-label="وضعیت خرید" class="fund-buy-cell">${assessmentCell}</td><td data-label="بازده ماهانه"><span class="watch-cell-primary ${changeClass(f.monthly_return)}">${pct(f.monthly_return)}</span></td><td data-label="بازده ۳ماهه"><span class="watch-cell-primary ${changeClass(f.three_month_return)}">${pct(f.three_month_return)}</span></td><td data-label="بازده ۶ماهه"><span class="watch-cell-primary ${changeClass(f.six_month_return)}">${pct(f.six_month_return)}</span></td><td data-label="بازده یک‌ساله"><span class="watch-cell-primary ${changeClass(f.one_year_return)}">${pct(f.one_year_return)}</span></td><td data-label="حباب">${premiumCell}</td><td data-label="آخرین قیمت (تغییر٪)">${priceCell}</td><td data-label="زمان داده" class="fund-update-time">${esc(formatDate(timestamp))}</td></tr>`;
     }).join("");
     updateFundSortIndicators();
   }
@@ -1675,9 +1688,13 @@
   });
   $("#fund-mobile-score-sort").addEventListener("change", (event) => {
     const sortKeyByOption = {
-      desc: ["technical_score", -1], asc: ["technical_score", 1],
+      score_desc: ["technical_score", -1], score_asc: ["technical_score", 1],
       buy_suitability_rank: ["buy_suitability_rank", -1],
       type_asc: ["fund_type_label", 1], type_desc: ["fund_type_label", -1],
+      monthly_return: ["monthly_return", -1], three_month_return: ["three_month_return", -1],
+      six_month_return: ["six_month_return", -1], one_year_return: ["one_year_return", -1],
+      nav_premium_pct: ["nav_premium_pct", -1], market_price: ["market_price", -1],
+      data_timestamp: ["data_timestamp", -1],
     };
     const selected = sortKeyByOption[event.target.value];
     [fundSortState.key, fundSortState.direction] = selected || ["data_timestamp", -1];
