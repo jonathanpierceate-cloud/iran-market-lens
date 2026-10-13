@@ -1593,6 +1593,10 @@ body.light-mode #view-watchlist .watchlist-summary-card.neutral b { color: #876d
 #view-funds .fund-technical-score .technical-score-chip { font-size: 12px; white-space: nowrap; }
 #view-funds .fund-purchase-assessment { display: grid; justify-items: center; gap: 2px; }
 #view-funds .fund-purchase-assessment small { display: -webkit-box; overflow: hidden; max-width: 210px; color: #9aa6b6; font-size: 10px; line-height: 1.45; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+#view-funds #fund-table-grid .fund-latest-price { display: block; color: #e9eff2; font: 600 13px Tahoma, sans-serif; line-height: 1.35; direction: ltr; unicode-bidi: isolate; }
+#view-funds #fund-table-grid .fund-latest-change { display: block; margin-top: 1px; color: #a3afb9; font: 500 11px 'DM Mono', monospace; line-height: 1.35; direction: ltr; unicode-bidi: isolate; }
+#view-funds #fund-table-grid .fund-latest-change.positive { color: #16c79a; }
+#view-funds #fund-table-grid .fund-latest-change.negative { color: #ff7b89; }
 #view-funds #fund-table-grid .watch-cell-primary,
 #view-funds #fund-table-grid .watch-cell-secondary { text-align: center; }
 #view-funds .fund-update-time { color: #a8b3c2; font: 500 11px Tahoma, sans-serif; direction: rtl; white-space: normal; }
@@ -1610,6 +1614,8 @@ body.light-mode #view-funds #fund-table-grid tbody tr:hover td:first-child { bac
 body.light-mode #view-funds .fund-table-name small,
 body.light-mode #view-funds .fund-purchase-assessment small,
 body.light-mode #view-funds .fund-update-time { color: #6b7c8c; }
+body.light-mode #view-funds #fund-table-grid .fund-latest-price { color: #26384b; }
+body.light-mode #view-funds #fund-table-grid .fund-latest-change:not(.positive):not(.negative) { color: #6b7c8c; }
 body.light-mode #view-funds .fund-type-chip { color: #536675; }
 @media (max-width: 720px) {
   #view-funds .fund-toolbar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); padding: 11px; }
@@ -1651,6 +1657,8 @@ body.light-mode #view-funds .fund-type-chip { color: #536675; }
   #view-funds .fund-table-name small { font-size: 11px; }
   #view-funds .fund-purchase-assessment { justify-items: start; }
   #view-funds .fund-purchase-assessment small { max-width: 100%; text-align: right; }
+  #view-funds #fund-table-grid .fund-latest-price,
+  #view-funds #fund-table-grid .fund-latest-change,
   #view-funds #fund-table-grid .watch-cell-primary,
   #view-funds #fund-table-grid .watch-cell-secondary { text-align: right; }
   #view-funds #fund-table-grid tbody td:nth-child(10) { border-bottom-color: #293b41; }
