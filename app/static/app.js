@@ -1430,68 +1430,35 @@
     }
   }
 
-  function watchlistLevelsHtml(levels) {
-    return levels?.length ? `<div class="watch-level-list">${levels.map((level) => `<span class="watch-level"><b>${money(level.price)}</b><small>${esc(level.label)}</small></span>`).join("")}</div>` : `<span class="watch-muted">سطحی نزدیک قیمت پیدا نشد</span>`;
-  }
-  function renderPersonalWatchlist(items, totals = {}) {
+  function renderPersonalWatchlist(items) {
     const body = $("#watchlist-items");
-    $("#watchlist-count").textContent = `${nf.format(items.length)} صندوق`;
-    const totalNode = $("#watchlist-totals");
-    if (totalNode) {
-      const pnlClass = Number(totals.pnl) > 0 ? "positive" : Number(totals.pnl) < 0 ? "negative" : "";
-      totalNode.innerHTML = [
-        ["مجموع واحدها", num(totals.units, 2), ""],
-        ["ارزش خرید", money(totals.cost_basis), ""],
-        ["ارزش فعلی", money(totals.market_value), ""],
-        ["سود / زیان کل", `${money(totals.pnl)} · ${pct(totals.pnl_pct)}`, pnlClass],
-      ].map(([label, value, cls]) => `<div class="watch-total-card ${cls}"><span>${label}</span><b>${value}</b></div>`).join("");
-    }
     if (!items.length) {
-      body.innerHTML = `<div class="empty-state watchlist-empty"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b><small>از کادر بالا یک صندوق ره‌آورد را با نام یا شناسه‌اش اضافه کن.</small></div>`;
+      body.innerHTML = `<div class="empty-state watchlist-empty"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b></div>`;
       return;
     }
-    body.innerHTML = items.map((item) => {
-      const isCustomSymbol = Boolean(item.is_custom_symbol);
-      const watchOpenAttrs = isCustomSymbol ? "disabled aria-disabled=\"true\"" : `data-watch-open="${esc(item.fund_key)}"`;
-      const symbolMeta = isCustomSymbol ? "قیمت و تحلیل ره‌آورد در دسترس نیست" : `${esc(item.symbol || `شناسه ${item.rahavard_asset_id || "—"}`)} · ره‌آورد۳۶۵`;
+    const rows = items.map((item) => {
+      const custom = Boolean(item.is_custom_symbol);
+      const openAttrs = custom ? "disabled aria-disabled=\"true\"" : `data-watch-open="${esc(item.fund_key)}"`;
       const profit = item.profit || {};
       const profitTone = Number(profit.total) > 0 ? "positive" : Number(profit.total) < 0 ? "negative" : "";
-      const profitSummaryHtml = profit.total == null
-        ? `<div class="watch-profit-summary"><b class="watch-muted">—</b><small>قیمت سر‌به‌سر یا تعداد برای محاسبهٔ سود ثبت نشده است</small></div>`
-        : `<div class="watch-profit-summary ${profitTone}"><div class="watch-profit-main"><b>${Number(profit.total) > 0 ? "+" : ""}${money(profit.total)} ریال</b><span>${pct(profit.pct)}</span></div><small>هر واحد: ${Number(profit.per_unit) > 0 ? "+" : ""}${money(profit.per_unit)} ریال · نسبت به سر‌به‌سر</small></div>`;
-      const distance = item.distance_to_exit;
-      const distanceValue = distance?.value == null ? null : Number(distance.value);
-      const exitDistanceClass = distanceValue == null ? "unknown" : distanceValue > 0 ? "positive" : "negative";
-      const exitDistanceLabel = distanceValue == null ? "" : distanceValue > 0 ? "قیمت فعلی بالای سطح" : distanceValue < 0 ? "قیمت فعلی پایین‌تر از سطح" : "قیمت فعلی روی سطح";
-      const exitDistanceHtml = distance?.value == null
-        ? `<small class="watch-exit-distance unknown">فاصله محاسبه نشد</small>`
-        : `<small class="watch-exit-distance ${exitDistanceClass}">${exitDistanceLabel}: ${money(Math.abs(distanceValue))} ریال · ${pct(Math.abs(Number(distance.pct)))} از قیمت فعلی</small>`;
-      const activeExitHorizon = item.active_exit_horizon || "میان‌مدت";
-      const activeExitAverage = item.active_exit_average || "SMA(50)";
-      const decisionHtml = (decision) => {
-        const tone = ["positive", "negative", "neutral"].includes(decision?.tone) ? decision.tone : "unknown";
-        const reason = decision?.reason || "اطلاعات تحلیلی کافی نیست.";
-        return `<div class="watch-decision ${tone}"><b>${esc(decision?.label || "داده کافی نیست")}</b><small title="${esc(reason)}">${esc(reason)}</small></div>`;
-      };
-      const cachedPriceNote = item.price_is_cached ? `<small class="watch-price-note">${esc(item.price_note || "آخرین قیمت ذخیره‌شده")}</small>` : "";
-      const dailyChange = item.daily_return == null ? "تغییر روزانه موجود نیست" : `تغییر روزانه <b class="${Number(item.daily_return) >= 0 ? "positive" : "negative"}">${pct(item.daily_return)}</b>`;
-      return `<article class="watch-item-card">
-        <header class="watch-item-head">
-          <button class="watch-fund-open${isCustomSymbol ? " watch-fund-open-unavailable" : ""}" type="button" ${watchOpenAttrs} aria-label="${isCustomSymbol ? "دادهٔ تحلیلی موجود نیست" : "مشاهده تحلیل"} ${esc(item.name)}"><span class="watch-fund-mark">${isCustomSymbol ? "نماد" : "ETF"}</span><span><strong>${esc(item.name)}</strong><small>${symbolMeta}</small></span>${isCustomSymbol ? "" : `<span class="watch-open-arrow">مشاهده تحلیل ←</span>`}</button>
-          <div class="watch-current-quote"><span>قیمت فعلی</span><strong>${money(item.price)} <small>ریال</small></strong><div>${dailyChange}</div>${cachedPriceNote}</div>
-          <button class="watch-remove" type="button" data-watch-remove="${esc(item.fund_key)}" aria-label="حذف ${esc(item.name)} از دیده‌بان"><span aria-hidden="true">×</span> حذف</button>
-        </header>
-        <div class="watch-item-panels">
-          <section class="watch-item-panel watch-position-panel"><div class="watch-item-panel-head"><span>اطلاعات خرید</span><small>فقط‌خواندنی</small></div><div class="watch-position-values">
-            <div class="watch-position-value"><span>قیمت سر‌به‌سر</span><b>${money(item.break_even_price)} <small>ریال</small></b></div>
-            <div class="watch-position-value"><span>تعداد واحد</span><b>${num(item.units, 2)} <small>واحد</small></b></div>
-          </div></section>
-          <section class="watch-item-panel watch-result-panel"><div class="watch-item-panel-head"><span>سود و زیان</span><small>بر اساس قیمت فعلی</small></div>${profitSummaryHtml}</section>
-          <section class="watch-item-panel watch-exit-panel"><div class="watch-item-panel-head"><span>حد خروج ${esc(activeExitHorizon)}</span><small>${esc(activeExitAverage)} · مدل AliVest</small></div><div class="watch-exit-price"><b>${money(item.active_exit_price)} <small>ریال</small></b></div><small class="watch-exit-distance unknown">فقط با بسته‌شدن کندل روزانه زیر ${esc(activeExitAverage)} فعال می‌شود.</small>${exitDistanceHtml}</section>
-        </div>
-        <div class="watch-item-decisions"><section class="watch-decision-block"><span>نگهداری یا فروش</span>${decisionHtml(item.holding_decision)}</section><section class="watch-decision-block"><span>افزایش حجم</span>${decisionHtml(item.add_position_decision)}</section></div>
-      </article>`;
+      const priceTone = Number(item.daily_return) > 0 ? "positive" : Number(item.daily_return) < 0 ? "negative" : "";
+      const scoreValue = item.technical_score == null ? null : Number(item.technical_score);
+      const scoreTone = !Number.isFinite(scoreValue) ? "unknown" : scoreValue >= 60 ? "positive" : scoreValue < 40 ? "negative" : "neutral";
+      const marketValue = item.price != null && item.units != null && Number.isFinite(Number(item.price)) && Number.isFinite(Number(item.units))
+        ? Number(item.price) * Number(item.units) : null;
+      const exitAverage = item.active_exit_average || (item.active_exit_horizon === "کوتاه‌مدت" ? "SMA(10)" : "SMA(50)");
+      return `<tr>
+        <td data-label="نماد"><div class="watchlist-symbol-cell"><button class="watch-fund-open${custom ? " watch-fund-open-unavailable" : ""}" type="button" ${openAttrs} aria-label="${custom ? "دادهٔ تحلیلی موجود نیست" : "مشاهده تحلیل"} ${esc(item.name)}"><i aria-hidden="true"></i><strong>${esc(item.name || item.symbol || "—")}</strong></button><button class="watch-remove" type="button" data-watch-remove="${esc(item.fund_key)}" aria-label="حذف ${esc(item.name)} از دیده‌بان" title="حذف از دیده‌بان">×</button></div></td>
+        <td data-label="تعداد"><span class="watch-cell-primary">${num(item.units, 0)}</span></td>
+        <td data-label="قیمت سربه‌سر"><span class="watch-cell-primary">${money(item.break_even_price)}</span></td>
+        <td data-label="ارزش فعلی"><span class="watch-cell-primary">${money(marketValue)}</span></td>
+        <td data-label="آخرین قیمت"><span class="watch-cell-primary">${money(item.price)}</span><small class="watch-cell-secondary ${priceTone}">${item.daily_return == null ? "—" : pct(item.daily_return)}</small></td>
+        <td data-label="سود/زیان فعلی"><span class="watch-cell-primary ${profitTone}">${profit.total == null ? "—" : money(profit.total)}</span><small class="watch-cell-secondary ${profitTone}">${profit.pct == null ? "" : `(${pct(profit.pct)})`}</small></td>
+        <td data-label="حد خروج" title="حد خروج با بسته‌شدن کندل روزانه زیر ${esc(exitAverage)} فعال می‌شود"><span class="watch-cell-primary">${money(item.active_exit_price)}</span><small class="watch-cell-secondary">${esc(exitAverage)}</small></td>
+        <td data-label="امتیاز نماد"><span class="watch-score ${scoreTone}">${scoreValue == null || !Number.isFinite(scoreValue) ? "—" : `${num(scoreValue, 0)}٪`}</span></td>
+      </tr>`;
     }).join("");
+    body.innerHTML = `<table class="watchlist-table"><thead><tr><th scope="col">نماد <small>(${nf.format(items.length)})</small></th><th scope="col">تعداد</th><th scope="col">قیمت سربه‌سر</th><th scope="col">ارزش فعلی</th><th scope="col">آخرین قیمت</th><th scope="col">سود/زیان فعلی</th><th scope="col">حد خروج</th><th scope="col">امتیاز نماد</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
   async function loadWatchlist() {
     const requestedHorizon = state.investmentHorizon;

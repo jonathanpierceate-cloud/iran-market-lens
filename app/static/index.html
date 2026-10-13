@@ -12,7 +12,7 @@
   <title>AliVest | تحلیل سرمایه‌گذاری</title>
   <link rel="stylesheet" href="/static/app.css?v=market-summary-period-20261011">
   <link rel="stylesheet" href="/static/analysis.css?v=watchlist-readonly-v1-20261011">
-  <link rel="stylesheet" href="/static/design.css?v=global-investment-horizon-20261013">
+  <link rel="stylesheet" href="/static/design.css?v=watchlist-compact-table-20261013">
 </head>
 <body>
   <div class="app-shell">
@@ -140,12 +140,7 @@
       <section class="view" id="view-watchlist">
         <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span>صندوق‌های منتخب من</div><h1>دیده‌بان شخصی</h1><p>قیمت، تحلیل و برنامهٔ معاملاتی هر نماد را یکجا ببین.</p></div><div class="heading-actions"><button class="button button-quiet" id="watchlist-refresh" type="button"><span>⟳</span> تازه‌سازی قیمت و تحلیل</button></div></div>
         <div class="panel watchlist-panel">
-          <section class="watchlist-overview" aria-label="خلاصه دیده‌بان">
-            <div class="watchlist-overview-head"><div><span class="watchlist-section-kicker">نمای کلی</span><h2>خلاصهٔ سبد</h2></div><span id="watchlist-count" class="watchlist-count">۰ صندوق</span></div>
-            <div id="watchlist-totals" class="watchlist-totals"></div>
-          </section>
-          <div id="watchlist-items" class="watchlist-items" aria-live="polite"><div class="empty-state"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b></div></div>
-          <div class="table-footer watchlist-footer"><span>سود و زیان بر اساس قیمت سر‌به‌سر و تعداد ثبت‌شده محاسبه می‌شود.</span><span>تصمیم‌ها برآورد مدل AliVest هستند و جایگزین بررسی شخصی نیستند.</span></div>
+          <div id="watchlist-items" class="watchlist-table-wrap" aria-live="polite"><div class="empty-state"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b></div></div>
         </div>
       </section>
 
@@ -161,6 +156,6 @@
       </section>
     </main>
   </div>
-  <script src="/static/app.js?v=global-investment-horizon-20261013"></script>
+  <script src="/static/app.js?v=watchlist-compact-table-20261013"></script>
 </body>
 </html>
