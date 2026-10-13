@@ -561,6 +561,19 @@
 .light-mode .dashboard-score-detail-row>b{color:#3d5669}
 .light-mode .fund-score-change small{color:#71849a}.light-mode .fund-score-change b{color:#4c6373}
 .light-mode .fund-model-score-head h3 strong,.light-mode .fund-family-score-card.positive>strong{color:#11815c}
+
+.trial-confirmation-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:9px 0}
+.trial-confirmation-card{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;padding:9px 11px;border:1px solid var(--border,#294652);border-radius:10px;background:rgba(8,22,34,.55)}
+.trial-confirmation-card span{color:#9db3bd;font-size:11px;line-height:1.5}
+.trial-confirmation-card b{color:#dce9e6;font-size:16px;white-space:nowrap}
+.trial-confirmation-card.positive b{color:#72d8b5}.trial-confirmation-card.negative b{color:#f08396}.trial-confirmation-card.unavailable{opacity:.62}
+.trial-purchase-assessment{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0;padding:10px 12px;border:1px solid rgba(77,190,158,.23);border-radius:10px;background:rgba(14,46,47,.3)}
+.trial-purchase-assessment>span{color:#91a7b5;font-size:11px}.trial-purchase-assessment>b{color:#72d8b5;font-size:13px}.trial-purchase-assessment small{flex-basis:100%;color:#a9bac2;font-size:11px;line-height:1.7}
+.dashboard-model-recommendation .fund-family-score-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+.light-mode .trial-confirmation-card,.light-mode .trial-purchase-assessment{background:#f5f8fb;border-color:#d8e3ea}
+.light-mode .trial-confirmation-card span,.light-mode .trial-purchase-assessment>span,.light-mode .trial-purchase-assessment small{color:#64798b}
+@media(max-width:850px){.trial-confirmation-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.dashboard-model-recommendation .fund-family-score-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.trial-confirmation-grid,.dashboard-model-recommendation .fund-family-score-grid{grid-template-columns:1fr}.trial-confirmation-card{padding:8px 10px}}
 .light-mode .fund-family-score-card.negative>strong{color:#bf4253}
 .light-mode .dashboard-model-recommendation .fund-model-factors>div{background:#fff;border-color:#d8e3ea;color:#64798b}
 .light-mode .dashboard-model-recommendation .fund-model-factors>div>b,.light-mode .dashboard-levels b{color:#263d52}

@@ -30,6 +30,7 @@ from .config import (MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
 from .db import db, utc_now
 from .fund_scoring import FUND_TYPE_BY_CATEGORY_ID, FUND_TYPE_LABELS, resolve_fund_type
 from .scoring_profiles import normalize_horizon, horizon_label
+from .scoring_confirmation import assess_purchase
 from .sources import (SourceError, fetch_fund_indicators, fetch_fund_nav_history,
                       fetch_fund_price_history, fetch_rahavard_fund_profile,
                       rahavard_etf_fund_asset_ids, refresh_all)
@@ -927,26 +928,44 @@ def _fund_purchase_assessment(price: Any, analysis: dict[str, Any] | None) -> di
     coverage = _watchlist_number(analysis.get("data_coverage_pct"))
     available_weight = _watchlist_number(analysis.get("available_family_weight_pct"))
     risk_level = (analysis.get("risk_rank") or {}).get("level")
-    if current_price is None or current_price <= 0 or exit_price is None or exit_price <= 0 or score is None or near_resistance_count is None:
+    if current_price is None or current_price <= 0 or exit_price is None or exit_price <= 0 or near_resistance_count is None:
         return {"status": "unknown", "label": "داده کافی نیست", "reason": "برای ارزیابی قیمت فعلی، قیمت و دادهٔ کامل تکنیکال لازم است.", "rank": None}
     if current_price <= exit_price:
         return {"status": "wait", "label": f"صبر · زیر {exit_average}",
                 "reason": f"قیمت فعلی زیر میانگین {exit_average} است؛ برای تشخیص شکست حد خروج {exit_horizon}، بسته‌شدن کندل روزانه را بررسی کن.", "rank": 2}
-    if ((coverage is not None and coverage < 30)
-            or (available_weight is not None and available_weight < 50)):
-        return {"status": "wait", "label": "صبر · پوشش داده کم",
-                "reason": "کمتر از نیمی از وزن مدل با دادهٔ معتبر پوشش دارد؛ امتیاز برای تصمیم خرید کافی نیست.", "rank": 2}
-    if risk_level == "high":
+
+    if (str(analysis.get("score_method") or "").endswith("_trial_v1")
+            and isinstance(analysis.get("purchase_assessment"), dict)):
+        return analysis["purchase_assessment"]
+
+    # Keep compatibility with analyses persisted by the previous scoring model.
+    if "main_score" not in analysis:
+        if score is None:
+            return {"status": "unknown", "label": "داده کافی نیست", "reason": "امتیاز مدل در دسترس نیست.", "rank": None}
+        if ((coverage is not None and coverage < 30)
+                or (available_weight is not None and available_weight < 50)):
+            return {"status": "wait", "label": "صبر · پوشش داده کم",
+                    "reason": "کمتر از نیمی از وزن مدل با دادهٔ معتبر پوشش دارد؛ امتیاز برای تصمیم خرید کافی نیست.", "rank": 2}
+        if risk_level == "high":
+            return {"status": "wait", "label": "صبر · ریسک بالا",
+                    "reason": "رتبهٔ ریسک نوسان بالاست؛ امتیاز تکنیکال به‌تنهایی برای ورود کافی نیست.", "rank": 2}
+        if score >= 70 and near_resistance_count == 0:
+            return {"status": "suitable", "label": "مناسب", "reason": f"برآیند امتیاز چهارگروهی {score_horizon} قوی است؛ قیمت بالای سطح {exit_average} و دور از مقاومت نزدیک است.", "rank": 3}
+        if score >= 55:
+            return {"status": "wait", "label": "صبر برای تأیید", "reason": "شرایط متوسط است؛ برای ورود منتظر اصلاح یا تأیید روند بمان.", "rank": 2}
+        return {"status": "unsuitable", "label": "فعلاً نامناسب", "reason": f"امتیاز {score_horizon} برای خرید در قیمت فعلی پایین است.", "rank": 1}
+
+    confirmation_components = analysis.get("confirmation_components") if isinstance(analysis.get("confirmation_components"), dict) else {}
+    assessment = assess_purchase(
+        _watchlist_number(analysis.get("main_score")),
+        _watchlist_number(analysis.get("confirmation_score")),
+        _watchlist_number(analysis.get("confirmation_coverage_pct")),
+        analysis.get("entry_quality") if isinstance(analysis.get("entry_quality"), dict) else {},
+        confirmation_components)
+    if risk_level == "high" and assessment.get("status") == "suitable":
         return {"status": "wait", "label": "صبر · ریسک بالا",
                 "reason": "رتبهٔ ریسک نوسان بالاست؛ امتیاز تکنیکال به‌تنهایی برای ورود کافی نیست.", "rank": 2}
-    if score >= 70 and near_resistance_count == 0:
-        return {"status": "suitable", "label": "مناسب", "reason": f"برآیند امتیاز چهارگروهی {score_horizon} قوی است؛ قیمت بالای سطح {exit_average} و دور از مقاومت نزدیک است.", "rank": 3}
-    if score >= 55:
-        reason = ("امتیاز مناسب است، اما مقاومت نزدیک وجود دارد؛ برای ورود صبر کن."
-                  if score >= 70 and near_resistance_count > 0
-                  else "شرایط متوسط است؛ برای ورود منتظر اصلاح یا تأیید روند بمان.")
-        return {"status": "wait", "label": "صبر برای تأیید", "reason": reason, "rank": 2}
-    return {"status": "unsuitable", "label": "فعلاً نامناسب", "reason": f"امتیاز {score_horizon} برای خرید در قیمت فعلی پایین است.", "rank": 1}
+    return assessment
 
 
 def _watchlist_match_key(value: Any) -> str:
