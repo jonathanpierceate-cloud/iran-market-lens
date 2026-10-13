@@ -478,10 +478,12 @@ def fund_chart_indicator_groups(bars: list[dict[str, Any]], *, source: str = "Ra
         "senkou_span_b_formula": cloud.get("senkou_b_at_current"),
     }, cloud.get("signal")))
 
-    bands = [
-        measured("BB(20)", "BB(20)", {"value": "middle"}),
-        measured("KELTNER(16)", "KELTNER(16)", {"value": "middle"}),
-    ]
+    def band(name: str) -> dict[str, Any]:
+        record = raw.get(name) or {}
+        values = {key: record.get(key) for key in ("upper", "middle", "lower")}
+        return item(name, values, record.get("signal"))
+
+    bands = [band("BB(20)"), band("KELTNER(16)")]
 
     pivot_window = [bar for bar in bars if bar.get("close") is not None][-30:]
     pivot_levels = {}
