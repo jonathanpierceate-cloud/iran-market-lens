@@ -875,7 +875,6 @@ def funds(search: str = "", category: str = "", sort: str = "data_timestamp",
                       "bid_price", "bid_volume", "real_close_price_change",
                       "real_close_price_change_percent", "trade_date_time"):
             item[field] = raw.get(field)
-        snapshot = snapshots.get(item["fund_key"])
         result = None
         category_id = _fund_category_id(item, category)
         model_context = _fund_model_context(
