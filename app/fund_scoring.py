@@ -187,14 +187,19 @@ def _band_position_score(item: dict[str, Any] | None, price: float | None) -> fl
     if not item or price is None or price <= 0:
         return None
     values = _item_values(item)
-    middle = _value(values, "middle", "value", "ma", "average")
     upper, lower = _value(values, "upper"), _value(values, "lower")
-    score = _direction_score((price - middle) / price, 0.025) if middle and middle > 0 else None
-    if score is not None and upper is not None and price > upper:
-        score = min(score, 65.0)
-    elif score is not None and lower is not None and price < lower:
-        score = max(score, 35.0)
-    return score if score is not None else _signal_score(item)
+    if upper is None or lower is None:
+        return _signal_score(item)
+    signal = _norm(item.get("signal"))
+    if signal == "bouncefromlower":
+        return 65.0
+    if signal == "nearupperuptrend":
+        return 35.0
+    if upper is not None and lower is not None and lower <= price <= upper:
+        return 50.0
+    if signal == "breakoutdown":
+        return 35.0
+    return 50.0
 
 
 def _trend_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | None,
