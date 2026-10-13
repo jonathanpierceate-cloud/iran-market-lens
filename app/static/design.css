@@ -1522,15 +1522,24 @@ body.light-mode #view-watchlist .watchlist-summary-card.negative b { color: #bd4
 body.light-mode #view-watchlist .watchlist-summary-card.neutral b { color: #876d31; }
 @media (max-width: 720px) {
   #view-watchlist .watchlist-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  #view-watchlist .watchlist-table { display: table; min-width: 1180px; }
-  #view-watchlist .watchlist-table thead { display: table-header-group; }
-  #view-watchlist .watchlist-table tbody { display: table-row-group; }
-  #view-watchlist .watchlist-table tr { display: table-row; }
+  #view-watchlist .watchlist-table-wrap { overflow: visible; }
+  #view-watchlist .watchlist-table { display: block; width: 100%; min-width: 0; table-layout: auto; border-collapse: separate; }
+  #view-watchlist .watchlist-table thead { display: none; }
+  #view-watchlist .watchlist-table tbody { display: grid; gap: 10px; width: 100%; padding: 10px; }
+  #view-watchlist .watchlist-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; width: 100%; padding: 5px 12px; border: 1px solid #30454b; border-radius: 14px; background: linear-gradient(145deg, #1c2b32, #17252c); box-shadow: 0 7px 18px rgba(0, 0, 0, .1); }
   #view-watchlist .watchlist-table th,
-  #view-watchlist .watchlist-table td { display: table-cell; }
-  #view-watchlist .watchlist-table td::before { display: none; content: none; }
-  #view-watchlist .watchlist-table th,
-  #view-watchlist .watchlist-table td { padding: 10px 8px; }
+  #view-watchlist .watchlist-table td { display: grid; width: auto; min-width: 0; max-width: none; padding: 9px 0; border-left: 0; text-align: right; white-space: normal; }
+  #view-watchlist .watchlist-table th { display: none; }
+  #view-watchlist .watchlist-table td { align-content: start; gap: 4px; border-bottom: 1px solid #293b41; }
+  #view-watchlist .watchlist-table td::before { display: block; content: attr(data-label); color: #9db1af; font-size: 11px; line-height: 1.5; }
+  #view-watchlist .watchlist-table tbody td:first-child,
+  #view-watchlist .watchlist-table tbody td:last-child { grid-column: 1 / -1; }
+  #view-watchlist .watchlist-table tbody td:first-child { border-bottom-color: #3a5154; }
+  #view-watchlist .watchlist-table tbody td:last-child { border-bottom: 0; }
+  #view-watchlist .watchlist-table .watch-cell-primary,
+  #view-watchlist .watchlist-table .watch-cell-secondary { text-align: right; }
+  #view-watchlist .watchlist-symbol-cell { justify-content: flex-start; min-height: 28px; }
+  #view-watchlist .watchlist-symbol-cell .watch-fund-open strong { font-size: 14px; }
 }
 @media (max-width: 380px) {
   #view-watchlist .watchlist-summary { padding: 11px; }
