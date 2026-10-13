@@ -507,6 +507,22 @@ def rahavard_fund_indicators(asset_id: str) -> dict[str, Any]:
     return data
 
 
+def rahavard_asset_indicators(asset_id: str) -> dict[str, Any]:
+    """Fetch the published indicator groups for a Rahavard asset."""
+    asset_id = str(asset_id).strip()
+    if not asset_id.isdigit():
+        raise SourceError("شناسهٔ اندیکاتور ره‌آورد معتبر نیست")
+    payload = _json(f"{RAHAVARD_API_BASE_URL}/asset/{asset_id}/indicators",
+                    referer=f"{RAHAVARD_URL}/asset/{asset_id}/indicator")
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, dict) or not isinstance(data.get("gauges"), dict):
+        raise SourceError("خروجی اندیکاتورهای دارایی از ره‌آورد قابل شناسایی نیست")
+    if not any(isinstance(data.get(group), list) and data[group]
+               for group in ("oscillators", "moving_averages", "pivots", "bands", "volumes")):
+        raise SourceError("ره‌آورد برای این دارایی اندیکاتوری منتشر نکرده است")
+    return data
+
+
 def _save_rahavard_nav(fund_key: str, profile: dict[str, Any]) -> list[dict[str, Any]]:
     rows = profile.get("fund_values") if isinstance(profile.get("fund_values"), list) else []
     history = []

@@ -24,6 +24,8 @@ from .config import (MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
                      RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_PAGE_URL,
                      RAHAVARD_GOLD_18K_PAGE_URL,
                      RAHAVARD_LIGHT_BARS_URL, RAHAVARD_TEPIX_PAGE_URL,
+                     RAHAVARD_DOLLAR_INDICATORS_ASSET_ID,
+                     RAHAVARD_DOLLAR_INDICATORS_PAGE_URL,
                      RAHAVARD_USDT_PAGE_URL,
                      TABDEAL_USDT_PAGE_URL,
                      REFRESH_INTERVAL_SECONDS, ROOT)
@@ -33,7 +35,7 @@ from .scoring_profiles import normalize_horizon, horizon_label
 from .scoring_rules import entry_recommendation
 from .sources import (SourceError, fetch_fund_indicators, fetch_fund_nav_history,
                       fetch_fund_price_history, fetch_rahavard_fund_profile,
-                      rahavard_etf_fund_asset_ids, refresh_all)
+                      rahavard_asset_indicators, rahavard_etf_fund_asset_ids, refresh_all)
 
 STATIC = ROOT / "app" / "static"
 REFRESH_STATE: dict[str, Any] = {"running": False, "last_result": None}
@@ -44,6 +46,8 @@ FUND_CATEGORY_MAP_CACHE: tuple[float, dict[str, str]] | None = None
 FUND_CATEGORY_MAP_TTL = 2 * 60 * 60
 FUND_CATEGORY_MAP_LOCK = Lock()
 FUND_CATEGORY_MAP_BUILDING = False
+DOLLAR_INDICATOR_CACHE: dict[str, Any] = {}
+DOLLAR_INDICATOR_CACHE_TTL = 5 * 60
 
 
 class WatchlistAddInput(BaseModel):
@@ -458,6 +462,59 @@ def gold_history(limit: int = Query(default=1000, ge=1, le=5000)):
 @app.get("/api/dollar")
 def dollar(horizon: str = Query(default="long")):
     return _market_quote("USD_IR_FREE", DASHBOARD_SCORE_WEIGHTS, normalize_horizon(horizon))
+
+
+@app.get("/api/dollar/indicators")
+async def dollar_indicators(horizon: str = Query(default="long")):
+    horizon = normalize_horizon(horizon)
+    cache_key = RAHAVARD_DOLLAR_INDICATORS_ASSET_ID
+    cached = DOLLAR_INDICATOR_CACHE.get(cache_key)
+    cache_age = time.monotonic() - cached["cached_at"] if cached else None
+    status = "available"
+    if cached and cache_age is not None and cache_age < DOLLAR_INDICATOR_CACHE_TTL:
+        payload = cached["payload"]
+        fetched_at = cached["fetched_at"]
+    else:
+        try:
+            payload = await asyncio.to_thread(rahavard_asset_indicators, cache_key)
+            fetched_at = utc_now()
+            DOLLAR_INDICATOR_CACHE[cache_key] = {
+                "payload": payload, "fetched_at": fetched_at, "cached_at": time.monotonic(),
+            }
+        except Exception as exc:
+            if cached:
+                payload = cached["payload"]
+                fetched_at = cached["fetched_at"]
+                status = "cached_after_source_error"
+            else:
+                return {
+                    "analysis": None, "source": "Rahavard365",
+                    "source_url": RAHAVARD_DOLLAR_INDICATORS_PAGE_URL,
+                    "status": "failed", "data_timestamp": None,
+                    "error": str(exc)[:300],
+                }
+
+    # Rahavard publishes this asset's prices and levels in rial; Tabdeal's
+    # existing dollar quote is in toman. Convert only the analysis reference
+    # price so comparisons use matching units. The displayed quote is untouched.
+    quote_bars = db.history("USD_IR_FREE", 1, source="Tabdeal")
+    quote_price = quote_bars[-1].get("close") if quote_bars else None
+    try:
+        analysis_price = float(quote_price) * 10 if quote_price is not None else None
+    except (TypeError, ValueError):
+        analysis_price = None
+    analysis = analyze_rahavard(
+        "USD_IR_FREE", payload, data_timestamp=fetched_at,
+        current_price=analysis_price, horizon=horizon,
+    )
+    analysis["indicator_source"] = "Rahavard365"
+    analysis["indicator_source_url"] = RAHAVARD_DOLLAR_INDICATORS_PAGE_URL
+    analysis["indicator_data_timestamp"] = fetched_at
+    return {
+        "analysis": analysis, "source": "Rahavard365",
+        "source_url": RAHAVARD_DOLLAR_INDICATORS_PAGE_URL,
+        "status": status, "data_timestamp": fetched_at,
+    }
 
 
 @app.get("/api/tepix")

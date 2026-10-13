@@ -95,7 +95,7 @@
   function freshness(node, status, timestamp) {
     if (!node) return;
     node.classList.remove("good", "stale", "bad");
-    node.classList.add(status === "available" || status === "connected" ? "good" : status === "failed" || status === "stale" ? "stale" : "bad");
+    node.classList.add(status === "available" || status === "connected" ? "good" : status === "failed" || status === "stale" || status === "cached_after_source_error" ? "stale" : "bad");
     node.innerHTML = `<i></i>${esc(statusText(status))}${timestamp ? ` · ${esc(formatDate(timestamp))}` : ""}`;
   }
 
@@ -988,11 +988,16 @@
     const cls = a.signal === "buy" ? "bullish" : a.signal === "sell" ? "bearish" : "";
     const missing = (a.missing_indicators || []).map((name) => `<article class="indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>در پاسخ نماد منتشر نشده</small></div><span class="indicator-status unknown">موجود نیست</span></div><p>برای این مقدار عدد جایگزین ساخته نشده است.</p><div class="indicator-range-guide"><b>این شاخص چه می‌گوید؟</b><span>${esc(indicatorPlainMeaning(name))}</span></div></article>`).join("");
     const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
-    return `${overview}${tradePlanHtml(a)}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div>${pivotTable}<div class="indicator-readouts">${gaugeCards}</div><div class="indicator-card-grid">${cards.join("")}${missing}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
+    const dashboardModel = a.score_method?.startsWith("dashboard_rahavard_three_group_weighted_");
+    const tradePlan = dashboardModel ? exitManagementHtml(a) : tradePlanHtml(a);
+    const indicatorSource = a.indicator_source_url
+      ? ` · <a href="${esc(a.indicator_source_url)}" target="_blank" rel="noopener">منبع اندیکاتورها: ره‌آورد۳۶۵</a>` : "";
+    const indicatorTime = a.indicator_data_timestamp ? ` · دریافت ${esc(formatDate(a.indicator_data_timestamp))}` : "";
+    return `${overview}${tradePlan}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی${indicatorSource}${indicatorTime}</p></div></div>${pivotTable}<div class="indicator-readouts">${gaugeCards}</div><div class="indicator-card-grid">${cards.join("")}${missing}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
 
   function analysisHtml(a) {
-    if (a?.source === "Rahavard365" && !a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")) return rahavardAnalysisHtml(a);
+    if (a?.source === "Rahavard365" && (a?.indicator_source === "Rahavard365" || !a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_"))) return rahavardAnalysisHtml(a);
     if (!a || a.technical_score == null) return `<div class="empty-state compact"><b>داده کافی برای محاسبه امتیاز موجود نیست</b><small>مدل فقط داده ذخیره‌شده از منبع را تحلیل می‌کند.</small></div>`;
     const all = a.indicators?.indicators || {};
     const seen = new Set();
@@ -1148,12 +1153,40 @@
       renderGold18kValuation(summary.gold18k?.valuation);
       freshness($("#gold-analysis-status"), state.gold?.status, state.gold?.data_timestamp);
       freshness($("#gold18k-analysis-status"), state.gold18k?.status, state.gold18k?.data_timestamp);
-      freshness($("#dollar-analysis-status"), state.dollar?.analysis?.status || state.dollar?.status, state.dollar?.analysis?.data_timestamp || state.dollar?.data_timestamp);
+      freshness($("#dollar-analysis-status"), "not_tested", null);
       freshness($("#tepix-analysis-status"), state.tepix?.status, state.tepix?.data_timestamp);
       $("#gold-analysis").innerHTML = analysisHtml(state.gold?.analysis);
       $("#gold18k-analysis").innerHTML = analysisHtml(state.gold18k?.analysis);
-      $("#dollar-analysis").innerHTML = analysisHtml(state.dollar?.analysis);
+      $("#dollar-analysis").innerHTML = `<div class="empty-state compact"><b>در حال دریافت اندیکاتورهای دلار از ره‌آورد۳۶۵…</b></div>`;
       $("#tepix-analysis").innerHTML = analysisHtml(state.tepix?.analysis);
+      let dollarIndicatorFeed;
+      try { dollarIndicatorFeed = await api("/api/dollar/indicators"); }
+      catch (indicatorError) { dollarIndicatorFeed = { status: "failed", error: indicatorError.message }; }
+      if (requestedHorizon !== state.investmentHorizon) return;
+      if (dollarIndicatorFeed?.analysis) {
+        const baseAnalysis = state.dollar?.analysis || {};
+        const sourceAnalysis = dollarIndicatorFeed.analysis;
+        const mergedAnalysis = {
+          ...baseAnalysis,
+          indicators: sourceAnalysis.indicators,
+          site_gauges: sourceAnalysis.site_gauges,
+          indicator_notes: sourceAnalysis.indicator_notes,
+          indicator_count: sourceAnalysis.indicator_count,
+          missing_indicators: sourceAnalysis.missing_indicators,
+          indicator_source: dollarIndicatorFeed.source,
+          indicator_source_url: dollarIndicatorFeed.source_url,
+          indicator_data_timestamp: dollarIndicatorFeed.data_timestamp,
+        };
+        state.dollar = { ...state.dollar, analysis: mergedAnalysis };
+        state.summary.dollar = state.dollar;
+        $("#dollar-analysis").innerHTML = analysisHtml(mergedAnalysis);
+        freshness($("#dollar-analysis-status"), dollarIndicatorFeed.status, dollarIndicatorFeed.data_timestamp);
+      } else {
+        const message = dollarIndicatorFeed?.error || "پاسخ معتبر از منبع دریافت نشد.";
+        const sourceUrl = dollarIndicatorFeed?.source_url || "https://rahavard365.com/asset/32725/indicator";
+        $("#dollar-analysis").innerHTML = `<div class="empty-state compact"><b>اندیکاتورهای دلار در دسترس نیستند</b><small>${esc(message)} · <a href="${esc(sourceUrl)}" target="_blank" rel="noopener">منبع ره‌آورد۳۶۵</a></small></div>`;
+        freshness($("#dollar-analysis-status"), dollarIndicatorFeed?.status || "failed", dollarIndicatorFeed?.data_timestamp);
+      }
       const sourceList = summary.sources || [];
       const connected = sourceList.filter((s) => s.status === "connected").length;
       $("#source-count").textContent = `${nf.format(connected)}/${nf.format(sourceList.length)}`;
