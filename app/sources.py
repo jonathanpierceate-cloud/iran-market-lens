@@ -27,6 +27,8 @@ from .db import db, utc_now
 
 YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 RAHAVARD_URL = "https://rahavard365.com"
+TABDEAL_USDT_HISTORY_URL = "https://api-web.tabdeal.org/r/plots/history/"
+TABDEAL_USDT_CHART_PAGE_URL = "https://tabdeal.org/buy-usdt"
 
 
 class SourceError(RuntimeError):
@@ -237,6 +239,53 @@ def tabdeal_usdt_quote() -> dict[str, Any]:
     timestamp = datetime.fromtimestamp(stamp / 1000, timezone.utc).isoformat(timespec="seconds")
     return {"timestamp": timestamp, "fetched_at": utc_now(), "open": None,
             "high": None, "low": None, "close": price, "volume": None}
+
+
+def tabdeal_usdt_history(limit: int = 2500) -> list[dict[str, Any]]:
+    """Return daily USDT/IRT chart candles published by Tabdeal."""
+    now = int(time.time())
+    query = urllib.parse.urlencode({
+        "symbol": "USDT_IRT", "resolution": "1D",
+        "from": max(0, now - 10 * 366 * 86400),
+        "to": now + 86400, "countback": max(2, min(5000, int(limit))),
+    })
+    payload = _json(f"{TABDEAL_USDT_HISTORY_URL}?{query}",
+                    referer=TABDEAL_USDT_CHART_PAGE_URL)
+    rows = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(rows, list) or not rows:
+        raise SourceError("Tabdeal returned no USDT/IRT daily candles")
+
+    bars = []
+    for item in rows:
+        if not isinstance(item, dict):
+            continue
+        stamp = _num(item.get("time"))
+        close = _num(item.get("close"))
+        if stamp is None or stamp <= 0 or close is None or close <= 0:
+            continue
+        try:
+            candle_time = datetime.fromtimestamp(stamp, timezone.utc)
+        except (ValueError, OverflowError, OSError):
+            continue
+        open_price = _num(item.get("open"))
+        high = _num(item.get("high"))
+        low = _num(item.get("low"))
+        bars.append({
+            "timestamp": candle_time.isoformat(timespec="seconds"),
+            "observed_at": candle_time.isoformat(timespec="seconds"),
+            "fetched_at": utc_now(),
+            "open": open_price if open_price is not None else close,
+            "high": high if high is not None else close,
+            "low": low if low is not None else close,
+            "close": close,
+            "volume": _num(item.get("volume")),
+            "source": "Tabdeal",
+            "source_url": TABDEAL_USDT_CHART_PAGE_URL,
+        })
+    bars.sort(key=lambda bar: bar["timestamp"])
+    if len(bars) < 2:
+        raise SourceError("Tabdeal returned fewer than two valid USDT/IRT candles")
+    return bars[-max(2, min(5000, int(limit))):]
 
 
 def rahavard_gold_18k_history() -> list[dict[str, Any]]:
@@ -677,7 +726,7 @@ async def refresh_all() -> dict[str, Any]:
                    rahavard_gold_18k_history, apply_gold_18k),
         run_source("yahoo_dxy", "شاخص دلار آمریکا", YAHOO_CHART.format(symbol="DX-Y.NYB"),
                    lambda: yahoo_history("DX-Y.NYB"), apply_dxy),
-        run_source("rahavard_usdt", "اندیکاتور و تحلیل دلار / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL,
+        run_source("rahavard_usdt", "تاریخچهٔ دلار / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL,
                    rahavard_usdt_history, apply_usd),
         run_source("tabdeal_usdt", "قیمت دلار / تتر · Tabdeal", TABDEAL_USDT_PAGE_URL,
                    tabdeal_usdt_quote, apply_tabdeal_usdt),

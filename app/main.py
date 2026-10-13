@@ -24,8 +24,6 @@ from .config import (MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
                      RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_PAGE_URL,
                      RAHAVARD_GOLD_18K_PAGE_URL,
                      RAHAVARD_LIGHT_BARS_URL, RAHAVARD_TEPIX_PAGE_URL,
-                     RAHAVARD_DOLLAR_INDICATORS_ASSET_ID,
-                     RAHAVARD_DOLLAR_INDICATORS_PAGE_URL,
                      RAHAVARD_USDT_PAGE_URL,
                      TABDEAL_USDT_PAGE_URL,
                      REFRESH_INTERVAL_SECONDS, ROOT)
@@ -37,7 +35,8 @@ from .scoring_rules import entry_recommendation
 from .sources import (SourceError, fetch_fund_nav_history,
                       fetch_fund_price_history, fetch_rahavard_fund_profile,
                       rahavard_etf_fund_asset_ids,
-                      rahavard_fund_history, refresh_all)
+                      rahavard_fund_history, refresh_all,
+                      TABDEAL_USDT_CHART_PAGE_URL, tabdeal_usdt_history)
 
 STATIC = ROOT / "app" / "static"
 REFRESH_STATE: dict[str, Any] = {"running": False, "last_result": None}
@@ -118,9 +117,9 @@ def _market_history(symbol: str, limit: int = 1000) -> list[dict[str, Any]]:
     return db.history(symbol, limit)
 
 
-def _rahavard_dollar_chart_history() -> tuple[list[dict[str, Any]], str]:
-    """Load Rahavard chart candles for the dollar analysis asset (32725)."""
-    cache_key = RAHAVARD_DOLLAR_INDICATORS_ASSET_ID
+def _tabdeal_dollar_chart_history() -> tuple[list[dict[str, Any]], str]:
+    """Load Tabdeal's daily USDT/IRT candles for dashboard indicator calculations."""
+    cache_key = "Tabdeal:USDT_IRT:1D"
     cached = DOLLAR_INDICATOR_CACHE.get(cache_key)
     cache_age = time.monotonic() - cached["cached_at"] if cached else None
     if cached and cache_age is not None and cache_age < DOLLAR_INDICATOR_CACHE_TTL:
@@ -130,7 +129,7 @@ def _rahavard_dollar_chart_history() -> tuple[list[dict[str, Any]], str]:
                       else "available")
 
     try:
-        bars = rahavard_fund_history(cache_key)
+        bars = tabdeal_usdt_history()
         DOLLAR_INDICATOR_CACHE[cache_key] = {
             "bars": bars, "cached_at": time.monotonic(),
         }
@@ -176,12 +175,12 @@ def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None,
     source_key = {"GOLD": "rahavard_gold", "GOLD_18K": "rahavard_gold_18k", "DXY": "yahoo_dxy",
                   "USD_IR_FREE": "tabdeal_usdt", "TEPIX": "rahavard_tepix"}.get(symbol)
     quote_source = _source_map().get(source_key) if source_key else None
-    analysis_source_key = "rahavard_usdt" if is_usd_quote else source_key
+    analysis_source_key = "tabdeal_usdt" if is_usd_quote else source_key
     analysis_source = _source_map().get(analysis_source_key) if analysis_source_key else None
     analysis_bars = bars
     chart_analysis_status = None
     if is_usd_quote:
-        analysis_bars, chart_analysis_status = _rahavard_dollar_chart_history()
+        analysis_bars, chart_analysis_status = _tabdeal_dollar_chart_history()
 
     history_returns = {}
     for label, periods in [("daily", 1), ("weekly", 5), ("monthly", 21), ("three_month", 63), ("six_month", 126), ("one_year", 252)]:
@@ -230,14 +229,14 @@ def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None,
     }
     output["price_is_cached"] = _timestamp_is_cached(observed_timestamp)
     output["analysis"] = analyze(symbol, analysis_bars, weights=analysis_weights, horizon=horizon)
-    output["analysis"]["source"] = "Rahavard365" if is_usd_quote else output.get("source")
+    output["analysis"]["source"] = "Tabdeal" if is_usd_quote else output.get("source")
     output["analysis"]["data_timestamp"] = analysis_timestamp
     output["analysis"]["status"] = (chart_analysis_status if is_usd_quote
                                       else status_for(analysis_source, analysis_stale))
     if is_usd_quote or output.get("source") == "Rahavard365":
-        output["analysis"]["indicator_source"] = "Rahavard365Chart"
+        output["analysis"]["indicator_source"] = "TabdealChart" if is_usd_quote else "Rahavard365Chart"
         output["analysis"]["indicator_source_url"] = (
-            RAHAVARD_DOLLAR_INDICATORS_PAGE_URL if is_usd_quote else
+            TABDEAL_USDT_CHART_PAGE_URL if is_usd_quote else
             (analysis_bars[-1].get("source_url") if analysis_bars else data.get("source_url"))
         )
         output["analysis"]["indicator_data_timestamp"] = analysis_timestamp
@@ -351,7 +350,7 @@ async def lifespan(_: FastAPI):
     for key, label, url in [
         ("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL),
         ("rahavard_gold_18k", "طلای ۱۸ عیار / ره‌آورد۳۶۵", RAHAVARD_GOLD_18K_PAGE_URL),
-        ("rahavard_usdt", "اندیکاتور و تحلیل دلار / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL),
+        ("rahavard_usdt", "تاریخچهٔ دلار / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL),
         ("tabdeal_usdt", "قیمت دلار / تتر · Tabdeal", TABDEAL_USDT_PAGE_URL),
         ("rahavard_tepix", "شاخص کل بورس / ره‌آورد۳۶۵", RAHAVARD_TEPIX_PAGE_URL),
         ("yahoo_dxy", "شاخص دلار آمریکا", "https://finance.yahoo.com/quote/DX-Y.NYB/"),
@@ -528,25 +527,25 @@ def dollar(horizon: str = Query(default="long")):
 @app.get("/api/dollar/indicators")
 async def dollar_indicators(horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)
-    bars, status = await asyncio.to_thread(_rahavard_dollar_chart_history)
+    bars, status = await asyncio.to_thread(_tabdeal_dollar_chart_history)
     if not bars:
         return {
-            "analysis": None, "source": "Rahavard365Chart",
-            "source_url": RAHAVARD_DOLLAR_INDICATORS_PAGE_URL,
+            "analysis": None, "source": "TabdealChart",
+            "source_url": TABDEAL_USDT_CHART_PAGE_URL,
             "status": "failed", "data_timestamp": None,
-            "error": "کندل نمودار ره‌آورد برای محاسبهٔ اندیکاتورها در دسترس نیست.",
+            "error": "کندل روزانهٔ دلار در نمودار Tabdeal برای محاسبهٔ اندیکاتورها در دسترس نیست.",
         }
     data_timestamp = bars[-1].get("timestamp")
     analysis = analyze("USD_IR_FREE", bars, horizon=horizon)
-    analysis["source"] = "Rahavard365"
+    analysis["source"] = "Tabdeal"
     analysis["data_timestamp"] = data_timestamp
     analysis["status"] = status
-    analysis["indicator_source"] = "Rahavard365Chart"
-    analysis["indicator_source_url"] = RAHAVARD_DOLLAR_INDICATORS_PAGE_URL
+    analysis["indicator_source"] = "TabdealChart"
+    analysis["indicator_source_url"] = TABDEAL_USDT_CHART_PAGE_URL
     analysis["indicator_data_timestamp"] = data_timestamp
     return {
-        "analysis": analysis, "source": "Rahavard365Chart",
-        "source_url": RAHAVARD_DOLLAR_INDICATORS_PAGE_URL,
+        "analysis": analysis, "source": "TabdealChart",
+        "source_url": TABDEAL_USDT_CHART_PAGE_URL,
         "status": status, "data_timestamp": data_timestamp,
     }
 
