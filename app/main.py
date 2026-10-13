@@ -36,7 +36,7 @@ from .scoring_profiles import normalize_horizon, horizon_label
 from .scoring_rules import entry_recommendation
 from .sources import (SourceError, fetch_fund_nav_history,
                       fetch_fund_price_history, fetch_rahavard_fund_profile,
-                      rahavard_asset_indicators, rahavard_etf_fund_asset_ids,
+                      rahavard_etf_fund_asset_ids,
                       rahavard_fund_history, refresh_all)
 
 STATIC = ROOT / "app" / "static"
@@ -118,6 +118,34 @@ def _market_history(symbol: str, limit: int = 1000) -> list[dict[str, Any]]:
     return db.history(symbol, limit)
 
 
+def _rahavard_dollar_chart_history() -> tuple[list[dict[str, Any]], str]:
+    """Load Rahavard chart candles for the dollar analysis asset (32725)."""
+    cache_key = RAHAVARD_DOLLAR_INDICATORS_ASSET_ID
+    cached = DOLLAR_INDICATOR_CACHE.get(cache_key)
+    cache_age = time.monotonic() - cached["cached_at"] if cached else None
+    if cached and cache_age is not None and cache_age < DOLLAR_INDICATOR_CACHE_TTL:
+        bars = cached["bars"]
+        timestamp = bars[-1].get("timestamp") if bars else None
+        return bars, ("stale" if timestamp and stale_status(timestamp, max_hours=MAX_STALE_HOURS)
+                      else "available")
+
+    try:
+        bars = rahavard_fund_history(cache_key)
+        DOLLAR_INDICATOR_CACHE[cache_key] = {
+            "bars": bars, "cached_at": time.monotonic(),
+        }
+        timestamp = bars[-1].get("timestamp") if bars else None
+        return bars, ("stale" if timestamp and stale_status(timestamp, max_hours=MAX_STALE_HOURS)
+                      else "available")
+    except Exception:
+        if cached and cached.get("bars"):
+            bars = cached["bars"]
+            timestamp = bars[-1].get("timestamp") if bars else None
+            return bars, ("stale" if timestamp and stale_status(timestamp, max_hours=MAX_STALE_HOURS)
+                          else "cached_after_source_error")
+        return [], "failed"
+
+
 def _refresh_interval() -> int:
     try:
         return max(60, min(86400, int(db.get_settings().get("refresh_interval_seconds", REFRESH_INTERVAL_SECONDS))))
@@ -150,6 +178,10 @@ def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None,
     quote_source = _source_map().get(source_key) if source_key else None
     analysis_source_key = "rahavard_usdt" if is_usd_quote else source_key
     analysis_source = _source_map().get(analysis_source_key) if analysis_source_key else None
+    analysis_bars = bars
+    chart_analysis_status = None
+    if is_usd_quote:
+        analysis_bars, chart_analysis_status = _rahavard_dollar_chart_history()
 
     history_returns = {}
     for label, periods in [("daily", 1), ("weekly", 5), ("monthly", 21), ("three_month", 63), ("six_month", 126), ("one_year", 252)]:
@@ -169,7 +201,9 @@ def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None,
 
     observed_timestamp = ((quote_source or {}).get("last_data_timestamp")
                          or (quote_bar or {}).get("timestamp"))
-    analysis_timestamp = ((analysis_source or {}).get("last_data_timestamp")
+    analysis_timestamp = ((analysis_bars[-1].get("timestamp") if analysis_bars else None)
+                          if is_usd_quote else
+                          (analysis_source or {}).get("last_data_timestamp")
                           or (history_latest or {}).get("timestamp"))
     price_stale = stale_status(observed_timestamp, max_hours=MAX_STALE_HOURS) if observed_timestamp else True
     analysis_stale = stale_status(analysis_timestamp, max_hours=MAX_STALE_HOURS) if analysis_timestamp else True
@@ -195,11 +229,20 @@ def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None,
         "stale": bool(price_stale), "status": status,
     }
     output["price_is_cached"] = _timestamp_is_cached(observed_timestamp)
-    output["analysis"] = analyze(symbol, bars, weights=analysis_weights, horizon=horizon)
+    output["analysis"] = analyze(symbol, analysis_bars, weights=analysis_weights, horizon=horizon)
     output["analysis"]["source"] = "Rahavard365" if is_usd_quote else output.get("source")
     output["analysis"]["data_timestamp"] = analysis_timestamp
-    output["analysis"]["status"] = status_for(analysis_source, analysis_stale)
-    output["analysis"]["daily_return_pct"] = history_returns.get("daily")
+    output["analysis"]["status"] = (chart_analysis_status if is_usd_quote
+                                      else status_for(analysis_source, analysis_stale))
+    if is_usd_quote or output.get("source") == "Rahavard365":
+        output["analysis"]["indicator_source"] = "Rahavard365Chart"
+        output["analysis"]["indicator_source_url"] = (
+            RAHAVARD_DOLLAR_INDICATORS_PAGE_URL if is_usd_quote else
+            (analysis_bars[-1].get("source_url") if analysis_bars else data.get("source_url"))
+        )
+        output["analysis"]["indicator_data_timestamp"] = analysis_timestamp
+    if not is_usd_quote:
+        output["analysis"]["daily_return_pct"] = history_returns.get("daily")
     output["analysis"]["price_is_cached"] = _timestamp_is_cached(analysis_timestamp)
     return output
 
@@ -485,53 +528,26 @@ def dollar(horizon: str = Query(default="long")):
 @app.get("/api/dollar/indicators")
 async def dollar_indicators(horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)
-    cache_key = RAHAVARD_DOLLAR_INDICATORS_ASSET_ID
-    cached = DOLLAR_INDICATOR_CACHE.get(cache_key)
-    cache_age = time.monotonic() - cached["cached_at"] if cached else None
-    status = "available"
-    if cached and cache_age is not None and cache_age < DOLLAR_INDICATOR_CACHE_TTL:
-        payload = cached["payload"]
-        fetched_at = cached["fetched_at"]
-    else:
-        try:
-            payload = await asyncio.to_thread(rahavard_asset_indicators, cache_key)
-            fetched_at = utc_now()
-            DOLLAR_INDICATOR_CACHE[cache_key] = {
-                "payload": payload, "fetched_at": fetched_at, "cached_at": time.monotonic(),
-            }
-        except Exception as exc:
-            if cached:
-                payload = cached["payload"]
-                fetched_at = cached["fetched_at"]
-                status = "cached_after_source_error"
-            else:
-                return {
-                    "analysis": None, "source": "Rahavard365",
-                    "source_url": RAHAVARD_DOLLAR_INDICATORS_PAGE_URL,
-                    "status": "failed", "data_timestamp": None,
-                    "error": str(exc)[:300],
-                }
-
-    # Rahavard publishes this asset's prices and levels in rial; Tabdeal's
-    # existing dollar quote is in toman. Convert only the analysis reference
-    # price so comparisons use matching units. The displayed quote is untouched.
-    quote_bars = db.history("USD_IR_FREE", 1, source="Tabdeal")
-    quote_price = quote_bars[-1].get("close") if quote_bars else None
-    try:
-        analysis_price = float(quote_price) * 10 if quote_price is not None else None
-    except (TypeError, ValueError):
-        analysis_price = None
-    analysis = analyze_rahavard(
-        "USD_IR_FREE", payload, data_timestamp=fetched_at,
-        current_price=analysis_price, horizon=horizon,
-    )
-    analysis["indicator_source"] = "Rahavard365"
+    bars, status = await asyncio.to_thread(_rahavard_dollar_chart_history)
+    if not bars:
+        return {
+            "analysis": None, "source": "Rahavard365Chart",
+            "source_url": RAHAVARD_DOLLAR_INDICATORS_PAGE_URL,
+            "status": "failed", "data_timestamp": None,
+            "error": "کندل نمودار ره‌آورد برای محاسبهٔ اندیکاتورها در دسترس نیست.",
+        }
+    data_timestamp = bars[-1].get("timestamp")
+    analysis = analyze("USD_IR_FREE", bars, horizon=horizon)
+    analysis["source"] = "Rahavard365"
+    analysis["data_timestamp"] = data_timestamp
+    analysis["status"] = status
+    analysis["indicator_source"] = "Rahavard365Chart"
     analysis["indicator_source_url"] = RAHAVARD_DOLLAR_INDICATORS_PAGE_URL
-    analysis["indicator_data_timestamp"] = fetched_at
+    analysis["indicator_data_timestamp"] = data_timestamp
     return {
-        "analysis": analysis, "source": "Rahavard365",
+        "analysis": analysis, "source": "Rahavard365Chart",
         "source_url": RAHAVARD_DOLLAR_INDICATORS_PAGE_URL,
-        "status": status, "data_timestamp": fetched_at,
+        "status": status, "data_timestamp": data_timestamp,
     }
 
 

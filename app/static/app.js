@@ -1004,7 +1004,7 @@
   }
 
   function analysisHtml(a) {
-    if (a?.indicator_source === "Rahavard365Chart" || (a?.source === "Rahavard365" && (a?.indicator_source === "Rahavard365" || !a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")))) return rahavardAnalysisHtml(a);
+    if ((a?.indicator_source === "Rahavard365Chart" && Array.isArray(a.indicators?.oscillators)) || (a?.source === "Rahavard365" && (a?.indicator_source === "Rahavard365" || !a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")))) return rahavardAnalysisHtml(a);
     if (!a || a.technical_score == null) return `<div class="empty-state compact"><b>داده کافی برای محاسبه امتیاز موجود نیست</b><small>مدل فقط داده ذخیره‌شده از منبع را تحلیل می‌کند.</small></div>`;
     const all = a.indicators?.indicators || {};
     const seen = new Set();
@@ -1040,7 +1040,11 @@
     const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
     const isDashboardModel = a.score_method?.startsWith("dashboard_rahavard_three_group_weighted_");
     const tradePlan = isDashboardModel ? exitManagementHtml(a) : tradePlanHtml(a);
-    return `${overview}${tradePlan}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(entries.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div>${pivotTable}<div class="indicator-readouts">${summaryCards}</div><div class="indicator-card-grid">${cards}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
+    const chartSourceNote = a.indicator_source === "Rahavard365Chart"
+      ? `<div class="indicator-key-note">اندیکاتورها و امتیاز با محاسبهٔ داخلی از کندل‌های <a href="${esc(a.indicator_source_url || "https://rahavard365.com")}" target="_blank" rel="noopener">نمودار ره‌آورد۳۶۵</a> به دست می‌آیند. زمان داده: ${esc(formatDate(a.indicator_data_timestamp || a.data_timestamp))}</div>`
+      : "";
+    const indicatorDescription = a.indicator_source === "Rahavard365Chart" ? "مقادیر محاسبه‌شده از کندل‌های نمودار" : "سیگنال رسمی";
+    return `${overview}${tradePlan}${chartSourceNote}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(entries.length)} شاخص با مقدار فعلی، تفسیر عددی و ${indicatorDescription}</p></div></div>${pivotTable}<div class="indicator-readouts">${summaryCards}</div><div class="indicator-card-grid">${cards}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
 
   function renderOverviewMarketSummary() {
@@ -1175,11 +1179,7 @@
         const sourceAnalysis = dollarIndicatorFeed.analysis;
         const mergedAnalysis = {
           ...baseAnalysis,
-          indicators: sourceAnalysis.indicators,
-          site_gauges: sourceAnalysis.site_gauges,
-          indicator_notes: sourceAnalysis.indicator_notes,
-          indicator_count: sourceAnalysis.indicator_count,
-          missing_indicators: sourceAnalysis.missing_indicators,
+          ...sourceAnalysis,
           indicator_source: dollarIndicatorFeed.source,
           indicator_source_url: dollarIndicatorFeed.source_url,
           indicator_data_timestamp: dollarIndicatorFeed.data_timestamp,
