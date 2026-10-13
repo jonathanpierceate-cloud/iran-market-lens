@@ -177,26 +177,13 @@ def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None,
         "fetched_at": quote_bar.get("fetched_at") if quote_bar else None,
         "stale": bool(price_stale), "status": status,
     }
-    iran_tz = timezone(timedelta(hours=3, minutes=30))
-
-    def is_cached(timestamp: str | None) -> bool:
-        if not timestamp:
-            return True
-        try:
-            observed_day = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
-            if observed_day.tzinfo is None:
-                observed_day = observed_day.replace(tzinfo=iran_tz)
-            return observed_day.astimezone(iran_tz).date() != datetime.now(iran_tz).date()
-        except (TypeError, ValueError, OverflowError):
-            return True
-
-    output["price_is_cached"] = is_cached(observed_timestamp)
+    output["price_is_cached"] = _timestamp_is_cached(observed_timestamp)
     output["analysis"] = analyze(symbol, bars, weights=analysis_weights, horizon=horizon)
     output["analysis"]["source"] = "Rahavard365" if is_usd_quote else output.get("source")
     output["analysis"]["data_timestamp"] = analysis_timestamp
     output["analysis"]["status"] = status_for(analysis_source, analysis_stale)
     output["analysis"]["daily_return_pct"] = history_returns.get("daily")
-    output["analysis"]["price_is_cached"] = is_cached(analysis_timestamp)
+    output["analysis"]["price_is_cached"] = _timestamp_is_cached(analysis_timestamp)
     return output
 
 
@@ -521,6 +508,20 @@ def _fund_updated_at(fund: dict[str, Any]) -> str | None:
     return raw.get("trade_date_time") or raw.get("data_updated_at") or fund.get("data_timestamp")
 
 
+def _timestamp_is_cached(timestamp: str | None) -> bool:
+    """Treat missing or non-current Tehran trading-day data as cached."""
+    if not timestamp:
+        return True
+    iran_tz = timezone(timedelta(hours=3, minutes=30))
+    try:
+        observed_day = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+        if observed_day.tzinfo is None:
+            observed_day = observed_day.replace(tzinfo=iran_tz)
+        return observed_day.astimezone(iran_tz).date() != datetime.now(iran_tz).date()
+    except (TypeError, ValueError, OverflowError):
+        return True
+
+
 def _fund_category_id(fund: dict[str, Any], requested: str | None = None) -> str | None:
     raw = fund.get("raw") if isinstance(fund.get("raw"), dict) else {}
     for value in (requested, fund.get("category_id"), raw.get("groupId"),
@@ -777,6 +778,7 @@ def funds(search: str = "", category: str = "", sort: str = "data_timestamp",
         item["rahavard_asset_id"] = str(raw.get("rahavard_asset_id") or item["symbol"])
         item["rahavard_state"] = raw.get("instrument_state")
         item["updated_at"] = _fund_updated_at(item)
+        item["price_is_cached"] = _timestamp_is_cached(item.get("data_timestamp") or item["updated_at"])
         for field in ("open_price", "high_price", "low_price", "ask_price", "ask_volume",
                       "bid_price", "bid_volume", "real_close_price_change",
                       "real_close_price_change_percent", "trade_date_time"):

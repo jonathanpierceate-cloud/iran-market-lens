@@ -1657,3 +1657,16 @@ body.light-mode #view-funds .fund-type-chip { color: #536675; }
   body.light-mode #view-funds #fund-table-grid tbody tr { border-color: #d8e3e8; background: linear-gradient(145deg, #fff, #f5f8fa); box-shadow: 0 7px 18px rgba(28, 51, 66, .08); }
   body.light-mode #view-funds #fund-table-grid tbody td { border-color: #e1e8ed; }
 }
+
+/* A green marker means data is from today's Tehran trading date; red means cached or missing. */
+#view-watchlist .watch-fund-open i.data-freshness-dot,
+#view-funds .fund-table-name > .fund-freshness-dot { display: inline-block; flex: 0 0 9px; width: 9px; height: 9px; border: 0; border-radius: 3px; }
+#view-watchlist .watch-fund-open i.data-freshness-dot.fresh,
+#view-funds .fund-table-name > .fund-freshness-dot.fresh { background: #22c69a; box-shadow: 0 0 7px rgba(34, 198, 154, .32); }
+#view-watchlist .watch-fund-open i.data-freshness-dot.stale,
+#view-funds .fund-table-name > .fund-freshness-dot.stale { background: #f06472; box-shadow: 0 0 7px rgba(240, 100, 114, .34); }
+#view-funds .fund-table-name::before { display: none; content: none; }
+#view-funds .fund-table-name > .fund-freshness-dot { grid-row: 1 / span 2; place-self: center; }
+@media (max-width: 720px) {
+  #view-funds .fund-table-name > .fund-freshness-dot { width: 9px; height: 9px; }
+}
