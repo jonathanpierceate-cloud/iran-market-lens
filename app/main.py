@@ -9,7 +9,7 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import asynccontextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, time as datetime_time, timedelta, timezone
 from pathlib import Path
 from threading import Lock, Thread
 from typing import Any
@@ -53,6 +53,10 @@ class WatchlistAddInput(BaseModel):
 class FundScoreBatchInput(BaseModel):
     fund_keys: list[str] = Field(default_factory=list, max_length=4)
     category_id: str = Field(default="", max_length=24)
+
+
+class FundNavBatchInput(BaseModel):
+    fund_keys: list[str] = Field(default_factory=list, max_length=8)
 
 
 def _source_map() -> dict[str, dict[str, Any]]:
@@ -829,6 +833,59 @@ def _fund_or_error(identifier: str) -> dict[str, Any]:
     return fund
 
 
+def _latest_fund_nav(fund_key: str) -> tuple[float | None, str | None]:
+    for row in reversed(db.fund_nav_history(fund_key)):
+        for key in ("statistical_nav", "cancel_nav", "issue_nav"):
+            value = _watchlist_number(row.get(key))
+            if value is not None and value > 0:
+                stamp = row.get("timestamp")
+                return value, str(stamp) if stamp is not None else None
+    return None, None
+
+
+@app.post("/api/funds/nav/batch")
+async def fund_nav_batch(payload: FundNavBatchInput):
+    keys = list(dict.fromkeys(key.strip() for key in payload.fund_keys if key.strip()))
+    if not keys:
+        raise HTTPException(status_code=422, detail="شناسه‌ای برای محاسبه NAV ارسال نشده است")
+
+    semaphore = asyncio.Semaphore(4)
+
+    async def calculate(identifier: str) -> dict[str, Any]:
+        async with semaphore:
+            try:
+                fund = _fund_or_error(identifier)
+                nav, nav_timestamp = _latest_fund_nav(fund["fund_key"])
+                if nav is None or stale_status(nav_timestamp, max_hours=MAX_STALE_HOURS):
+                    try:
+                        await fetch_rahavard_fund_profile(fund["fund_key"])
+                    except Exception:
+                        pass
+                    nav, nav_timestamp = _latest_fund_nav(fund["fund_key"])
+
+                raw = fund.get("raw") if isinstance(fund.get("raw"), dict) else {}
+                price = _watchlist_number(fund.get("market_price"))
+                if price is None or price <= 0:
+                    price = _watchlist_number(raw.get("real_close_price"))
+                premium = ((price / nav - 1) * 100
+                           if price is not None and price > 0 and nav is not None and nav > 0
+                           else None)
+                return {"fund_key": fund["fund_key"], "nav": nav,
+                        "nav_timestamp": nav_timestamp,
+                        "nav_is_cached": stale_status(nav_timestamp, max_hours=MAX_STALE_HOURS) is not False,
+                        "nav_premium_pct": round(premium, 3) if premium is not None else None}
+            except HTTPException as exc:
+                return {"fund_key": identifier, "nav": None, "nav_premium_pct": None,
+                        "error": str(exc.detail)}
+            except Exception as exc:
+                return {"fund_key": identifier, "nav": None, "nav_premium_pct": None,
+                        "error": str(exc)[:180]}
+
+    items = await asyncio.gather(*(calculate(key) for key in keys))
+    return {"items": items, "processed": len(items),
+            "valued": sum(item.get("nav_premium_pct") is not None for item in items)}
+
+
 @app.post("/api/funds/scores/batch")
 async def fund_score_batch(payload: FundScoreBatchInput,
                            horizon: str = Query(default="long")):
@@ -914,6 +971,27 @@ def _watchlist_number(value: Any) -> float | None:
         return None
 
 
+def _latest_confirmed_daily_bar(bars: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Ignore today's still-forming candle until the Tehran session has closed."""
+    tehran = timezone(timedelta(hours=3, minutes=30))
+    now = datetime.now(tehran)
+    session_close = datetime_time(13, 0)
+    for bar in reversed(bars or []):
+        stamp = bar.get("timestamp")
+        if not stamp:
+            continue
+        try:
+            dt = datetime.fromisoformat(str(stamp).replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            local_dt = dt.astimezone(tehran)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if local_dt.date() < now.date() or (local_dt.date() == now.date() and now.time() >= session_close):
+            return bar
+    return None
+
+
 def _fund_purchase_assessment(price: Any, analysis: dict[str, Any] | None) -> dict[str, Any]:
     current_price = _watchlist_number(price)
     if not isinstance(analysis, dict):
@@ -922,7 +1000,7 @@ def _fund_purchase_assessment(price: Any, analysis: dict[str, Any] | None) -> di
     short_horizon = analysis.get("investment_horizon") == "short"
     exit_price = _watchlist_number(
         analysis.get("short_term_exit_price" if short_horizon else "medium_term_exit_price"))
-    exit_average = "SMA(10)" if short_horizon else "SMA(50)"
+    exit_average = "EMA(10)" if short_horizon else "SMA(30)"
     exit_horizon = "کوتاه‌مدت" if short_horizon else "میان‌مدت"
     score = _watchlist_number(analysis.get("technical_score"))
     breakdown = analysis.get("score_breakdown") if isinstance(analysis.get("score_breakdown"), dict) else {}
@@ -1175,7 +1253,7 @@ async def get_watchlist(horizon: str = Query(default="long")):
                     "overall_status": "داده در دسترس نیست", "technical_score": None,
                     "short_term_exit_price": None, "medium_term_exit_price": None,
                     "active_exit_price": None, "active_exit_horizon": horizon_label(horizon),
-                    "active_exit_average": "SMA(10)" if horizon == "short" else "SMA(50)",
+                    "active_exit_average": "EMA(10)" if horizon == "short" else "SMA(30)",
                     "distance_to_exit": None,
                     "holding_decision": {"label": "داده کافی نیست", "tone": "unknown", "reason": "قیمت و تحلیل تکنیکال این نماد در دسترس نیست."},
                     "add_position_decision": {"label": "فعلاً اضافه نکن", "tone": "neutral", "reason": "تا دریافت قیمت و تحلیل معتبر صبر کن."},
@@ -1204,16 +1282,17 @@ async def get_watchlist(horizon: str = Query(default="long")):
                 live_price_is_today = observed.astimezone(iran_tz).date() == datetime.now(iran_tz).date()
             except (TypeError, ValueError, OverflowError):
                 live_price_is_today = False
-        cached_history = db.history(record["fund_key"], 1, source="Rahavard365")
+        cached_history = db.history(record["fund_key"], 3, source="Rahavard365")
         cached_price = _watchlist_number(fund.get("market_price"))
-        if not cached_history:
+        if len(cached_history) < 2:
             try:
                 cached_history = await fetch_fund_price_history(record["fund_key"])
             except Exception:
-                cached_history = db.history(record["fund_key"], 1, source="Rahavard365")
+                cached_history = db.history(record["fund_key"], 3, source="Rahavard365")
         if cached_price is None and cached_history:
             cached_price = _watchlist_number(cached_history[-1].get("close"))
-        last_daily_close = _watchlist_number(cached_history[-1].get("close")) if cached_history else None
+        confirmed_daily_bar = _latest_confirmed_daily_bar(cached_history)
+        last_daily_close = _watchlist_number(confirmed_daily_bar.get("close")) if confirmed_daily_bar else None
         price = live_price or cached_price
         price_is_cached = price is not None and not live_price_is_today
         price_note = ("قیمت پایانی آخرین روز معاملاتی؛ با ثبت معامله جدید به‌روز می‌شود"
@@ -1240,7 +1319,7 @@ async def get_watchlist(horizon: str = Query(default="long")):
         medium_term_exit_price = _watchlist_number(analysis_result.get("medium_term_exit_price")) if analysis_result else None
         active_exit_price = short_term_exit_price if horizon == "short" else medium_term_exit_price
         active_exit_horizon = horizon_label(horizon)
-        active_exit_average = "SMA(10)" if horizon == "short" else "SMA(50)"
+        active_exit_average = "EMA(10)" if horizon == "short" else "SMA(30)"
         exit_confirmed = (last_daily_close is not None and active_exit_price is not None
                           and last_daily_close < active_exit_price)
         distance_value = price - active_exit_price if price is not None and active_exit_price is not None else None
@@ -1313,6 +1392,7 @@ async def get_watchlist(horizon: str = Query(default="long")):
             "active_exit_horizon": active_exit_horizon,
             "active_exit_average": active_exit_average,
             "last_daily_close": last_daily_close,
+            "last_daily_close_timestamp": confirmed_daily_bar.get("timestamp") if confirmed_daily_bar else None,
             "distance_to_exit": {"value": distance_value, "pct": distance_pct} if distance_value is not None else None,
             "holding_decision": holding_decision,
             "add_position_decision": add_position_decision,

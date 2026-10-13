@@ -201,10 +201,10 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     correction_label = "بالا" if correction_probability >= 55 else "متوسط" if correction_probability >= 30 else "پایین"
     nearest_support = nearest_level(supports, below=True)
     nearest_resistance = nearest_level(resistances, below=False)
-    sma10 = find_values("SMA(10)").get("value")
-    sma50 = find_values("SMA(50)").get("value")
-    short_term_exit_price = round(sma10) if sma10 is not None else None
-    medium_term_exit_price = round(sma50) if sma50 is not None else None
+    ema10 = find_values("EMA(10)").get("value")
+    sma30 = find_values("SMA(30)").get("value")
+    short_term_exit_price = round(ema10) if ema10 is not None else None
+    medium_term_exit_price = round(sma30) if sma30 is not None else None
     resistance_above_price = price is None or any(value > price for value in resistances)
     mfi_values = find_values("MFI")
     mfi = mfi_values.get("mfi", mfi_values.get("value"))
@@ -299,13 +299,13 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         "medium_term_exit_price": medium_term_exit_price,
         "short_term_exit": {
             "price": short_term_exit_price,
-            "trigger": "بسته‌شدن کندل روزانه زیر SMA(10)",
-            "action": "اگر کندل روزانه زیر SMA(10) بسته شد، حد ضرر کوتاه‌مدت فعال است.",
+            "trigger": "بسته‌شدن کندل روزانه زیر EMA(10)",
+            "action": "حد خروج کوتاه‌مدت فقط پس از بسته‌شدن کندل روزانه زیر EMA(10) تأیید می‌شود.",
         },
         "medium_term_exit": {
             "price": medium_term_exit_price,
-            "trigger": "بسته‌شدن کندل روزانه زیر SMA(50)",
-            "action": "اگر کندل روزانه زیر SMA(50) بسته شد، حد ضرر میان‌مدت فعال است.",
+            "trigger": "بسته‌شدن کندل روزانه زیر SMA(30)",
+            "action": "حد خروج میان‌مدت فقط پس از بسته‌شدن کندل روزانه زیر SMA(30) تأیید می‌شود.",
         },
         "technical_score": fund_model["technical_score"],
         "score_method": fund_model["score_method"],

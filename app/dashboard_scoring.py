@@ -320,10 +320,10 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
     strength = "unavailable" if adx_value is None else "strong" if adx_value >= 25 else "medium" if adx_value >= 20 else "weak"
     daily = closes[-1]/closes[-2]-1 if len(closes) > 1 else None
     ema20, ema100 = val("EMA(20)"), val("EMA(100)")
-    sma10 = val("SMA(10)")
-    sma50 = val("SMA(50)")
-    short_exit = round(sma10) if sma10 is not None else None
-    medium_exit = round(sma50) if sma50 is not None else None
+    ema10 = val("EMA(10)")
+    sma30 = val("SMA(30)")
+    short_exit = round(ema10) if ema10 is not None else None
+    medium_exit = round(sma30) if sma30 is not None else None
     active_exit_price = short_exit if horizon == "short" else medium_exit
     entry_assessment = entry_recommendation(
         rsi, family_scores.get("moving_averages", {}).get("score"), total,
@@ -384,10 +384,10 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "symbol": symbol, "data_timestamp": bars[-1].get("timestamp") if bars else None,
         "price": current, "daily_return_pct": daily*100 if daily is not None else None,
         "short_term_exit_price": short_exit, "medium_term_exit_price": medium_exit,
-        "short_term_exit": {"price": short_exit, "trigger": "بسته‌شدن کندل روزانه زیر SMA(10)",
-                            "action": "اگر کندل روزانه زیر SMA(10) بسته شد، حد ضرر کوتاه‌مدت فعال است."},
-        "medium_term_exit": {"price": medium_exit, "trigger": "بسته‌شدن کندل روزانه زیر SMA(50)",
-                             "action": "اگر کندل روزانه زیر SMA(50) بسته شد، حد ضرر میان‌مدت فعال است."},
+        "short_term_exit": {"price": short_exit, "trigger": "بسته‌شدن کندل روزانه زیر EMA(10)",
+                            "action": "حد خروج کوتاه‌مدت فقط پس از بسته‌شدن کندل روزانه زیر EMA(10) تأیید می‌شود."},
+        "medium_term_exit": {"price": medium_exit, "trigger": "بسته‌شدن کندل روزانه زیر SMA(30)",
+                             "action": "حد خروج میان‌مدت فقط پس از بسته‌شدن کندل روزانه زیر SMA(30) تأیید می‌شود."},
         "trend": direction, "medium_term_trend": direction,
         "short_term_trend": "unavailable" if current is None or ema20 is None else "bullish" if current > ema20 else "bearish" if current < ema20 else "neutral",
         "long_term_trend": "unavailable" if current is None or ema100 is None else "bullish" if current > ema100 else "bearish" if current < ema100 else "neutral",

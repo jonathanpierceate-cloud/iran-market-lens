@@ -9,6 +9,10 @@
   let fundScoreFillRunning = false;
   let fundScoreGeneration = 0;
   const fundScoreAttemptedKeys = new Set();
+  let fundNavFillRunning = false;
+  let fundNavGeneration = 0;
+  const fundNavAttemptedKeys = new Set();
+  const fundNavValueCache = new Map();
   const nf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const en = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const dates = new Intl.DateTimeFormat("fa-IR-u-nu-latn", { dateStyle: "medium", timeStyle: "short" });
@@ -784,10 +788,10 @@
     const current = Number(a?.price);
     const currentBadge = Number.isFinite(current) && current > 0 ? `<span class="trade-plan-badge">قیمت مبنا: ${money(current)} ${unit}</span>` : "";
     if (shortExit == null && mediumExit == null) {
-      return `<div class="risk-exit-panel unavailable"><b>میانگین SMA(10) و SMA(50) در دادهٔ فعلی موجود نیست</b><small>سطح خروج معتبر پس از دریافت دادهٔ روزانه نمایش داده می‌شود.</small></div>`;
+      return `<div class="risk-exit-panel unavailable"><b>میانگین EMA(10) و SMA(30) در دادهٔ فعلی موجود نیست</b><small>سطح خروج معتبر پس از دریافت دادهٔ روزانه نمایش داده می‌شود.</small></div>`;
     }
     const exitCard = (kind, label, average, value) => `<article class="risk-exit-card ${kind}"><span>${label} · ${average}</span><b>${value == null ? "—" : `${money(value)} ${unit}`}</b><small>${value == null ? `مقدار ${average} در دادهٔ فعلی موجود نیست.` : `حد ضرر با بسته‌شدن کندل روزانه زیر ${average} فعال می‌شود؛ افت لحظه‌ای به‌تنهایی سیگنال خروج نیست.`}</small></article>`;
-    return `<div class="risk-exit-panel"><div class="risk-exit-head"><div><span class="panel-kicker">قاعدهٔ خروج</span><h4>خروج از موقعیت و حد ضرر</h4><p>ملاک خروج، بسته‌شدن کندل روزانه زیر میانگین مربوط است.</p></div>${currentBadge}</div><div class="risk-exit-grid">${exitCard("short", "کوتاه‌مدت", "SMA(10)", shortExit)}${exitCard("medium", "میان‌مدت", "SMA(50)", mediumExit)}</div></div>`;
+    return `<div class="risk-exit-panel"><div class="risk-exit-head"><div><span class="panel-kicker">قاعدهٔ خروج</span><h4>خروج از موقعیت و حد ضرر</h4><p>ملاک خروج، بسته‌شدن کندل روزانه زیر میانگین مربوط است.</p></div>${currentBadge}</div><div class="risk-exit-grid">${exitCard("short", "کوتاه‌مدت", "EMA(10)", shortExit)}${exitCard("medium", "میان‌مدت", "SMA(30)", mediumExit)}</div></div>`;
   }
 
   function tradePlanHtml(a) {
@@ -860,12 +864,12 @@
     const pullbackPath = pathCard({
       direction: "pullback", subtitle: "مسیر دوم · ورود در اصلاح با تأیید برگشت", title: "خرید در صورت نزول و پولبک",
       condition: mediumTermExitPrice == null
-        ? "قیمت به حمایت‌ها اصلاح کند؛ اما تا وقتی SMA(50) در دادهٔ معتبر موجود نیست، برای این مسیر پلهٔ خرید تعیین نمی‌شود."
-        : `قیمت به حمایت‌ها اصلاح کند؛ هر پله فقط با حفظ سطح و نشانه برگشت بررسی شود و تا وقتی قیمت بالای حد میان‌مدت SMA(50) ${money(mediumTermExitPrice)} است اجرا شود.`,
+        ? "قیمت به حمایت‌ها اصلاح کند؛ اما تا وقتی SMA(30) در دادهٔ معتبر موجود نیست، برای این مسیر پلهٔ خرید تعیین نمی‌شود."
+        : `قیمت به حمایت‌ها اصلاح کند؛ هر پله فقط با حفظ سطح و نشانه برگشت بررسی شود و تا وقتی قیمت بالای حد میان‌مدت SMA(30) ${money(mediumTermExitPrice)} است اجرا شود.`,
       entries: pullbackEntries,
       invalidation: mediumTermExitPrice == null
-        ? "با دریافت دادهٔ SMA(50)، حد خروج میان‌مدت مشخص می‌شود."
-        : `اگر سطح ${money(lastAllowedPullback)} با فشار فروش شکسته شد، پله‌های بعدی را اجرا نکن و قاعدهٔ حد ضرر SMA(50) را رعایت کن.`,
+        ? "با دریافت دادهٔ SMA(30)، حد خروج میان‌مدت مشخص می‌شود."
+        : `اگر سطح ${money(lastAllowedPullback)} با فشار فروش شکسته شد، پله‌های بعدی را اجرا نکن و قاعدهٔ حد ضرر SMA(30) را رعایت کن.`,
     });
     const scenarios = Array.isArray(a?.scenarios) ? a.scenarios : [];
     const scenarioProbability = (direction) => {
@@ -1174,6 +1178,8 @@
   }
 
   async function loadFunds(options = {}) {
+    if (options.forceNav) fundNavAttemptedKeys.clear();
+    const requestedNavGeneration = ++fundNavGeneration;
     const requestedHorizon = state.investmentHorizon;
     try {
       const url = new URL("/api/funds", location.origin);
@@ -1184,6 +1190,16 @@
       const data = await api(url.pathname + url.search);
       if (requestedHorizon !== state.investmentHorizon) return;
       state.funds = sortedFundItems(data.items);
+      state.funds.forEach((fund) => {
+        const cachedNav = fundNavValueCache.get(String(fund.fund_key || fund.symbol || ""));
+        if (cachedNav) {
+          Object.assign(fund, cachedNav);
+          const price = Number(fund.market_price ?? fund.real_close_price);
+          const nav = Number(cachedNav.nav);
+          fund.nav_premium_pct = Number.isFinite(price) && price > 0 && Number.isFinite(nav) && nav > 0
+            ? (price / nav - 1) * 100 : null;
+        }
+      });
       const resultCount = $("#fund-result-count");
       if (resultCount) resultCount.textContent = `${nf.format(data.count)} صندوق`;
       renderFundTable(state.funds);
@@ -1199,7 +1215,10 @@
       const best = state.funds.find((f) => f.technical_score != null);
       const bestFund = $("#best-fund");
       if (bestFund) bestFund.textContent = best ? (best.display_symbol || `شناسه ${best.rahavard_asset_id}`) : state.funds.length ? "برای امتیاز، نمایهٔ نماد را باز کنید" : "هنوز داده‌ای نیست";
-      if (state.currentView === "funds") void fillVisibleFundScores();
+      if (state.currentView === "funds") {
+        void fillVisibleFundScores();
+        void fillVisibleFundNavs(requestedNavGeneration);
+      }
     } catch (err) {
       if (!options.quiet) toast(`فهرست صندوق‌ها در دسترس نیست: ${err.message}`, true);
       $("#funds-freshness") && freshness($("#funds-freshness"), "unavailable", null);
@@ -1213,8 +1232,8 @@
     const rows = [...(items || [])];
     const key = fundSortState.key;
     rows.sort((a, b) => {
-      const left = key === "name" ? (a?.display_symbol || a?.symbol || a?.name) : a?.[key];
-      const right = key === "name" ? (b?.display_symbol || b?.symbol || b?.name) : b?.[key];
+      const left = key === "name" ? (a?.name || a?.display_symbol || a?.symbol) : a?.[key];
+      const right = key === "name" ? (b?.name || b?.display_symbol || b?.symbol) : b?.[key];
       if (fundSortTextKeys.has(key)) {
         return String(left ?? "").localeCompare(String(right ?? ""), "fa") * fundSortState.direction;
       }
@@ -1277,7 +1296,6 @@
     }
     const amount = (value) => value == null ? "—" : money(value);
     target.innerHTML = items.map((f) => {
-      const id = f.rahavard_asset_id || f.symbol;
       const price = f.market_price ?? f.real_close_price;
       const scoreValue = f.technical_score == null ? null : Number(f.technical_score);
       const scoreCoverage = f.data_coverage_pct == null ? null : Number(f.data_coverage_pct);
@@ -1288,14 +1306,15 @@
       const assessment = f.purchase_assessment || {};
       const assessmentStatus = ["suitable", "wait", "unsuitable"].includes(assessment.status) ? assessment.status : "unknown";
       const assessmentCell = `<div class="fund-purchase-assessment"><span class="fund-purchase-chip ${assessmentStatus}">${esc(assessment.label || "داده کافی نیست")}</span><small>${esc(assessment.reason || "ارزیابی پس از دریافت دادهٔ تکنیکال نمایش داده می‌شود.")}</small></div>`;
-      const symbol = f.display_symbol || f.symbol || f.name || "—";
-      const name = f.name && f.name !== symbol ? f.name : `شناسه ره‌آورد: ${id}`;
+      const fundName = f.name || f.display_symbol || f.symbol || "—";
       const priceFresh = price != null && f.price_is_cached === false;
       const freshnessLabel = priceFresh ? "داده تازه" : "داده کهنه یا ناموجود";
       const priceCell = `<span class="watch-cell-primary">${amount(price)}</span><small class="watch-cell-secondary ${changeClass(f.daily_return)}">${pct(f.daily_return)}</small>`;
-      const premiumCell = `<span class="watch-cell-primary ${changeClass(f.nav_premium_pct)}">${pct(f.nav_premium_pct)}</span>`;
+      const hasNav = Number(f.nav) > 0 && f.nav_premium_pct != null;
+      const premiumTitle = !hasNav ? "NAV معتبر برای محاسبه در دسترس نیست" : `${f.nav_is_cached ? "بر پایهٔ آخرین NAV ذخیره‌شده" : "بر پایهٔ NAV تازه"} · فاصلهٔ قیمت بازار از NAV ${money(f.nav)} ریال`;
+      const premiumCell = `<span class="watch-cell-primary ${hasNav ? changeClass(f.nav_premium_pct) : ""}" title="${esc(premiumTitle)}">${hasNav ? pct(f.nav_premium_pct) : "—"}</span>`;
       const timestamp = f.data_timestamp || f.updated_at;
-      return `<tr><td data-label="نام نماد"><button class="row-open fund-symbol-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><i class="fund-freshness-dot ${priceFresh ? "fresh" : "stale"}" role="img" aria-label="${freshnessLabel}" title="${freshnessLabel}"></i><strong>${esc(symbol)}</strong><small>${esc(name)}</small></span></button></td><td data-label="نوع صندوق"><span class="fund-type-chip">${esc(typeLabel)}</span></td><td data-label="امتیاز" class="fund-technical-score">${scoreCell}</td><td data-label="وضعیت خرید" class="fund-buy-cell">${assessmentCell}</td><td data-label="بازده ماهانه"><span class="watch-cell-primary ${changeClass(f.monthly_return)}">${pct(f.monthly_return)}</span></td><td data-label="بازده ۳ماهه"><span class="watch-cell-primary ${changeClass(f.three_month_return)}">${pct(f.three_month_return)}</span></td><td data-label="بازده ۶ماهه"><span class="watch-cell-primary ${changeClass(f.six_month_return)}">${pct(f.six_month_return)}</span></td><td data-label="بازده یک‌ساله"><span class="watch-cell-primary ${changeClass(f.one_year_return)}">${pct(f.one_year_return)}</span></td><td data-label="حباب">${premiumCell}</td><td data-label="آخرین قیمت (تغییر٪)">${priceCell}</td><td data-label="زمان داده" class="fund-update-time">${esc(formatDate(timestamp))}</td></tr>`;
+      return `<tr><td data-label="نام نماد"><button class="row-open fund-symbol-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><i class="fund-freshness-dot ${priceFresh ? "fresh" : "stale"}" role="img" aria-label="${freshnessLabel}" title="${freshnessLabel}"></i><strong>${esc(fundName)}</strong></span></button></td><td data-label="نوع صندوق"><span class="fund-type-chip">${esc(typeLabel)}</span></td><td data-label="امتیاز" class="fund-technical-score">${scoreCell}</td><td data-label="وضعیت خرید" class="fund-buy-cell">${assessmentCell}</td><td data-label="بازده ماهانه"><span class="watch-cell-primary ${changeClass(f.monthly_return)}">${pct(f.monthly_return)}</span></td><td data-label="بازده ۳ماهه"><span class="watch-cell-primary ${changeClass(f.three_month_return)}">${pct(f.three_month_return)}</span></td><td data-label="بازده ۶ماهه"><span class="watch-cell-primary ${changeClass(f.six_month_return)}">${pct(f.six_month_return)}</span></td><td data-label="بازده یک‌ساله"><span class="watch-cell-primary ${changeClass(f.one_year_return)}">${pct(f.one_year_return)}</span></td><td data-label="حباب">${premiumCell}</td><td data-label="آخرین قیمت (تغییر٪)">${priceCell}</td><td data-label="زمان داده" class="fund-update-time">${esc(formatDate(timestamp))}</td></tr>`;
     }).join("");
     updateFundSortIndicators();
   }
@@ -1472,7 +1491,7 @@
       const scoreTone = !Number.isFinite(scoreValue) ? "unknown" : scoreValue >= 60 ? "positive" : scoreValue < 40 ? "negative" : "neutral";
       const marketValue = item.price != null && item.units != null && Number.isFinite(Number(item.price)) && Number.isFinite(Number(item.units))
         ? Number(item.price) * Number(item.units) : null;
-      const exitAverage = item.active_exit_average || (item.active_exit_horizon === "کوتاه‌مدت" ? "SMA(10)" : "SMA(50)");
+      const exitAverage = item.active_exit_average || (item.active_exit_horizon === "کوتاه‌مدت" ? "EMA(10)" : "SMA(30)");
       const priceFresh = item.price != null && item.price_is_cached === false;
       const freshnessLabel = priceFresh ? "داده تازه" : "داده کهنه یا ناموجود";
       return `<tr>
@@ -1487,6 +1506,53 @@
       </tr>`;
     }).join("");
     body.innerHTML = `<table class="watchlist-table"><thead><tr><th scope="col">نماد <small>(${nf.format(items.length)})</small></th><th scope="col">تعداد</th><th scope="col">قیمت سربه‌سر</th><th scope="col">ارزش فعلی</th><th scope="col">آخرین قیمت</th><th scope="col">سود/زیان فعلی</th><th scope="col">حد خروج</th><th scope="col">امتیاز نماد</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  async function fillVisibleFundNavs(generation = fundNavGeneration) {
+    if (fundNavFillRunning || state.currentView !== "funds") return;
+    const pending = [...new Set(state.funds
+      .filter((fund) => !(Number(fund.nav) > 0) || fund.nav_is_cached === true)
+      .map((fund) => String(fund.fund_key || fund.symbol || ""))
+      .filter((key) => key && !fundNavAttemptedKeys.has(key)))];
+    if (!pending.length) return;
+
+    fundNavFillRunning = true;
+    try {
+      for (let offset = 0; offset < pending.length; offset += 8) {
+        const batch = pending.slice(offset, offset + 8);
+        batch.forEach((key) => fundNavAttemptedKeys.add(key));
+        let response;
+        try {
+          response = await api("/api/funds/nav/batch", {
+            method: "POST",
+            body: JSON.stringify({ fund_keys: batch })
+          });
+        } catch {
+          continue;
+        }
+        for (const result of response.items || []) {
+          const key = String(result.fund_key || "");
+          if (!key) continue;
+          const navData = {
+            nav: result.nav,
+            nav_timestamp: result.nav_timestamp,
+            nav_is_cached: result.nav_is_cached
+          };
+          fundNavValueCache.set(key, navData);
+          const listed = state.funds.find((fund) => String(fund.fund_key || fund.symbol || "") === key);
+          if (listed) Object.assign(listed, navData, { nav_premium_pct: result.nav_premium_pct });
+        }
+        if (generation === fundNavGeneration && state.currentView === "funds") {
+          state.funds = sortedFundItems(state.funds);
+          renderFundTable(state.funds);
+        }
+      }
+    } finally {
+      fundNavFillRunning = false;
+      if (state.currentView === "funds" && generation !== fundNavGeneration) {
+        queueMicrotask(() => void fillVisibleFundNavs(fundNavGeneration));
+      }
+    }
   }
   async function loadWatchlist() {
     const requestedHorizon = state.investmentHorizon;
@@ -1589,7 +1655,7 @@
     $$(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
     const title = ({ overview: "داشبورد", funds: "صندوق‌ها", watchlist: "دیده‌بان", settings: "تنظیمات", admin: "وضعیت سامانه" })[name] || "داشبورد";
     $("#crumb-current").textContent = title;
-    if (name === "funds") await loadFunds();
+    if (name === "funds") await loadFunds({ forceNav: true });
     if (name === "watchlist") await loadWatchlist();
     if (name === "admin") await loadAdmin();
     if (name === "settings") await loadSettings();
@@ -1606,7 +1672,7 @@
       toast(`بررسی منابع پایان یافت · ${nf.format(ok)} منبع متصل`);
       await loadOverview();
       if (state.currentView === "admin") await loadAdmin();
-      if (state.currentView === "funds") await loadFunds();
+      if (state.currentView === "funds") await loadFunds({ forceNav: true });
       if (state.currentView === "watchlist") await loadWatchlist();
     } catch (err) { toast(`همگام‌سازی کامل نشد: ${err.message}`, true); }
     finally { buttons.forEach((b) => { b.disabled = false; b.classList.remove("spinning"); }); }
