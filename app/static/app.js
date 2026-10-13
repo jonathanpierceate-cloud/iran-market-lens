@@ -247,8 +247,8 @@
       "MTM(6)": "تغییر قیمت نسبت به ۶ دوره قبل؛ مثبت یعنی شتاب رو به بالا و منفی یعنی شتاب رو به پایین.",
       "Ichimoku(9,26,52,26)": "خط عددی مقدار تنکان است؛ وضعیت روند را با جای قیمت نسبت به ابر و تقاطع تنکان/کیجون بسنجید.",
       "ATR(14)": "میانگین دامنه نوسان قیمت؛ عدد بزرگ‌تر یعنی حرکت روزانه بیشتر، نه جهت صعود یا نزول.",
-      "KELTNER(16)": "میانگین میانی و کانال نوسان؛ خروج از کانال می‌تواند حرکت پرقدرت یا کشیدگی قیمت باشد.",
-      "BB(20)": "میانگین میانی و باند نوسان؛ نزدیک یا بیرون باند بودن، کشیدگی حرکت را نشان می‌دهد و جهت قطعی نیست.",
+      "KELTNER(16)": "داخل باند خنثی است؛ نزدیک سقف در روند صعودی نشانه منفی و برگشت از کف باند نشانه مثبت است.",
+      "BB(20)": "داخل باند خنثی است؛ نزدیک سقف در روند صعودی نشانه منفی و برگشت از کف باند نشانه مثبت است.",
       "VRSI(14)": "RSI محاسبه‌شده روی حجم معاملات؛ تغییر فشار حجم را نشان می‌دهد، نه جهت مستقیم قیمت.",
       "VMACD(12,26)": "شتاب تغییر حجم؛ مثبت یعنی میانگین کوتاه حجم بالاتر از بلندمدت است.",
       "OBV(20)": "حجم تجمعی با جهت حرکت قیمت؛ مقایسه با میانگین ۲۰روزه به تأیید یا تضعیف روند کمک می‌کند.",
@@ -299,7 +299,8 @@
     }
     if (/^bb|^keltner/i.test(name)) {
       const upper = value("upper"), lower = value("lower"), distance = value("distance"), dl = value("dl");
-      return `باند بالا ${num(upper, 2)} و پایین ${num(lower, 2)} است؛ ${Number.isFinite(distance) ? `فاصله از باند بالا ${pct(distance * 100)}${Number.isFinite(dl) ? ` و از باند پایین ${pct(dl * 100)}` : ""} است.` : `سیگنال ره‌آورد ${signalText} است.`}`;
+      const scenarioText = signal === "bouncefromlower" ? "برگشت مثبت از کف باند" : signal === "nearupperuptrend" ? "نزدیک سقف در روند صعودی؛ وضعیت منفی" : signal === "neutral" ? "قیمت داخل باند؛ وضعیت خنثی" : signal === "breakoutdown" ? "قیمت پایین‌تر از کف باند است" : signal === "breakoutup" ? "قیمت بالاتر از سقف باند است" : `سیگنال ${signalText}`;
+      return `سقف ${num(upper, 2)} (${Number.isFinite(distance) ? `فاصله ${pct(distance * 100)}` : "فاصله —"}) و کف ${num(lower, 2)} (${Number.isFinite(dl) ? `فاصله ${pct(dl * 100)}` : "فاصله —"})؛ ${scenarioText}.`;
     }
     if (/ichimoku/i.test(name)) {
       const tenkan = value("tenken_sen_formula"), kijun = value("kijun_sen_formula");
@@ -337,6 +338,10 @@
       return { state: "neutral", label: "محدوده میانی" };
     }
     if (["BB(20)", "KELTNER(16)"].includes(key)) {
+      if (signal === "bounce_from_lower") return { state: "positive", label: "برگشت از کف · مثبت" };
+      if (signal === "near_upper_uptrend") return { state: "caution", label: "نزدیک سقف در روند صعودی · منفی" };
+      if (signal === "bounce_from_lower") return { state: "positive", label: "برگشت از کف · مثبت" };
+      if (signal === "near_upper_uptrend") return { state: "caution", label: "نزدیک سقف در روند صعودی · منفی" };
       if (signal === "breakout_up") return { state: "caution", label: "بالاتر از کانال · کشیدگی" };
       if (signal === "breakout_down") return { state: "caution", label: "پایین‌تر از کانال · ضعف" };
       return { state: "neutral", label: "داخل کانال" };
@@ -944,7 +949,9 @@
       neutral: ["خنثی", "neutral"], overbought: ["خریدزدگی · احتیاط", "caution"],
       oversold: ["فروش‌زدگی · احتمال برگشت", "neutral"], resistance: ["مقاومت", "caution"],
       support: ["حمایت", "neutral"], highvolume: ["حجم بالا · بدون جهت", "neutral"],
-      lowvolume: ["حجم پایین · تأیید ضعیف‌تر", "neutral"], unavailable: ["محاسبه نشد", "unknown"]
+      lowvolume: ["حجم پایین · تأیید ضعیف‌تر", "neutral"], unavailable: ["محاسبه نشد", "unknown"],
+      bouncefromlower: ["برگشت از کف · مثبت", "positive"],
+      nearupperuptrend: ["نزدیک سقف در روند صعودی · منفی", "caution"]
     };
     const groups = a.indicators || {};
     const notes = new Map((a.indicator_notes || []).map((x) => [x.name, x]));
@@ -956,7 +963,7 @@
       macd: "خط MACD", signal: "خط سیگنال", MTM: "مومنتوم", value: "مقدار",
       tenken_sen_formula: "تنکن‌سن", kijun_sen_formula: "کیجون‌سن", senkou_span_a_formula: "ابر A",
       senkou_span_b_formula: "ابر B", upper: "سقف باند", middle: "خط میانی", lower: "کف باند", distance: "فاصله از باند بالا",
-      dl: "فاصله از باند پایین", pivot: "نقطه پیوت", r1: "مقاومت ۱", r2: "مقاومت ۲", r3: "مقاومت ۳",
+      dl: "فاصله قیمت تا کف (%)", distance: "فاصله قیمت تا سقف (%)", pivot: "نقطه پیوت", r1: "مقاومت ۱", r2: "مقاومت ۲", r3: "مقاومت ۳",
       r4: "مقاومت ۴", s1: "حمایت ۱", s2: "حمایت ۲", s3: "حمایت ۳", s4: "حمایت ۴",
       rv: "حجم نسبی", sm: "جریان پول هوشمند", vrsi: "VRSI", vmacd: "VMACD", obv: "OBV"
     };
