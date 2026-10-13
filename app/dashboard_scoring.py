@@ -169,13 +169,18 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
             item = ind(key)
             middle = _number(item.get("middle", item.get("value")))
             upper, lower = _number(item.get("upper")), _number(item.get("lower"))
-            if current and middle and current > 0:
-                score = _signed_score((current-middle)/current, .025)
-                if upper is not None and current > upper:
-                    score = min(score, 65)
-                elif lower is not None and current < lower:
-                    score = max(score, 35)
-            raw, note = {"middle": middle, "upper": upper, "lower": lower}, "جایگاه نسبت به خط میانی؛ خروج از باند به‌تنهایی سیگنال خرید نیست"
+            scenario = str(item.get("signal") or "").lower()
+            if upper is None or lower is None:
+                score = None
+            elif scenario == "bounce_from_lower":
+                score = 65.0
+            elif scenario in ("near_upper_uptrend", "breakout_down"):
+                score = 35.0
+            elif current is not None and upper is not None and lower is not None and lower <= current <= upper:
+                score = 50.0
+            else:
+                score = 50.0
+            raw, note = {"middle": middle, "upper": upper, "lower": lower, "scenario": scenario}, "داخل باند خنثی؛ برگشت از کف مثبت؛ نزدیکی به سقف در روند صعودی منفی"
         rows[family].append(row(family, key, score, raw, note))
 
     # Oscillators: RSI is one bounded vote, never the sole buy criterion.
