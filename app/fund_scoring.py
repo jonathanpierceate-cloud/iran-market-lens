@@ -11,6 +11,7 @@ import re
 from typing import Any
 
 from .scoring_profiles import FUND_SCORING_PROFILES, normalize_horizon, horizon_label
+from .scoring_rules import adx_directional_score, rsi_entry_score
 
 FAMILY_WEIGHTS = FUND_SCORING_PROFILES["long"]["family_weights"]
 
@@ -82,7 +83,7 @@ def _signal_score(item: dict[str, Any] | None) -> float | None:
     return {
         "strongbuy": 90.0, "buy": 75.0, "bullish": 70.0, "support": 65.0,
         "neutral": 50.0, "hold": 50.0, "highvolume": 50.0, "lowvolume": 50.0,
-        "oversold": 40.0, "overbought": 60.0,
+        "oversold": 45.0, "overbought": 30.0,
         "resistance": 35.0, "bearish": 30.0, "sell": 25.0, "strongsell": 10.0,
     }.get(signal)
 
@@ -98,7 +99,12 @@ def _item_values(item: dict[str, Any] | None) -> dict[str, float]:
     for part in parts:
         if isinstance(part, dict):
             value = _number(part.get("value"))
-            key = _norm(part.get("name"))
+            raw_name = str(part.get("name") or "").strip().casefold()
+            key = _norm(raw_name)
+            if raw_name in {"+di", "di+", "+d.i."}:
+                key = "plusdi"
+            elif raw_name in {"-di", "di-", "−di", "-d.i."}:
+                key = "minusdi"
             if key and value is not None:
                 result[key] = value
     for key in ("previous_value", "previousValue"):
@@ -236,7 +242,8 @@ def _trend_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | Non
 
 
 def _momentum_indicator_score(key: str, item: dict[str, Any] | None,
-                              price: float | None) -> float | None:
+                              price: float | None,
+                              trend_score: float | None = None) -> float | None:
     if not item:
         return None
     values = _item_values(item)
@@ -253,16 +260,12 @@ def _momentum_indicator_score(key: str, item: dict[str, Any] | None,
     elif key == "adx14":
         adx = _value(values, "adx", "value")
         plus_di, minus_di = _value(values, "plus_di", "pdi"), _value(values, "minus_di", "mdi")
-        if plus_di is not None and minus_di is not None:
-            direction = (plus_di - minus_di) / max(plus_di + minus_di, 1.0)
-            strength = _clamp(((adx or 0.0) - 10.0) / 25.0, 0.0, 1.0)
-            return _clamp(50.0 + direction * 45.0 * strength)
-        return 50.0 if adx is not None else None
+        return adx_directional_score(adx, plus_di, minus_di, trend_score)
     elif key in {"rsi14", "mfi14"}:
         field = "rsi" if key == "rsi14" else "mfi"
         value = _value(values, field, "value")
         if value is not None:
-            return _bounded_oscillator_score(value, 70.0, 30.0) if key == "rsi14" else _bounded_oscillator_score(value, 80.0, 20.0)
+            return rsi_entry_score(value) if key == "rsi14" else _bounded_oscillator_score(value, 80.0, 20.0)
     elif key == "cci14":
         value = _value(values, "cci", "value")
         if value is not None:
@@ -313,20 +316,35 @@ def _bounded_oscillator_score(value: float, high: float = 70.0, low: float = 30.
 
 
 def _momentum_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | None,
-                    context: dict[str, Any], weights: dict[str, float]) -> dict[str, Any]:
+                    context: dict[str, Any], weights: dict[str, float],
+                    direction_score: float | None = None) -> dict[str, Any]:
     rows_scored = []
+    indicator_items: dict[str, dict[str, Any]] = {}
     for key, weight in weights.items():
         lookup = "aroon25" if key == "aroon25" else "wr14" if key == "wr14" else key
         item = _find(rows, lookup, ("oscillators",))
+        if item:
+            indicator_items[key] = item
         if key == "trend":
             score = _signal_score(item) if item else None
             if score is None:
                 score = _history_trend_score(context.get("fund_history"))
         else:
-            score = _momentum_indicator_score(key, item, price)
+            score = _momentum_indicator_score(key, item, price, direction_score)
         if score is not None:
             rows_scored.append((key, score, weight))
     result = _weighted(rows_scored, sum(weights.values()))
+    for detail in result["indicators"]:
+        item = indicator_items.get(detail["key"])
+        values = _item_values(item)
+        if detail["key"] == "rsi14":
+            detail["value"] = _value(values, "rsi", "value")
+            detail["note"] = "بالاترین امتیاز RSI در محدوده ۵۰ تا ۶۰ است؛ بالای ۷۰ به‌دلیل خریدزدگی امتیاز افت می‌کند و فروش‌زدگی به‌تنهایی برگشت را تأیید نمی‌کند."
+        elif detail["key"] == "adx14":
+            adx = _value(values, "adx", "value")
+            plus_di, minus_di = _value(values, "plus_di", "pdi"), _value(values, "minus_di", "mdi")
+            detail["value"] = {"ADX": adx, "+DI": plus_di, "−DI": minus_di}
+            detail["note"] = "ADX قدرت روند را می‌سنجد؛ جهت امتیاز از DI یا از هم‌سویی میانگین‌های متحرک گرفته می‌شود."
     available = {name for name, _, _ in rows_scored}
     result["missing_indicators"] = [key for key in weights if key not in available]
     return result
@@ -663,7 +681,9 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     family = {
         "moving_averages": _trend_score(rows, price, indicator_weights["moving_averages"]),
     }
-    family["oscillators"] = _momentum_score(rows, price, context, indicator_weights["oscillators"])
+    family["oscillators"] = _momentum_score(
+        rows, price, context, indicator_weights["oscillators"],
+        direction_score=family["moving_averages"].get("score"))
     family["volume"] = _volume_score(rows, price, context, indicator_weights["volume"])
     family["support_resistance"] = _pivot_score(rows, price, indicator_weights["support_resistance"])
     entry_quality = _entry_quality_score(rows, price, context)
@@ -715,7 +735,7 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     top_negative = min(scored_families, key=lambda row: row[1]) if scored_families else None
     return {
         "technical_score": round(final_score, 1) if final_score is not None else None,
-        "score_method": f"fund_rahavard_four_group_weighted_{horizon}_v2",
+        "score_method": f"fund_rahavard_four_group_weighted_{horizon}_v3_entry_aware",
         "score_weights": {key: round(weight * 100) for key, weight in family_weights.items()},
         "indicator_weights": {
             family_key: {key: round(weight * 100, 1) for key, weight in weights.items()}

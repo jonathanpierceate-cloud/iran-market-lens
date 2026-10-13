@@ -158,7 +158,8 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     def find_values(prefix: str) -> dict[str, float]:
         for name, values in indicator_data.items():
             if name.casefold().startswith(prefix.casefold()):
-                return values
+                normalized = {str(key).strip().casefold(): value for key, value in values.items()}
+                return normalized
         return {}
 
     def nearest_level(values: list[float], *, below: bool) -> float | None:
@@ -174,7 +175,8 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
                           for key, value in (indicator_data.get(str(item.get("short_name_en") or item.get("name_en") or ""), {})).items()
                           if key.casefold().startswith("r")})
 
-    rsi = find_values("RSI").get("rsi")
+    rsi_values = find_values("RSI")
+    rsi = rsi_values.get("rsi", rsi_values.get("value"))
     family_scores = fund_model.get("family_scores") if isinstance(fund_model.get("family_scores"), dict) else {}
     moving_average_score = (family_scores.get("moving_averages") or {}).get("score")
     oscillator_score = (family_scores.get("oscillators") or {}).get("score")
@@ -204,14 +206,19 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     short_term_exit_price = round(sma10) if sma10 is not None else None
     medium_term_exit_price = round(sma50) if sma50 is not None else None
     resistance_above_price = price is None or any(value > price for value in resistances)
-    mfi = find_values("MFI").get("mfi")
-    cci = find_values("CCI").get("cci")
-    wr = find_values("WR").get("wr")
+    mfi_values = find_values("MFI")
+    mfi = mfi_values.get("mfi", mfi_values.get("value"))
+    cci_values = find_values("CCI")
+    cci = cci_values.get("cci", cci_values.get("value"))
+    wr_values = find_values("WR")
+    wr = wr_values.get("wr", wr_values.get("value"))
     so = find_values("SO")
     aroon = find_values("ARRON") or find_values("Aroon")
-    adx = find_values("ADX").get("adx")
+    adx_values = find_values("ADX")
+    adx = adx_values.get("adx", adx_values.get("value"))
     ao = find_values("AO").get("awesome")
-    stoch_rsi = find_values("StochRSI").get("stochrsi")
+    stoch_values = find_values("StochRSI")
+    stoch_rsi = stoch_values.get("stochrsi", stoch_values.get("value"))
     macd_values = find_values("MACD")
     macd_line = macd_values.get("macd")
     macd_signal = macd_values.get("signal")
@@ -331,6 +338,8 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
             "resistance": resistance_score,
             "front_resistance_count": len(front_resistances),
             "near_resistance_count": len(near_resistances),
+            "nearest_resistance_distance_pct": round(nearest_resistance_distance, 2)
+            if nearest_resistance_distance is not None else None,
         },
         "trend_probabilities": {"bullish": bullish_probability, "bearish": bearish_probability},
         "correction_risk": {
@@ -347,7 +356,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         "indicators": groups, "indicator_notes": notes,
         "indicator_count": sum(len(items) for items in groups.values()),
         "missing_indicators": missing, "scenarios": scenarios,
-        "scenario_note": "احتمال‌ها برآورد تحلیلی بر پایه عدد اندیکاتورها، روند و سطوح حمایت/مقاومت هستند؛ پیش‌بینی قطعی یا بک‌تست‌شده نیستند.",
+        "scenario_note": "درصد سناریو از شمارش سیگنال‌های Buy/Neutral/Sell در شاخص کلی ره‌آورد برآورد شده و احتمال آماریِ بک‌تست‌شده نیست.",
     }
 
 

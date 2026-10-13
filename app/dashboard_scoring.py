@@ -5,6 +5,7 @@ from typing import Any
 
 from .indicators import compute_indicators, pivot_points
 from .scoring_profiles import DASHBOARD_SCORING_PROFILES, normalize_horizon, horizon_label
+from .scoring_rules import adx_directional_score, entry_recommendation, rsi_entry_score
 
 
 DASHBOARD_SCORE_WEIGHTS = DASHBOARD_SCORING_PROFILES["long"]["family_weights"]
@@ -179,6 +180,10 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
 
     # Oscillators: RSI is one bounded vote, never the sole buy criterion.
     family = "oscillators"
+    moving_average_direction = _weighted([
+        (item["score"], weights["moving_averages"][item["name"]])
+        for item in rows["moving_averages"] if item["score"] is not None
+    ])
     rsi, mfi, stoch = val("RSI(14)"), val("MFI(14)"), val("StochRSI(14)")
     so, cci, wr = val("SO(14)"), val("CCI(14)"), val("WR(14)")
     macd, hist = val("MACD(12,26,9)"), val("MACD(12,26,9)", "histogram")
@@ -191,13 +196,7 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
             pieces.append((_signed_score(macd_diff/current, .003), .50))
         macd_score = _weighted(pieces)
     adx, pdi, mdi = val("ADX(14)"), val("ADX(14)", "plus_di"), val("ADX(14)", "minus_di")
-    adx_score = None
-    if pdi is not None and mdi is not None:
-        direction = (pdi-mdi)/max(pdi+mdi, 1)
-        strength = _clamp(((adx or 0)-10)/25, 0, 1)
-        adx_score = _clamp(50+direction*45*strength)
-    elif adx is not None:
-        adx_score = 50
+    adx_score = adx_directional_score(adx, pdi, mdi, moving_average_direction)
     up, down = val("Aroon(25)", "up"), val("Aroon(25)", "down")
     aroon_score = _clamp(50+(up-down)*.45) if up is not None and down is not None else None
     sample = closes[-20:]
@@ -219,11 +218,13 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
             score += min(8, (low-value)*.30)
         return _clamp(score)
 
+    rsi_score = rsi_entry_score(rsi) if rsi is not None else None
+
     osc_data = {
         "MACD(26)": (macd_score, macd, "MACD ۱۲/۲۶ و خط سیگنال"),
-        "RSI(14)": (osc(rsi, 70, 30), rsi, "مومنتوم نسبی؛ اشباع به‌تنهایی سیگنال خرید نیست"),
+        "RSI(14)": (rsi_score, rsi, "بالاترین امتیاز RSI در محدوده ۵۰ تا ۶۰ است؛ بالای ۷۰ به‌دلیل خریدزدگی امتیاز افت می‌کند و فروش‌زدگی به‌تنهایی برگشت را تأیید نمی‌کند"),
         "MFI(14)": (osc(mfi, 80, 20), mfi, "مومنتوم قیمت و جریان حجم"),
-        "ADX(14)": (adx_score, {"ADX": adx, "+DI": pdi, "-DI": mdi}, "قدرت روند همراه جهت DI"),
+        "ADX(14)": (adx_score, {"ADX": adx, "+DI": pdi, "-DI": mdi}, "ADX قدرت روند را می‌سنجد؛ جهت امتیاز از DI یا از هم‌سویی میانگین‌های متحرک گرفته می‌شود"),
         "StochRSI(14)": (osc(stoch, 80, 20), stoch, "شتاب RSI؛ مقدار افراطی رأی مستقل خرید نیست"),
         "Trend": (trend_score, return20, "شیب قیمت در حدود ۲۰ کندل اخیر"),
         "AO(5,34)": (_signed_score(val("AO(5,34)")/current, .003) if val("AO(5,34)") is not None and current else None,
@@ -310,10 +311,6 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
     near_resistance = min(resistances, key=lambda item: item["midpoint"], default=None)
     support_distance = (current-near_support["midpoint"])/current*100 if current and near_support else None
     resistance_distance = (near_resistance["midpoint"]-current)/current*100 if current and near_resistance else None
-    entry = ("unavailable" if total is None else "suitable" if total >= 65 and
-             (resistance_distance is None or resistance_distance >= 2) else
-             "confirmation" if total >= 48 else "unsuitable")
-
     # Keep historical realized volatility for risk only (the app's legacy RV(30)).
     realized_volatility = val("RV(30)")
     risk_value = realized_volatility if realized_volatility is not None else (
@@ -327,6 +324,17 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
     sma50 = val("SMA(50)")
     short_exit = round(sma10) if sma10 is not None else None
     medium_exit = round(sma50) if sma50 is not None else None
+    active_exit_price = short_exit if horizon == "short" else medium_exit
+    entry_assessment = entry_recommendation(
+        rsi, family_scores.get("moving_averages", {}).get("score"), total,
+        above_exit_average=(current > active_exit_price)
+        if current is not None and active_exit_price is not None else None,
+        resistance_distance_pct=resistance_distance)
+    entry_score = (_weighted([
+        (family_scores.get("moving_averages", {}).get("score"), .60),
+        (rsi_score, .40),
+    ]) if family_scores.get("moving_averages", {}).get("score") is not None and rsi_score is not None
+                   else None)
 
     positive = [{"family": key, "name": names[key], "score": family_scores[key]["score"]}
                 for key in sorted(family_scores, key=lambda k: family_scores[k]["score"] or -1, reverse=True)
@@ -385,7 +393,7 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "long_term_trend": "unavailable" if current is None or ema100 is None else "bullish" if current > ema100 else "bearish" if current < ema100 else "neutral",
         "trend_direction_score": round(total, 1) if total is not None else None,
         "trend_strength": strength, "technical_score": round(total, 1) if total is not None else None,
-        "score_method": "dashboard_rahavard_three_group_weighted_v2",
+        "score_method": "dashboard_rahavard_three_group_weighted_v3_entry_aware",
         "score_origin": "AliVest", "score_profile": model["profile"],
         "investment_horizon": horizon, "investment_horizon_label": horizon_label(horizon),
         "score_weights": {key: round(value*100) for key, value in family_weights.items()},
@@ -403,9 +411,13 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "risk": risk, "risk_score": round(risk_value, 1) if risk_value is not None else None,
         "risk_label": {"low":"کم","medium":"متوسط","high":"بالا","unavailable":"نامشخص"}[risk],
         "risk_basis": "نوسان تاریخی RV(30)، و در نبود آن تخمین از ATR(14).",
-        "entry_quality": {"score": round(total, 1) if total is not None else None, "status": entry,
-                          "label": {"suitable":"مناسب","confirmation":"نیازمند تأیید",
-                                    "unsuitable":"نامناسب","unavailable":"داده کافی نیست"}[entry]},
+        "entry_quality": {"score": round(entry_score, 1) if entry_score is not None else None,
+                          "status": entry_assessment["status"], "label": entry_assessment["label"],
+                          "reason": entry_assessment["reason"],
+                          "score_method": "۶۰٪ میانگین‌های متحرک + ۴۰٪ امتیاز RSI",
+                          "rsi": rsi,
+                          "rsi_score": round(rsi_score, 1) if rsi_score is not None else None,
+                          "moving_average_score": family_scores.get("moving_averages", {}).get("score")},
         "signal": direction, "factors": factors, "positive_evidence": positive, "negative_evidence": negative,
         "explanation": [f"{names[item['name']]}: {item['evidence']}" for item in factors],
         "breakout_confirmation_note": "شاخص‌های فاقد داده امتیاز جایگزین نمی‌گیرند.",

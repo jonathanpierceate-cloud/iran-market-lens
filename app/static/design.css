@@ -1243,6 +1243,7 @@ body.light-mode #view-funds #fund-table-grid tbody td::before { color: #6d8980; 
 .trade-level.stop { border-top: 3px solid #e57e87; }
 .trade-plan-note { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(115, 151, 151, .2); color: #b2c5c1; font-size: 13px; line-height: 1.9; }
 .trade-path-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; align-items: stretch; }
+.trade-path-grid-single { grid-template-columns: minmax(0, 1fr); }
 .trade-path { min-width: 0; padding: 15px; border: 1px solid #34515b; border-radius: 14px; background: linear-gradient(145deg, rgba(11, 27, 36, .68), rgba(13, 27, 35, .92)); }
 .trade-path.bullish { border-top: 3px solid #55c7a5; }
 .trade-path.pullback { border-top: 3px solid #e3b566; }

@@ -502,7 +502,10 @@
         const itemScore = hasScore ? Number(item.score) : NaN;
         const itemTone = !hasScore ? "unavailable" : itemScore >= 60 ? "positive" : itemScore < 45 ? "negative" : "neutral";
         const itemName = indicatorLabels[item.key] || indicatorLabels[item.name] || item.name || item.key || "شاخص";
-        return `<div class="dashboard-score-detail-row ${itemTone}" title="${esc(item.note || "")}"><span>${esc(itemName)} <small>${num(item.weight_pct, 1)}٪</small></span><b>${hasScore ? num(itemScore, 0) : "—"}</b></div>`;
+        const raw = item.value == null ? "" : typeof item.value === "object"
+          ? Object.entries(item.value).filter(([, value]) => value != null && Number.isFinite(Number(value))).map(([key, value]) => `${key} ${num(value, 1)}`).join(" · ")
+          : Number.isFinite(Number(item.value)) ? `مقدار ${num(item.value, 1)}` : "";
+        return `<div class="dashboard-score-detail-row ${itemTone}" title="${esc(item.note || "")}"><span>${esc(itemName)} <small>${num(item.weight_pct, 1)}٪${raw ? ` · ${esc(raw)}` : ""}</small></span><b>${hasScore ? num(itemScore, 0) : "—"}</b></div>`;
       }).join("");
       return `<article class="fund-family-score-card ${familyTone}">
         <div class="fund-family-score-head"><span>${label}</span><b>وزن ${num(weight, 0)}٪${Number.isFinite(effectiveWeight) && Math.abs(effectiveWeight - weight) >= 0.1 ? ` · مؤثر ${num(effectiveWeight, 1)}٪` : ""}</b></div>
@@ -541,7 +544,7 @@
       <div class="fund-model-score-head">
         <div><span class="recommendation-kicker">مدل ${horizonName} AliVest · محاسبه بر پایه داده‌های ره‌آورد</span>
           <h3>امتیاز تکنیکال صندوق: <strong>${validScore ? `${num(score, 0)} از ۱۰۰` : "داده کافی نیست"}</strong></h3>
-          <p>${scoreWeightText}. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · RSI به‌تنهایی مبنای خرید نیست.</p>
+          <p>${scoreWeightText}. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · RSI در ۵۰–۶۰ امتیاز اندیکاتوری بیشتری می‌گیرد؛ خرید یا افزایش حجم فقط با RSI بین ۴۵–۶۵ و امتیاز میانگین و کل حداقل ۶۰ بررسی می‌شود. RSI بالای ۷۰ خریدزدگی است؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p>
         </div>
         <div class="fund-model-meta">
           <span>پوشش کل داده‌ها <b>${Number.isFinite(coverage) ? `${num(coverage, 0)}٪` : "—"}</b></span>
@@ -573,7 +576,8 @@
     const trend = trendLabels[a.trend || a.medium_term_trend] || "داده کافی نیست";
     const strength = strengthLabels[a.trend_strength] || "نامشخص";
     const risk = riskLabels[a.risk] || "نامشخص";
-    const entry = entryLabels[a.entry_quality?.status] || "داده کافی نیست";
+    const entry = a.entry_quality?.label || entryLabels[a.entry_quality?.status] || "داده کافی نیست";
+    const entryReason = [a.entry_quality?.score_method, a.entry_quality?.reason].filter(Boolean).join(" · ");
     const scoreWeightText = "مدل " + horizonName + " · میانگین متحرک " + num(weights.moving_averages ?? 0, 0) + "٪ · نوسان‌گر " + num(weights.oscillators ?? 0, 0) + "٪ · حمایت و مقاومت " + num(weights.support_resistance ?? 0, 0) + "٪";
     const familyDefinitions = [
       { key: "moving_averages", label: "میانگین متحرک", description: "EMA، SMA، ایچیموکو و باندها" },
@@ -590,7 +594,10 @@
       const detailRows = details.map((item) => {
         const hasScore = finite(item.score);
         const itemTone = !hasScore ? "unavailable" : Number(item.score) >= 60 ? "positive" : Number(item.score) < 45 ? "negative" : "neutral";
-        return "<div class=\"dashboard-score-detail-row " + itemTone + "\" title=\"" + esc(item.note || "") + "\"><span>" + esc(item.name) + " <small>" + num(item.weight_pct, 1) + "٪</small></span><b>" + (hasScore ? num(item.score, 0) : "—") + "</b></div>";
+        const raw = item.value == null ? "" : typeof item.value === "object"
+          ? Object.entries(item.value).filter(([, value]) => value != null && finite(value)).map(([key, value]) => key + " " + num(value, 1)).join(" · ")
+          : finite(item.value) ? "مقدار " + num(item.value, 1) : "";
+        return "<div class=\"dashboard-score-detail-row " + itemTone + "\" title=\"" + esc(item.note || "") + "\"><span>" + esc(item.name) + " <small>" + num(item.weight_pct, 1) + "٪" + (raw ? " · " + esc(raw) : "") + "</small></span><b>" + (hasScore ? num(item.score, 0) : "—") + "</b></div>";
       }).join("");
       const missing = Array.isArray(family.missing_indicators) ? family.missing_indicators.length : 0;
       const effective = finite(effectiveWeights[factor.key]) ? " · وزن مؤثر " + num(effectiveWeights[factor.key], 1) + "٪" : "";
@@ -615,11 +622,11 @@
     return "<section class=\"fund-recommendation " + scoreTone + " fund-model-recommendation dashboard-model-recommendation\">" +
       "<div class=\"fund-model-score-head\"><div><span class=\"recommendation-kicker\">مدل " + horizonName + " · امتیاز اختصاصی AliVest بر پایهٔ داده‌های ره‌آورد</span>" +
       "<h3>امتیاز تکنیکال: <strong>" + (scoreValue == null ? "داده کافی نیست" : num(scoreValue, 0) + " از ۱۰۰") + "</strong> · " + (bandLabels[a.score_band] || "نامشخص") + "</h3>" +
-      "<p>" + scoreWeightText + " · وزن شاخص‌های بی‌داده در گروه متناسب می‌شود؛ RSI به‌تنهایی مبنای خرید نیست.</p></div>" +
+      "<p>" + scoreWeightText + " · RSI در محدوده ۵۰–۶۰ امتیاز اندیکاتوری بیشتری می‌گیرد؛ خرید یا افزایش حجم فقط با RSI بین ۴۵–۶۵ و امتیاز میانگین و کل حداقل ۶۰ بررسی می‌شود. RSI بالای ۷۰ خریدزدگی است؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p></div>" +
       "<div class=\"fund-model-meta\"><span>قیمت فعلی <b>" + price + "</b></span><span>تغییر روزانه <b>" + daily + "</b></span>" +
       "<span>جهت " + horizonName + " <b>" + trend + "</b></span><span>قدرت روند <b>" + strength + "</b></span>" +
       "<span>ریسک نوسان <b>" + risk + (finite(a.risk_score) ? " · " + num(a.risk_score, 0) : "") + "</b></span>" +
-      "<span>ارزیابی خرید <b>" + entry + (finite(a.entry_quality?.score) ? " · امتیاز کل " + num(a.entry_quality.score, 0) : "") + "</b></span>" +
+      "<span title=\"" + esc(entryReason) + "\">ارزیابی خرید <b>" + entry + (finite(a.entry_quality?.score) ? " · کیفیت ورود " + num(a.entry_quality.score, 0) : "") + "</b></span>" +
       "<span>پوشش داده <b>" + (finite(a.data_coverage_pct) ? num(a.data_coverage_pct, 0) + "٪" : "—") + "</b></span>" +
       "<span>به‌روزرسانی <b>" + esc(formatDate(a.data_timestamp)) + "</b></span></div></div>" +
       "<div class=\"fund-family-score-grid\">" + familyCards + "</div>" +
@@ -860,8 +867,31 @@
         ? "با دریافت دادهٔ SMA(50)، حد خروج میان‌مدت مشخص می‌شود."
         : `اگر سطح ${money(lastAllowedPullback)} با فشار فروش شکسته شد، پله‌های بعدی را اجرا نکن و قاعدهٔ حد ضرر SMA(50) را رعایت کن.`,
     });
+    const scenarios = Array.isArray(a?.scenarios) ? a.scenarios : [];
+    const scenarioProbability = (direction) => {
+      const scenario = scenarios.find((item) => item?.direction === direction);
+      if (scenario?.probability == null) return null;
+      const value = Number(scenario?.probability);
+      return Number.isFinite(value) ? value : null;
+    };
+    const bullishProbability = scenarioProbability("bullish");
+    const bearishProbability = scenarioProbability("bearish");
+    const preferredDirection = bullishProbability != null && bearishProbability != null
+      ? (bullishProbability > bearishProbability ? "bullish" : bearishProbability > bullishProbability ? "pullback" : "neutral")
+      : a?.trend === "bullish" ? "bullish" : "pullback";
+    const chosenPath = preferredDirection === "bullish" ? bullishPath
+      : preferredDirection === "pullback" ? pullbackPath
+      : `<div class="trade-path-empty">برآورد صعود و نزول برابر است؛ فعلاً هیچ‌یک از دو مسیر خرید برتری ندارد.</div>`;
+    const chosenProbability = preferredDirection === "bullish" ? bullishProbability : bearishProbability;
+    const chosenScenarioLabel = preferredDirection === "bullish" ? "صعودی"
+      : preferredDirection === "pullback" ? "نزولی / پولبک" : "خنثی";
     const fallbackNote = (!measuredResistance || !measuredSupport) ? " هرجا سطح رسمی حمایت یا مقاومت موجود نبوده، سطح جایگزین با دامنه نوسان قیمت برآورد شده است." : "";
-    return `<section class="trade-plan"><div class="trade-plan-head"><div><span class="panel-kicker">برنامه ورود و مدیریت ریسک</span><h3>پله‌های خرید دقیق</h3><p>دو مسیر جایگزین‌اند؛ فقط مسیری را اجرا کن که شرط شروعش برقرار شده باشد.</p></div><span class="trade-plan-badge">${priceBadge}: ${money(price)}</span></div>${exitManagementHtml(a)}<div class="trade-path-grid">${bullishPath}${pullbackPath}</div><p class="trade-plan-note">سطوح ورود با قیمت، حمایت/مقاومت و ATR ره‌آورد محاسبه می‌شوند و با تازه‌شدن داده تغییر می‌کنند.${fallbackNote}</p></section>`;
+    const selectedScenarioText = preferredDirection === "neutral"
+      ? `برآورد صعود و نزول برابر است (${num(chosenProbability, 0)}٪)؛ درصدها از شمارش سیگنال‌های Buy/Neutral/Sell ره‌آورد می‌آیند و احتمال آماریِ آزموده‌شده نیستند.`
+      : bullishProbability != null && bearishProbability != null
+        ? `مسیر ${chosenScenarioLabel} با برآورد بالاتر انتخاب شده (${num(chosenProbability, 0)}٪)؛ درصد از شمارش سیگنال‌های Buy/Neutral/Sell ره‌آورد می‌آید و احتمال آماریِ آزموده‌شده نیست.`
+        : `مسیر ${chosenScenarioLabel} بر اساس جهت روند انتخاب شده؛ دادهٔ کافی برای مقایسهٔ برآورد دو سناریو نداریم.`;
+    return `<section class="trade-plan"><div class="trade-plan-head"><div><span class="panel-kicker">برنامه ورود و مدیریت ریسک</span><h3>پله‌های خرید پیشنهادی</h3><p>${selectedScenarioText}</p></div><span class="trade-plan-badge">${priceBadge}: ${money(price)}</span></div>${exitManagementHtml(a)}<div class="trade-path-grid trade-path-grid-single">${chosenPath}</div><p class="trade-plan-note">سطوح ورود با قیمت، حمایت/مقاومت و ATR ره‌آورد محاسبه می‌شوند و با تازه‌شدن داده تغییر می‌کنند.${fallbackNote}</p></section>`;
   }
 
   function pivotTableHtml(pivots, currentPrice = null) {
