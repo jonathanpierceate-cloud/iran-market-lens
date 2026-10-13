@@ -1528,7 +1528,7 @@ body.light-mode #view-watchlist .watchlist-summary-card.neutral b { color: #876d
   #view-watchlist .watchlist-table tbody { display: grid; gap: 10px; width: 100%; padding: 10px; }
   #view-watchlist .watchlist-table tbody tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 12px; width: 100%; padding: 5px 12px; border: 1px solid #30454b; border-radius: 14px; background: linear-gradient(145deg, #1c2b32, #17252c); box-shadow: 0 7px 18px rgba(0, 0, 0, .1); }
   #view-watchlist .watchlist-table th,
-  #view-watchlist .watchlist-table td { display: grid; width: auto; min-width: 0; max-width: none; padding: 9px 0; border-left: 0; text-align: right; white-space: normal; }
+  #view-watchlist .watchlist-table td { display: grid; width: auto !important; min-width: 0; max-width: none; padding: 9px 0; border-left: 0; text-align: right; white-space: normal; }
   #view-watchlist .watchlist-table th { display: none; }
   #view-watchlist .watchlist-table td { align-content: start; gap: 4px; border-bottom: 1px solid #293b41; }
   #view-watchlist .watchlist-table td::before { display: block; content: attr(data-label); color: #9db1af; font-size: 11px; line-height: 1.5; }
