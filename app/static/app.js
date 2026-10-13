@@ -1459,7 +1459,7 @@
         ? Number(item.price) * Number(item.units) : null;
       const exitAverage = item.active_exit_average || (item.active_exit_horizon === "کوتاه‌مدت" ? "SMA(10)" : "SMA(50)");
       return `<tr>
-        <td data-label="نماد"><div class="watchlist-symbol-cell"><button class="watch-fund-open${custom ? " watch-fund-open-unavailable" : ""}" type="button" ${openAttrs} aria-label="${custom ? "دادهٔ تحلیلی موجود نیست" : "مشاهده تحلیل"} ${esc(item.name)}"><i aria-hidden="true"></i><strong>${esc(item.name || item.symbol || "—")}</strong></button><button class="watch-remove" type="button" data-watch-remove="${esc(item.fund_key)}" aria-label="حذف ${esc(item.name)} از دیده‌بان" title="حذف از دیده‌بان">×</button></div></td>
+        <td data-label="نماد"><div class="watchlist-symbol-cell"><button class="watch-fund-open${custom ? " watch-fund-open-unavailable" : ""}" type="button" ${openAttrs} aria-label="${custom ? "دادهٔ تحلیلی موجود نیست" : "مشاهده تحلیل"} ${esc(item.name)}"><i aria-hidden="true"></i><strong>${esc(item.name || item.symbol || "—")}</strong></button></div></td>
         <td data-label="تعداد"><span class="watch-cell-primary">${num(item.units, 0)}</span></td>
         <td data-label="قیمت سربه‌سر"><span class="watch-cell-primary">${money(item.break_even_price)}</span></td>
         <td data-label="ارزش فعلی"><span class="watch-cell-primary">${money(marketValue)}</span></td>
@@ -1650,18 +1650,9 @@
   });
   $("#watchlist-items").addEventListener("click", async (event) => {
     const open = event.target.closest("[data-watch-open]");
-    if (open) {
-      await openView("funds");
-      await showFund(open.dataset.watchOpen);
-      return;
-    }
-   const button = event.target.closest("[data-watch-remove]");
-   if (!button) return;
-    try {
-      await api(`/api/watchlist/${encodeURIComponent(button.dataset.watchRemove)}`, { method: "DELETE" });
-      toast("صندوق از دیده‌بان حذف شد");
-      await loadWatchlist();
-    } catch (err) { toast(`حذف صندوق انجام نشد: ${err.message}`, true); }
+    if (!open) return;
+    await openView("funds");
+    await showFund(open.dataset.watchOpen);
   });
   $("#watchlist-refresh").addEventListener("click", async (event) => {
     const button = event.currentTarget;

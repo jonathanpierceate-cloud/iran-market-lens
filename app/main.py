@@ -1362,13 +1362,6 @@ def add_watchlist_item(data: WatchlistAddInput):
             "created": not existed}
 
 
-@app.delete("/api/watchlist/{fund_key}")
-def delete_watchlist_item(fund_key: str):
-    if not db.remove_watchlist_item(fund_key):
-        raise HTTPException(status_code=404, detail="این صندوق در دیده‌بان نیست")
-    return {"deleted": True, "fund_key": fund_key}
-
-
 @app.get("/api/funds/{symbol}")
 async def fund_detail(symbol: str, horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)

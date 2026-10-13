@@ -1484,16 +1484,13 @@ body.light-mode .admin-log-body p { color: #5d756d; }
 #view-watchlist .watchlist-table tbody tr:nth-child(even) { background: #242c37; }
 #view-watchlist .watchlist-table tbody tr:hover { background: #323d49; }
 #view-watchlist .watchlist-table tbody tr:last-child td { border-bottom: 0; }
-#view-watchlist .watchlist-symbol-cell { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+#view-watchlist .watchlist-symbol-cell { display: flex; align-items: center; justify-content: flex-start; gap: 7px; }
 #view-watchlist .watch-fund-open { display: inline-flex; align-items: center; gap: 8px; min-width: 0; padding: 3px 0; border: 0; background: transparent; color: #fff; text-align: right; }
 #view-watchlist .watch-fund-open:hover,
 #view-watchlist .watch-fund-open:focus-visible { color: #b7ead9; outline: none; }
 #view-watchlist .watch-fund-open i { width: 9px; height: 9px; flex: 0 0 9px; border-radius: 3px; background: #22c69a; }
 #view-watchlist .watch-fund-open strong { overflow: hidden; color: inherit; font-size: 12px; font-weight: 700; text-overflow: ellipsis; }
 #view-watchlist .watch-fund-open-unavailable { opacity: .68; cursor: default; }
-#view-watchlist .watch-remove { flex: 0 0 auto; padding: 2px 5px; border: 0; background: transparent; color: #8390a3; font-size: 17px; line-height: 1; opacity: .45; }
-#view-watchlist .watch-remove:hover,
-#view-watchlist .watch-remove:focus-visible { color: #ff9ca7; opacity: 1; }
 #view-watchlist .watch-cell-primary { display: block; color: #f1f3f7; font: 600 12px 'DM Mono', monospace; direction: ltr; unicode-bidi: isolate; }
 #view-watchlist .watch-cell-secondary { display: block; margin-top: 2px; color: #9aa6b6; font: 500 11px 'DM Mono', monospace; direction: ltr; unicode-bidi: isolate; }
 #view-watchlist .watch-cell-secondary.positive,
@@ -1534,7 +1531,6 @@ body.light-mode #view-watchlist .watchlist-summary-card.neutral b { color: #876d
   #view-watchlist .watchlist-table td::before { display: none; content: none; }
   #view-watchlist .watchlist-table th,
   #view-watchlist .watchlist-table td { padding: 10px 8px; }
-  #view-watchlist .watch-remove { opacity: .8; }
 }
 @media (max-width: 380px) {
   #view-watchlist .watchlist-summary { padding: 11px; }
