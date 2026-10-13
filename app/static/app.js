@@ -462,12 +462,12 @@
       support_resistance: ["حمایت و مقاومت", "پیوت‌ها و فاصلهٔ قیمت تا سطوح"]
     };
     const indicatorLabels = {
-      ema50: "EMA(50)", ema20: "EMA(20)", ichimoku: "Ichimoku Cloud (9, 26, 52, 26)",
+      ema50: "EMA(50)", ema20: "EMA(20)", ichimoku: "Ichimoku Cloud",
       ema100: "EMA(100)", bb20: "BB(20)", sma50: "SMA(50)", sma20: "SMA(20)",
       ema10: "EMA(10)", sma100: "SMA(100)", keltner16: "KELTNER(16)", ema30: "EMA(30)",
       sma10: "SMA(10)", sma30: "SMA(30)", ema5: "EMA(5)", sma5: "SMA(5)",
       macd26: "MACD(26)", rsi14: "RSI(14)", mfi14: "MFI(14)", adx14: "ADX(14)",
-      stochrsi14: "StochRSI(14)", trend: "Trend", ao534: "AO(5, 34)", so14: "SO(14)",
+      stochrsi14: "StochRSI(14)", trend: "Trend", ao534: "AO(5,34)", so14: "SO(14)",
       aroon25: "AROON(25)", cci14: "CCI(14)", mtm6: "MTM(6)", wr14: "WR(14)",
       obv20: "OBV(20)", sm15: "SM(15)", rv30: "RV(30)", rv90: "RV(90)",
       vmacd26: "VMACD(26)", vrsi14: "VRSI(14)", rv15: "RV(15)",
