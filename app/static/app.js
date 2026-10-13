@@ -648,7 +648,7 @@
     if (a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")) {
       return dashboardModelRecommendationHtml(a);
     }
-    if (a?.score_method?.startsWith("fund_rahavard_four_group_weighted_") && a.family_scores) {
+    if ((a?.score_method?.startsWith("fund_rahavard_four_group_weighted_") || a?.score_method?.startsWith("fund_tsetmc_four_group_weighted_")) && a.family_scores) {
       return fundModelRecommendationHtml(a);
     }
     const gauge = a.site_gauges?.main || {};
@@ -943,7 +943,7 @@
       neutral: ["خنثی", "neutral"], overbought: ["خریدزدگی · احتیاط", "caution"],
       oversold: ["فروش‌زدگی · احتمال برگشت", "neutral"], resistance: ["مقاومت", "caution"],
       support: ["حمایت", "neutral"], highvolume: ["حجم بالا · بدون جهت", "neutral"],
-      lowvolume: ["حجم پایین · تأیید ضعیف‌تر", "neutral"]
+      lowvolume: ["حجم پایین · تأیید ضعیف‌تر", "neutral"], unavailable: ["محاسبه نشد", "unknown"]
     };
     const groups = a.indicators || {};
     const notes = new Map((a.indicator_notes || []).map((x) => [x.name, x]));
@@ -974,7 +974,13 @@
         const rendered = percentValue ? pct(val * 100) : num(val, priceIndicator ? 0 : 2);
         return `<div class="rahavard-indicator-value"><span>${esc(valueNames[key] || part.long_name_en || key)}</span><b>${rendered}</b></div>`;
       }).join("");
-      return `<article class="indicator-card rahavard-indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(groupNames[group] || group)}</small></div><span class="indicator-status ${state}">${esc(signalLabel)}</span></div><div class="rahavard-indicator-values">${values || `<span class="factor-foot">مقداری در پاسخ ره‌آورد نبود.</span>`}</div><p>${esc(indicatorNumericSummary(name, item))}</p><div class="indicator-range-guide"><b>این شاخص چه می‌گوید؟</b><span>${esc(indicatorPlainMeaning(name))}</span></div></article>`;
+      const noValueNote = a.indicator_source === "TSETMC"
+        ? name === "SM(15)" ? "فرمول این شاخص مشخص نیست و از امتیاز حذف شده است." : "دادهٔ کافی برای محاسبهٔ این شاخص موجود نیست."
+        : "مقداری در پاسخ ره‌آورد نبود.";
+      const numericSummary = a.indicator_source === "TSETMC" && name === "SM(15)"
+        ? "در این آزمایش به‌دلیل مشخص نبودن فرمول، محاسبه نشده است."
+        : indicatorNumericSummary(name, item);
+      return `<article class="indicator-card rahavard-indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(groupNames[group] || group)}</small></div><span class="indicator-status ${state}">${esc(signalLabel)}</span></div><div class="rahavard-indicator-values">${values || `<span class="factor-foot">${esc(noValueNote)}</span>`}</div><p>${esc(numericSummary)}</p><div class="indicator-range-guide"><b>این شاخص چه می‌گوید؟</b><span>${esc(note.meaning || indicatorPlainMeaning(name))}</span></div></article>`;
     }));
     const gaugeCards = ["main", "pivot", "volume"].map((key) => {
       const gauge = a.site_gauges?.[key];
@@ -990,14 +996,16 @@
     const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
     const dashboardModel = a.score_method?.startsWith("dashboard_rahavard_three_group_weighted_");
     const tradePlan = dashboardModel ? exitManagementHtml(a) : tradePlanHtml(a);
+    const indicatorSourceName = a.indicator_source === "TSETMC" ? "TSETMC" : "ره‌آورد۳۶۵";
     const indicatorSource = a.indicator_source_url
-      ? ` · <a href="${esc(a.indicator_source_url)}" target="_blank" rel="noopener">منبع اندیکاتورها: ره‌آورد۳۶۵</a>` : "";
+      ? ` · <a href="${esc(a.indicator_source_url)}" target="_blank" rel="noopener">منبع اندیکاتورها: ${esc(indicatorSourceName)}</a>` : ` · منبع اندیکاتورها: ${esc(indicatorSourceName)}`;
     const indicatorTime = a.indicator_data_timestamp ? ` · دریافت ${esc(formatDate(a.indicator_data_timestamp))}` : "";
-    return `${overview}${tradePlan}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی${indicatorSource}${indicatorTime}</p></div></div>${pivotTable}<div class="indicator-readouts">${gaugeCards}</div><div class="indicator-card-grid">${cards.join("")}${missing}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
+    const signalDescription = a.indicator_source === "TSETMC" ? "سیگنال محاسبه‌شده" : "سیگنال رسمی";
+    return `${overview}${tradePlan}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و ${signalDescription}${indicatorSource}${indicatorTime}</p></div></div>${pivotTable}<div class="indicator-readouts">${gaugeCards}</div><div class="indicator-card-grid">${cards.join("")}${missing}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
 
   function analysisHtml(a) {
-    if (a?.source === "Rahavard365" && (a?.indicator_source === "Rahavard365" || !a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_"))) return rahavardAnalysisHtml(a);
+    if (a?.indicator_source === "TSETMC" || (a?.source === "Rahavard365" && (a?.indicator_source === "Rahavard365" || !a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")))) return rahavardAnalysisHtml(a);
     if (!a || a.technical_score == null) return `<div class="empty-state compact"><b>داده کافی برای محاسبه امتیاز موجود نیست</b><small>مدل فقط داده ذخیره‌شده از منبع را تحلیل می‌کند.</small></div>`;
     const all = a.indicators?.indicators || {};
     const seen = new Set();
@@ -1490,7 +1498,7 @@
         const rendered = typeof value === "number" ? money(value) : text(value);
         return `<div class="property"><span>${label}</span><b>${esc(rendered)}</b></div>`;
       }).join("");
-      section.innerHTML = `<div class="fund-detail-head"><div><span class="panel-kicker">نمایه صندوق · ${esc(displaySymbol)}</span><h2>${esc(f.name || displaySymbol)}</h2><p>فهرست، قیمت، NAV و اندیکاتورهای رسمی ره‌آورد۳۶۵ · داده تا ${esc(formatDate(f.data_timestamp))}</p></div><button class="icon-button" data-close-fund aria-label="بستن">×</button></div><div class="fund-detail-body"><div><div class="fund-properties">${propsHtml}</div></div><div><h3>داده‌های تکمیلی</h3><p class="fund-chart-caption">تاریخچه و NAV از ره‌آورد دریافت شده‌اند و برای تحلیل شاخص‌ها استفاده می‌شوند.</p><div class="source-line">منبع: ره‌آورد۳۶۵ · ${nf.format(data.history?.length || 0)} مشاهده قیمت · ${nf.format(data.nav_history?.length || 0)} مشاهدهٔ NAV</div><a class="button button-quiet" href="/api/funds/${encodeURIComponent(symbol)}/history" target="_blank" rel="noopener">مشاهدهٔ دادهٔ خام قیمت و NAV</a></div></div><div class="fund-analysis-full"><h3>تحلیل تکنیکال ره‌آورد</h3>${analysisHtml(a)}</div>`;
+      section.innerHTML = `<div class="fund-detail-head"><div><span class="panel-kicker">نمایه صندوق · ${esc(displaySymbol)}</span><h2>${esc(f.name || displaySymbol)}</h2><p>فهرست، قیمت و NAV از ره‌آورد۳۶۵ · داده تا ${esc(formatDate(f.data_timestamp))}</p></div><button class="icon-button" data-close-fund aria-label="بستن">×</button></div><div class="fund-detail-body"><div><div class="fund-properties">${propsHtml}</div></div><div><h3>داده‌های تکمیلی</h3><p class="fund-chart-caption">تاریخچهٔ نمودار و NAV از ره‌آورد دریافت شده‌اند؛ محاسبات تحلیل تکنیکال از داده‌های روزانهٔ TSETMC انجام می‌شوند.</p><div class="source-line">قیمت و NAV: ره‌آورد۳۶۵ · ${nf.format(data.history?.length || 0)} مشاهده قیمت · ${nf.format(data.nav_history?.length || 0)} مشاهدهٔ NAV · اندیکاتورها: TSETMC</div><a class="button button-quiet" href="/api/funds/${encodeURIComponent(symbol)}/history" target="_blank" rel="noopener">مشاهدهٔ دادهٔ خام قیمت و NAV</a></div></div><div class="fund-analysis-full"><h3>تحلیل تکنیکال TSETMC</h3>${analysisHtml(a)}</div>`;
       section.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
       toast(`نمایه صندوق باز نشد: ${err.message}`, true);

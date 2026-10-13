@@ -412,3 +412,119 @@ def compute_indicators(bars: list[dict[str, Any]]) -> dict[str, Any]:
         "adx": chart_values(adx),
     }
     return output
+
+
+def tsetmc_fund_indicator_groups(bars: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build the fund-scoring indicator groups from TSETMC daily OHLCV bars."""
+    computed = compute_indicators(bars)
+    raw = computed.get("indicators") or {}
+
+    def item(name: str, values: dict[str, Any], signal: str | None) -> dict[str, Any]:
+        parts = []
+        for key, value in values.items():
+            try:
+                number = float(value)
+                if math.isfinite(number):
+                    parts.append({"name": key, "value": number})
+            except (TypeError, ValueError, OverflowError):
+                continue
+        return {"short_name_en": name, "name_en": name,
+                "signal": signal if parts else "unavailable", "value": parts}
+
+    def measured(name: str, display_name: str, extra: dict[str, str] | None = None) -> dict[str, Any]:
+        record = raw.get(name) or {}
+        values = {"value": record.get("value"), "previous_value": record.get("previous_value")}
+        for source_name, output_name in (extra or {}).items():
+            values[output_name] = record.get(source_name)
+        return item(display_name, values, record.get("signal"))
+
+    oscillators = [
+        measured("RSI(14)", "RSI(14)", {"value": "rsi"}),
+        measured("MACD(12,26,9)", "MACD(26)", {"value": "macd", "signal_line": "signal", "histogram": "histogram"}),
+        measured("MFI(14)", "MFI(14)", {"value": "mfi"}),
+        measured("ADX(14)", "ADX(14)", {"value": "adx", "plus_di": "plus_di", "minus_di": "minus_di"}),
+        measured("StochRSI(14)", "StochRSI(14)", {"value": "stochrsi"}),
+        measured("AO(5,34)", "AO(5,34)", {"value": "awesome"}),
+        measured("ARRON(25)", "AROON(25)", {"value": "value", "up": "up", "down": "down"}),
+        measured("CCI(14)", "CCI(14)", {"value": "cci"}),
+        measured("SO(14)", "SO(14)", {"value": "value", "%K": "k", "%D": "d"}),
+        measured("MTM(6)", "MTM(6)", {"value": "mtm"}),
+        measured("WR(14)", "WR(14)", {"value": "wr"}),
+    ]
+
+    closes = [float(bar["close"]) for bar in bars if bar.get("close") is not None]
+    trend_signal = "unavailable"
+    trend_value = None
+    if len(closes) >= 20 and all(value > 0 for value in closes[-20:]):
+        log_values = [math.log(value) for value in closes[-20:]]
+        x_mean = 9.5
+        y_mean = sum(log_values) / len(log_values)
+        denominator = sum((index - x_mean) ** 2 for index in range(20))
+        slope = sum((index - x_mean) * (value - y_mean)
+                    for index, value in enumerate(log_values)) / denominator
+        trend_value = 50 + 50 * math.tanh(slope / 0.004)
+        trend_signal = "bullish" if trend_value >= 55 else "bearish" if trend_value <= 45 else "neutral"
+    oscillators.insert(5, item("Trend", {"value": trend_value}, trend_signal))
+
+    moving_averages = []
+    for period in (5, 10, 20, 30, 50, 100):
+        moving_averages.append(measured(f"EMA({period})", f"EMA({period})"))
+        moving_averages.append(measured(f"SMA({period})", f"SMA({period})"))
+    cloud = raw.get("Ichimoku(9,26,52,26)") or {}
+    moving_averages.append(item("Ichimoku Cloud", {
+        "tenkan_sen_formula": cloud.get("tenkan"),
+        "kijun_sen_formula": cloud.get("kijun"),
+        "senkou_span_a_formula": cloud.get("senkou_a_at_current"),
+        "senkou_span_b_formula": cloud.get("senkou_b_at_current"),
+    }, cloud.get("signal")))
+
+    bands = [
+        measured("BB(20)", "BB(20)", {"value": "middle"}),
+        measured("KELTNER(16)", "KELTNER(16)", {"value": "middle"}),
+    ]
+
+    pivot_window = [bar for bar in bars if bar.get("close") is not None][-30:]
+    pivot_levels = {}
+    if len(pivot_window) >= 30:
+        pivot_high = max(float(bar.get("high") or bar["close"]) for bar in pivot_window)
+        pivot_low = min(float(bar.get("low") or bar["close"]) for bar in pivot_window)
+        pivot_close = float(pivot_window[-1]["close"])
+        pivot_open = float(pivot_window[0].get("open") or pivot_window[0]["close"])
+        pivot_levels = pivot_points(pivot_high, pivot_low, pivot_close, pivot_open)
+    pivots = []
+    for method in ("Fibonacci", "Classic", "Camarilla", "Woodie", "DeMark"):
+        levels = pivot_levels.get(method) or {}
+        pivots.append(item(f"PivotPoint{method}(30)", levels,
+                           "neutral" if levels else "unavailable"))
+
+    volumes = []
+    obv = raw.get("OBV(20)") or {}
+    volumes.append(item("OBV(20)", {
+        "obv": obv.get("value"), "obv_sma20": obv.get("obv_sma20"),
+        "previous_value": obv.get("previous_value"),
+    }, obv.get("signal")))
+
+    usable_bars = [bar for bar in bars if bar.get("close") is not None]
+    volume_values = [float(bar.get("volume") or 0) for bar in usable_bars]
+    for period in (15, 30, 90):
+        current_volume = volume_values[-1] if volume_values else 0
+        baseline = volume_values[-period-1:-1]
+        average = sum(baseline) / len(baseline) if baseline else 0
+        ratio = current_volume / average if average > 0 else None
+        signal = "highvolume" if ratio is not None and ratio >= 1.2 else \
+                 "lowvolume" if ratio is not None and ratio <= 0.8 else "neutral"
+        volumes.append(item(f"RV({period})", {"relative_volume": ratio, "ratio": ratio,
+                                               "value": ratio}, signal))
+
+    volumes.append(measured("VRSI(14)", "VRSI(14)", {"value": "vrsi", "rsi": "rsi"}))
+    volume_macd = raw.get("VMACD(12,26)") or {}
+    volumes.append(item("VMACD(26)", {"vmacd": volume_macd.get("value"),
+                                        "macd": volume_macd.get("value"),
+                                        "value": volume_macd.get("value")}, volume_macd.get("signal")))
+    volumes.append(item("SM(15)", {}, "unavailable"))
+
+    return {"data": {"oscillators": oscillators,
+                     "moving_averages": moving_averages,
+                     "pivots": pivots, "bands": bands, "volumes": volumes},
+            "source": "TSETMC", "observations": computed.get("observations"),
+            "data_status": computed.get("data_status")}

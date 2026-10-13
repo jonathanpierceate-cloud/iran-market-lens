@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 import time
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -27,6 +28,11 @@ from .db import db, utc_now
 
 YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 RAHAVARD_URL = "https://rahavard365.com"
+TSETMC_API_BASE = "https://cdn.tsetmc.com/api"
+TSETMC_WEB_URL = "https://tsetmc.com/"
+TSETMC_HISTORY_TTL_SECONDS = 900
+TSETMC_HISTORY_CACHE: dict[str, tuple[float, list[dict[str, Any]]]] = {}
+TSETMC_INSTRUMENT_CACHE: dict[str, tuple[float, dict[str, str]]] = {}
 
 
 class SourceError(RuntimeError):
@@ -773,3 +779,127 @@ async def fetch_fund_indicators(symbol: str) -> dict[str, Any]:
         db.save_source("rahavard_indicators", "اندیکاتورهای صندوق / ره‌آورد۳۶۵", "failed",
                        url, None, str(exc)[:400], int((time.monotonic() - tick) * 1000))
         raise
+
+
+def _normalize_tsetmc_symbol(value: Any) -> str:
+    normalized = unicodedata.normalize("NFKC", str(value or "")).strip()
+    normalized = normalized.translate(str.maketrans({"ي": "ی", "ك": "ک", "ۀ": "ه", "ة": "ه"}))
+    return "".join(char for char in normalized if not char.isspace() and char not in "\u200c\u200f\u200e\ufeff")
+
+
+def _tsetmc_instrument(ticker: str) -> dict[str, str]:
+    normalized_ticker = _normalize_tsetmc_symbol(ticker)
+    if not normalized_ticker:
+        raise SourceError("نماد معاملاتی صندوق برای جست‌وجو در TSETMC موجود نیست")
+    cached = TSETMC_INSTRUMENT_CACHE.get(normalized_ticker)
+    if cached and time.monotonic() - cached[0] < 24 * 60 * 60:
+        return cached[1]
+
+    query = urllib.parse.quote(str(ticker).strip(), safe="")
+    url = f"{TSETMC_API_BASE}/Instrument/GetInstrumentSearch/{query}"
+    payload = _json(url, referer=TSETMC_WEB_URL)
+    rows = payload.get("instrumentSearch") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        raise SourceError("ساختار جست‌وجوی نماد در TSETMC قابل شناسایی نیست")
+    exact = [row for row in rows if isinstance(row, dict)
+             and _normalize_tsetmc_symbol(row.get("lVal18AFC")) == normalized_ticker
+             and str(row.get("insCode") or "").isdigit()]
+    fund_like = [row for row in exact if any(marker in str(row.get("lVal30") or "")
+                                              for marker in ("صندوق", "ص.س.", "ص.س"))]
+    candidates = fund_like if len(fund_like) == 1 else exact
+    if len(candidates) != 1:
+        reason = "نماد دقیق صندوق در TSETMC پیدا نشد" if not candidates else "نماد دقیق صندوق در TSETMC مبهم است"
+        raise SourceError(f"{reason}: {ticker}")
+    row = candidates[0]
+    instrument = {
+        "ticker": str(row.get("lVal18AFC") or ticker).strip(),
+        "instrument_code": str(row["insCode"]),
+        "instrument_name": str(row.get("lVal30") or ticker).strip(),
+        "search_url": url,
+    }
+    TSETMC_INSTRUMENT_CACHE[normalized_ticker] = (time.monotonic(), instrument)
+    return instrument
+
+
+def tsetmc_fund_history(ticker: str) -> list[dict[str, Any]]:
+    instrument = _tsetmc_instrument(ticker)
+    code = instrument["instrument_code"]
+    cached = TSETMC_HISTORY_CACHE.get(code)
+    if cached and time.monotonic() - cached[0] < TSETMC_HISTORY_TTL_SECONDS:
+        return cached[1]
+
+    url = f"{TSETMC_API_BASE}/ClosingPrice/GetClosingPriceDailyList/{code}/0"
+    payload = _json(url, referer=TSETMC_WEB_URL)
+    rows = payload.get("closingPriceDaily") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        raise SourceError("ساختار تاریخچهٔ روزانهٔ TSETMC قابل شناسایی نیست")
+
+    iran_tz = timezone(timedelta(hours=3, minutes=30))
+    today = datetime.now(iran_tz).date().isoformat()
+    fetched_at = utc_now()
+    bars_by_date: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        try:
+            stamp = datetime.strptime(str(row.get("dEven")), "%Y%m%d").date().isoformat()
+        except (TypeError, ValueError):
+            continue
+        # The current session's candle is still forming; use completed daily candles only.
+        if stamp >= today:
+            continue
+        close = _num(row.get("pClosing"))
+        if close is None or close <= 0:
+            continue
+        bars_by_date[stamp] = {
+            "timestamp": stamp,
+            "fetched_at": fetched_at,
+            "open": _num(row.get("priceFirst")) or close,
+            "high": _num(row.get("priceMax")) or close,
+            "low": _num(row.get("priceMin")) or close,
+            "close": close,
+            "volume": _num(row.get("qTotTran5J")) or 0.0,
+            "source": "TSETMC",
+            "source_url": url,
+            "instrument_code": code,
+            "ticker": instrument["ticker"],
+        }
+    bars = [bars_by_date[stamp] for stamp in sorted(bars_by_date)][-500:]
+    if len(bars) < 2:
+        raise SourceError(f"تاریخچهٔ روزانهٔ کافی در TSETMC برای نماد {ticker} موجود نیست")
+    TSETMC_HISTORY_CACHE[code] = (time.monotonic(), bars)
+    return bars
+
+
+async def fetch_fund_tsetmc_history(symbol: str, trade_symbol: str | None = None) -> list[dict[str, Any]]:
+    import asyncio
+
+    fund = db.get_fund(symbol)
+    if not fund or fund.get("ambiguous"):
+        raise SourceError("صندوق برای دریافت تاریخچهٔ TSETMC در پایگاه داده پیدا نشد")
+    if fund.get("source") != "Rahavard365":
+        raise SourceError("این صندوق در فهرست صندوق‌های ره‌آورد۳۶۵ نیست")
+    ticker = str(trade_symbol or "").strip()
+    if not ticker:
+        raw = fund.get("raw") if isinstance(fund.get("raw"), dict) else {}
+        ticker = str(raw.get("trade_symbol") or raw.get("name") or "").strip()
+    if not ticker:
+        profile = await fetch_rahavard_fund_profile(fund["fund_key"])
+        asset = profile.get("asset") if isinstance(profile.get("asset"), dict) else {}
+        ticker = str(asset.get("trade_symbol") or "").strip()
+    url = f"{TSETMC_API_BASE}/Instrument/GetInstrumentSearch/{urllib.parse.quote(ticker, safe='')}"
+    started = time.monotonic()
+    try:
+        bars = await asyncio.to_thread(tsetmc_fund_history, ticker)
+        source_url = str(bars[-1].get("source_url") or url)
+        db.save_source("tsetmc_fund_technicals", "تحلیل تکنیکال صندوق‌ها / TSETMC", "connected",
+                       source_url, bars[-1]["timestamp"], None,
+                       int((time.monotonic() - started) * 1000))
+        return bars
+    except Exception as exc:
+        db.save_source("tsetmc_fund_technicals", "تحلیل تکنیکال صندوق‌ها / TSETMC", "failed",
+                       url, None, str(exc)[:400],
+                       int((time.monotonic() - started) * 1000))
+        if isinstance(exc, SourceError):
+            raise
+        raise SourceError(f"دریافت تاریخچهٔ TSETMC ناموفق بود: {exc}") from exc

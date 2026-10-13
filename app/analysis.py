@@ -25,9 +25,12 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
                      data_timestamp: str | None = None,
                      current_price: float | None = None,
                      model_context: dict[str, Any] | None = None,
-                     horizon: str = "long") -> dict[str, Any]:
-    """Describe Rahavard's published indicator readings without recalculating them."""
+                     horizon: str = "long",
+                     indicator_source: str = "Rahavard365") -> dict[str, Any]:
+    """Analyze an indicator payload with the shared fund scoring and presentation model."""
     data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
+    source_name = str(indicator_source or payload.get("source") or "Rahavard365")
+    is_tsetmc = source_name.casefold() == "tsetmc"
     groups = {key: data.get(key) if isinstance(data.get(key), list) else []
               for key in ("oscillators", "moving_averages", "pivots", "bands", "volumes")}
     fund_model = score_fund_model(groups, current_price, model_context, horizon=horizon)
@@ -65,7 +68,13 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         net_signal = float(main_signal.get("value"))
     except (TypeError, ValueError):
         net_signal = 0
-    signal = "buy" if net_signal > 0 else "sell" if net_signal < 0 else "hold"
+    if is_tsetmc:
+        score_value = fund_model.get("technical_score")
+        signal = "buy" if score_value is not None and score_value >= 60 else \
+                 "sell" if score_value is not None and score_value <= 40 else "hold"
+        net_signal = (1 if signal == "buy" else -1 if signal == "sell" else 0)
+    else:
+        signal = "buy" if net_signal > 0 else "sell" if net_signal < 0 else "hold"
 
     meaning_by_prefix = (
         ("RSI", "شتاب قیمت را می‌سنجد؛ بالای ۷۰ معمولاً خریدزدگی و زیر ۳۰ فروش‌زدگی است."),
@@ -115,13 +124,17 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
                 if normalized.startswith(prefix.casefold()):
                     meaning = description
                     break
+            if is_tsetmc and normalized.startswith("trend"):
+                meaning = "جهت حرکت قیمت از شیب ۲۰ کندل روزانهٔ اخیر محاسبه می‌شود."
+            elif is_tsetmc and normalized.startswith("sm"):
+                meaning = "فرمول قابل اتکایی برای این شاخص مشخص نشده؛ در این آزمایش محاسبه و وارد امتیاز نمی‌شود."
             raw_signal = str(item.get("signal") or "Neutral")
             key = re.sub(r"[^a-z]", "", raw_signal.casefold())
             interpretation = signal_fa.get(key, raw_signal or "نامشخص")
             notes.append({"name": name, "group": group_name, "signal": raw_signal,
                           "signal_fa": interpretation, "meaning": meaning})
 
-    requested = ["EMA(200)", "SMA(200)"]
+    requested = ["SM(15)"] if is_tsetmc else ["EMA(200)", "SMA(200)"]
     missing = [name for name in requested if name.casefold() not in available]
     for name in missing:
         notes.append({"name": name, "group": "moving_averages", "signal": None,
@@ -145,7 +158,11 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
 
     buy_count, neutral_count, sell_count = (count_value(counts.get(key)) for key in ("Buy", "Neutral", "Sell"))
     total_count = buy_count + neutral_count + sell_count
-    if total_count:
+    if is_tsetmc and fund_model.get("technical_score") is not None:
+        bullish_probability = round(max(5.0, min(95.0,
+            50.0 + (float(fund_model["technical_score"]) - 50.0) * 0.5)))
+        bearish_probability = 100 - bullish_probability
+    elif total_count:
         bullish_probability = round((buy_count + neutral_count * 0.5) / total_count * 100)
         bearish_probability = 100 - bullish_probability
     else:
@@ -244,10 +261,11 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         bearish_reasons.append(f"Aroon نزولی {fmt(aroon['down'])} در برابر Aroon صعودی {fmt(aroon['up'])} برتری دارد") if aroon["down"] > aroon["up"] else None
     if adx is not None:
         (bullish_reasons if trend == "bullish" else bearish_reasons).append(f"ADX روی {fmt(adx)} است و قدرت روند را بالای آستانه ۲۵ نشان می‌دهد") if adx >= 25 else None
+    trend_source_label = "TSETMC" if is_tsetmc else "ره‌آورد"
     if trend == "bullish":
-        bullish_reasons.append("شاخص Trend ره‌آورد صعودی است")
+        bullish_reasons.append(f"شاخص Trend محاسبه‌شده از {trend_source_label} صعودی است")
     elif trend == "bearish":
-        bearish_reasons.append("شاخص Trend ره‌آورد نزولی است")
+        bearish_reasons.append(f"شاخص Trend محاسبه‌شده از {trend_source_label} نزولی است")
     if rsi is not None:
         if rsi >= 70:
             bearish_reasons.append(f"RSI(14) روی {fmt(rsi)} است؛ بالای ۷۰ خریدزدگی و ریسک اصلاح را نشان می‌دهد")
@@ -269,10 +287,14 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         bearish_reasons.append(f"نوسان‌گر تصادفی K={fmt(so['k'])} و D={fmt(so['d'])} را نشان می‌دهد؛ هر دو بالای ۸۰ و در خریدزدگی‌اند")
     if ao is not None:
         (bullish_reasons if ao > 0 else bearish_reasons).append(f"AO با عدد {fmt(ao)} {'مثبت' if ao > 0 else 'منفی'} است")
-    if stoch_rsi is not None and stoch_rsi <= 0.2:
-        bullish_reasons.append(f"StochRSI روی {fmt(stoch_rsi)} و زیر ۰٫۲۰ است؛ فروش‌زدگی دیده می‌شود")
-    elif stoch_rsi is not None and stoch_rsi >= 0.8:
-        bearish_reasons.append(f"StochRSI روی {fmt(stoch_rsi)} و بالای ۰٫۸۰ است؛ خریدزدگی دیده می‌شود")
+    stoch_oversold_level = 20.0 if is_tsetmc else 0.2
+    stoch_overbought_level = 80.0 if is_tsetmc else 0.8
+    if stoch_rsi is not None and stoch_rsi <= stoch_oversold_level:
+        threshold = "۲۰" if is_tsetmc else "۰٫۲۰"
+        bullish_reasons.append(f"StochRSI روی {fmt(stoch_rsi)} و زیر {threshold} است؛ فروش‌زدگی دیده می‌شود")
+    elif stoch_rsi is not None and stoch_rsi >= stoch_overbought_level:
+        threshold = "۸۰" if is_tsetmc else "۰٫۸۰"
+        bearish_reasons.append(f"StochRSI روی {fmt(stoch_rsi)} و بالای {threshold} است؛ خریدزدگی دیده می‌شود")
     if nearest_support is not None:
         bearish_reasons.append(f"حمایت محاسباتی نزدیک {fmt(nearest_support)} است؛ از دست‌رفتن آن سناریوی نزولی را فعال می‌کند")
     if nearest_resistance is not None:
@@ -292,8 +314,12 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
          "condition": "شکست حمایت نزدیک با تأیید MACD، مومنتوم یا حجم",
          "risk": "اگر حمایت حفظ شود و MACD بالای خط سیگنال بماند، این سناریو اعتبار کمتری دارد."},
     ]
+    score_method = fund_model["score_method"]
+    if is_tsetmc:
+        score_method = score_method.replace("fund_rahavard_", "fund_tsetmc_", 1)
     return {
-        "source": "Rahavard365", "symbol": symbol, "data_timestamp": data_timestamp,
+        "source": source_name, "indicator_source": source_name,
+        "symbol": symbol, "data_timestamp": data_timestamp,
         "price": price, "support_levels": supports, "resistance_levels": resistances,
         "short_term_exit_price": short_term_exit_price,
         "medium_term_exit_price": medium_term_exit_price,
@@ -308,7 +334,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
             "action": "حد خروج میان‌مدت فقط پس از بسته‌شدن کندل روزانه زیر SMA(30) تأیید می‌شود.",
         },
         "technical_score": fund_model["technical_score"],
-        "score_method": fund_model["score_method"],
+        "score_method": score_method,
         "score_origin": "AliVest",
         "investment_horizon": fund_model["investment_horizon"],
         "investment_horizon_label": fund_model["investment_horizon_label"],
@@ -350,13 +376,17 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         },
         "signal": signal, "trend": trend, "risk": "unavailable",
         "confidence": None,
-        "confidence_basis": "امتیاز تکنیکال چهارگروهی توسط AliVest و بر پایه داده‌های ره‌آورد محاسبه می‌شود؛ امتیاز رسمی ره‌آورد یا احتمال سود نیست.",
+        "confidence_basis": ("امتیاز تکنیکال چهارگروهی توسط AliVest و بر پایهٔ کندل‌های روزانهٔ TSETMC محاسبه می‌شود؛ امتیاز رسمی TSETMC یا احتمال سود نیست."
+                             if is_tsetmc else
+                             "امتیاز تکنیکال چهارگروهی توسط AliVest و بر پایه داده‌های ره‌آورد محاسبه می‌شود؛ امتیاز رسمی ره‌آورد یا احتمال سود نیست."),
         "decision_support": explanation,
         "explanation": explanation, "site_gauges": gauges,
         "indicators": groups, "indicator_notes": notes,
         "indicator_count": sum(len(items) for items in groups.values()),
         "missing_indicators": missing, "scenarios": scenarios,
-        "scenario_note": "درصد سناریو از شمارش سیگنال‌های Buy/Neutral/Sell در شاخص کلی ره‌آورد برآورد شده و احتمال آماریِ بک‌تست‌شده نیست.",
+        "scenario_note": ("درصد سناریو برآورد داخلی AliVest از امتیاز اندیکاتورهای محاسبه‌شده روی کندل‌های TSETMC است و احتمال آماریِ بک‌تست‌شده نیست."
+                          if is_tsetmc else
+                          "درصد سناریو از شمارش سیگنال‌های Buy/Neutral/Sell در شاخص کلی ره‌آورد برآورد شده و احتمال آماریِ بک‌تست‌شده نیست."),
     }
 
 
