@@ -1433,11 +1433,11 @@
       const scoreCoverage = f.data_coverage_pct == null ? null : Number(f.data_coverage_pct);
       const scoreTone = scoreValue == null || !Number.isFinite(scoreValue) ? "unknown" : scoreValue >= 70 ? "positive" : scoreValue >= 50 ? "neutral" : "negative";
       const scoreTitle = `امتیاز ${horizonLabel()} AliVest · پوشش داده: ${scoreCoverage != null && Number.isFinite(scoreCoverage) ? `${num(scoreCoverage, 0)}٪` : "نامشخص"}`;
-      const scoreCell = scoreValue == null || !Number.isFinite(scoreValue) ? `<span class="technical-score-chip unknown" title="امتیاز هنوز محاسبه نشده">—</span>` : `<span class="technical-score-chip ${scoreTone}" title="${esc(scoreTitle)}">${num(scoreValue, 0)} / 100</span>`;
+      const scoreCell = scoreValue == null || !Number.isFinite(scoreValue) ? `<span class="technical-score-chip unknown" title="${esc(f.technical_error || "امتیاز هنوز محاسبه نشده")}">—</span>` : `<span class="technical-score-chip ${scoreTone}" title="${esc(scoreTitle)}">${num(scoreValue, 0)} / 100</span>`;
       const typeLabel = f.fund_type_label || f.category || "نامشخص";
       const assessment = f.purchase_assessment || {};
       const assessmentStatus = ["suitable", "wait", "unsuitable"].includes(assessment.status) ? assessment.status : "unknown";
-      const assessmentCell = `<div class="fund-purchase-assessment"><span class="fund-purchase-chip ${assessmentStatus}">${esc(assessment.label || "داده کافی نیست")}</span><small>${esc(assessment.reason || "ارزیابی پس از دریافت دادهٔ تکنیکال نمایش داده می‌شود.")}</small></div>`;
+      const assessmentCell = `<div class="fund-purchase-assessment"><span class="fund-purchase-chip ${assessmentStatus}">${esc(assessment.label || "داده کافی نیست")}</span><small>${esc(assessment.reason || f.technical_error || "ارزیابی پس از دریافت دادهٔ تکنیکال نمایش داده می‌شود.")}</small></div>`;
       const fundName = f.name || f.display_symbol || f.symbol || "—";
       const priceFresh = price != null && f.price_is_cached === false;
       const freshnessLabel = priceFresh ? "داده تازه" : "داده کهنه یا ناموجود";
@@ -1471,6 +1471,7 @@
       for (let offset = 0; offset < pending.length; offset += 4) {
         const batch = pending.slice(offset, offset + 4);
         let response;
+        const sourceErrors = new Map();
         try {
           const tsetmcBars = {};
           const tsetmcFetchMs = {};
@@ -1485,7 +1486,7 @@
             if (item.value) {
               tsetmcBars[item.key] = item.value.bars;
               tsetmcFetchMs[item.key] = item.value.fetch_ms;
-            }
+            } else if (item.error) sourceErrors.set(item.key, item.error);
           }
           response = await api("/api/funds/scores/batch", {
             method: "POST",
@@ -1514,6 +1515,7 @@
           if (result.technical_score != null) {
             scored += 1;
             if (listed) {
+              listed.technical_error = "";
               listed.technical_score = Number(result.technical_score);
               listed.data_coverage_pct = result.data_coverage_pct;
               listed.medium_term_exit_price = result.medium_term_exit_price;
@@ -1525,12 +1527,21 @@
             }
           } else {
             unavailable += 1;
+            if (listed) {
+              listed.technical_error = result.error || sourceErrors.get(key) || "دادهٔ کافی از TSETMC برای محاسبهٔ امتیاز موجود نیست.";
+              if (listed.purchase_assessment) listed.purchase_assessment = { ...listed.purchase_assessment, reason: listed.technical_error };
+            }
           }
         }
         for (const key of batch) {
           if (!returned.has(key)) {
             fundScoreAttemptedKeys.add(key);
             unavailable += 1;
+            const listed = state.funds.find((fund) => String(fund.fund_key || fund.symbol) === key);
+            if (listed) {
+              listed.technical_error = sourceErrors.get(key) || "پاسخی برای محاسبهٔ تکنیکال از سرور دریافت نشد.";
+              if (listed.purchase_assessment) listed.purchase_assessment = { ...listed.purchase_assessment, reason: listed.technical_error };
+            }
           }
         }
         processed += batch.length;
@@ -1743,7 +1754,10 @@
             item.technical_error = error?.message || "دریافت از TSETMC ناموفق بود.";
           }
         }));
-        if (!Object.keys(tsetmcBars).length) continue;
+        if (!Object.keys(tsetmcBars).length) {
+          renderPersonalWatchlist(state.watchlist, data.totals || {});
+          continue;
+        }
         try {
           const scores = await api("/api/funds/scores/batch", {
             method: "POST",
