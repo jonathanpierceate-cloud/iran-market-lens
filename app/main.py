@@ -615,6 +615,25 @@ def _fund_model_context(fund: dict[str, Any], *, category_id: str | None = None,
     return context
 
 
+async def _fund_history_for_scoring(fund: dict[str, Any], horizon: str) -> list[dict[str, Any]]:
+    """Load enough real daily bars for independent score confirmation when available."""
+    fund_key = str(fund.get("fund_key") or fund.get("symbol") or "")
+    if not fund_key:
+        return []
+    minimum_bars = 61 if normalize_horizon(horizon) == "long" else 21
+    try:
+        cached = _market_history(fund_key, 200)
+    except Exception:
+        cached = []
+    if len(cached) >= minimum_bars:
+        return cached
+    try:
+        fetched = await fetch_fund_price_history(fund_key)
+        return fetched if len(fetched) >= len(cached) else cached
+    except Exception:
+        return cached
+
+
 def _fund_category_asset_ids(category_id: str) -> set[str]:
     now = time.monotonic()
     cached = FUND_CATEGORY_CACHE.get(category_id)
@@ -862,7 +881,10 @@ async def fund_score_batch(payload: FundScoreBatchInput,
                 fund = _fund_or_error(identifier)
                 if not category_id:
                     _apply_fund_category_map(fund, category_map)
-                indicators = await fetch_fund_indicators(fund["fund_key"])
+                indicators, fund_history = await asyncio.gather(
+                    fetch_fund_indicators(fund["fund_key"]),
+                    _fund_history_for_scoring(fund, horizon),
+                )
                 raw = fund.get("raw") if isinstance(fund.get("raw"), dict) else {}
                 current_price = _watchlist_number(fund.get("market_price"))
                 if current_price is None or current_price <= 0:
@@ -871,6 +893,7 @@ async def fund_score_batch(payload: FundScoreBatchInput,
                 peer_key = actual_category_id or _fund_peer_group_key(fund)
                 model_context = _fund_model_context(
                     fund, category_id=actual_category_id,
+                    price_history=fund_history,
                     peer_items=peer_groups.get(peer_key or ""))
                 analysis_result = analyze_rahavard(
                     fund.get("symbol"), indicators, fund.get("data_timestamp"), current_price,
