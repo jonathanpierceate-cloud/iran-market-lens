@@ -1172,7 +1172,7 @@
       freshness($("#tepix-analysis-status"), state.tepix?.status, state.tepix?.data_timestamp);
       $("#gold-analysis").innerHTML = analysisHtml(state.gold?.analysis);
       $("#gold18k-analysis").innerHTML = analysisHtml(state.gold18k?.analysis);
-      $("#dollar-analysis").innerHTML = `<div class="empty-state compact"><b>در حال دریافت اندیکاتورهای دلار از ره‌آورد۳۶۵…</b></div>`;
+      $("#dollar-analysis").innerHTML = `<div class="empty-state compact"><b>در حال دریافت کندل‌های دلار از Tabdeal…</b></div>`;
       $("#tepix-analysis").innerHTML = analysisHtml(state.tepix?.analysis);
       let dollarIndicatorFeed;
       try { dollarIndicatorFeed = await api("/api/dollar/indicators"); }
@@ -1194,8 +1194,8 @@
         freshness($("#dollar-analysis-status"), dollarIndicatorFeed.status, dollarIndicatorFeed.data_timestamp);
       } else {
         const message = dollarIndicatorFeed?.error || "پاسخ معتبر از منبع دریافت نشد.";
-        const sourceUrl = dollarIndicatorFeed?.source_url || "https://rahavard365.com/asset/32725/indicator";
-        $("#dollar-analysis").innerHTML = `<div class="empty-state compact"><b>اندیکاتورهای دلار در دسترس نیستند</b><small>${esc(message)} · <a href="${esc(sourceUrl)}" target="_blank" rel="noopener">منبع ره‌آورد۳۶۵</a></small></div>`;
+        const sourceUrl = dollarIndicatorFeed?.source_url || "https://tabdeal.org/buy-usdt";
+        $("#dollar-analysis").innerHTML = `<div class="empty-state compact"><b>اندیکاتورهای دلار در دسترس نیستند</b><small>${esc(message)} · <a href="${esc(sourceUrl)}" target="_blank" rel="noopener">منبع Tabdeal</a></small></div>`;
         freshness($("#dollar-analysis-status"), dollarIndicatorFeed?.status || "failed", dollarIndicatorFeed?.data_timestamp);
       }
       const sourceList = summary.sources || [];

@@ -546,34 +546,6 @@ def rahavard_fund_history(asset_id: str) -> list[dict[str, Any]]:
     return bars
 
 
-def rahavard_fund_indicators(asset_id: str) -> dict[str, Any]:
-    asset_id = str(asset_id).strip()
-    if not asset_id.isdigit():
-        raise SourceError("شناسه اندیکاتور صندوق ره‌آورد معتبر نیست")
-    payload = _json(f"{RAHAVARD_API_BASE_URL}/asset/{asset_id}/indicators",
-                    referer=f"{RAHAVARD_URL}/asset/{asset_id}/indicator")
-    data = payload.get("data") if isinstance(payload, dict) else None
-    if not isinstance(data, dict) or not isinstance(data.get("gauges"), dict):
-        raise SourceError("خروجی اندیکاتورهای صندوق از ره‌آورد۳۶۵ قابل شناسایی نیست")
-    return data
-
-
-def rahavard_asset_indicators(asset_id: str) -> dict[str, Any]:
-    """Fetch the published indicator groups for a Rahavard asset."""
-    asset_id = str(asset_id).strip()
-    if not asset_id.isdigit():
-        raise SourceError("شناسهٔ اندیکاتور ره‌آورد معتبر نیست")
-    payload = _json(f"{RAHAVARD_API_BASE_URL}/asset/{asset_id}/indicators",
-                    referer=f"{RAHAVARD_URL}/asset/{asset_id}/indicator")
-    data = payload.get("data") if isinstance(payload, dict) else None
-    if not isinstance(data, dict) or not isinstance(data.get("gauges"), dict):
-        raise SourceError("خروجی اندیکاتورهای دارایی از ره‌آورد قابل شناسایی نیست")
-    if not any(isinstance(data.get(group), list) and data[group]
-               for group in ("oscillators", "moving_averages", "pivots", "bands", "volumes")):
-        raise SourceError("ره‌آورد برای این دارایی اندیکاتوری منتشر نکرده است")
-    return data
-
-
 def _save_rahavard_nav(fund_key: str, profile: dict[str, Any]) -> list[dict[str, Any]]:
     rows = profile.get("fund_values") if isinstance(profile.get("fund_values"), list) else []
     history = []
@@ -797,30 +769,5 @@ async def fetch_fund_price_history(symbol: str) -> list[dict[str, Any]]:
         return bars
     except Exception as exc:
         db.save_source("rahavard_fund_charts", "نمودار و محاسبهٔ تکنیکال صندوق / ره‌آورد۳۶۵", "failed",
-                       url, None, str(exc)[:400], int((time.monotonic() - tick) * 1000))
-        raise
-
-
-async def fetch_fund_indicators(symbol: str) -> dict[str, Any]:
-    import asyncio
-
-    fund = db.get_fund(symbol)
-    if not fund or fund.get("ambiguous"):
-        raise SourceError("صندوق ره‌آورد در پایگاه داده پیدا نشد")
-    if fund.get("source") != "Rahavard365":
-        raise SourceError("این صندوق در فهرست ره‌آورد۳۶۵ نیست")
-    asset_id = _rahavard_asset_id(fund)
-    url = f"{RAHAVARD_API_BASE_URL}/asset/{asset_id}/indicators"
-    tick = time.monotonic()
-    try:
-        data = await asyncio.to_thread(rahavard_fund_indicators, asset_id)
-        db.save_fund_indicator_snapshot(fund["fund_key"], data,
-                                        fund.get("data_timestamp"), "Rahavard365")
-        db.save_source("rahavard_indicators", "اندیکاتورهای صندوق / ره‌آورد۳۶۵", "connected",
-                       url, fund.get("data_timestamp"), None,
-                       int((time.monotonic() - tick) * 1000))
-        return data
-    except Exception as exc:
-        db.save_source("rahavard_indicators", "اندیکاتورهای صندوق / ره‌آورد۳۶۵", "failed",
                        url, None, str(exc)[:400], int((time.monotonic() - tick) * 1000))
         raise
