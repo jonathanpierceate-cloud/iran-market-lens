@@ -31,13 +31,13 @@ from .config import (MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
                      REFRESH_INTERVAL_SECONDS, ROOT)
 from .db import db, utc_now
 from .fund_scoring import FUND_TYPE_BY_CATEGORY_ID, FUND_TYPE_LABELS, resolve_fund_type
-from .indicators import tsetmc_fund_indicator_groups
+from .indicators import fund_chart_indicator_groups
 from .scoring_profiles import normalize_horizon, horizon_label
 from .scoring_rules import entry_recommendation
 from .sources import (SourceError, fetch_fund_nav_history,
                       fetch_fund_price_history, fetch_rahavard_fund_profile,
-                      fetch_fund_tsetmc_history, rahavard_asset_indicators,
-                      rahavard_etf_fund_asset_ids, refresh_all, tsetmc_fund_history)
+                      rahavard_asset_indicators, rahavard_etf_fund_asset_ids,
+                      rahavard_fund_history, refresh_all)
 
 STATIC = ROOT / "app" / "static"
 REFRESH_STATE: dict[str, Any] = {"running": False, "last_result": None}
@@ -59,13 +59,13 @@ class WatchlistAddInput(BaseModel):
 class FundScoreBatchInput(BaseModel):
     fund_keys: list[str] = Field(default_factory=list, max_length=4)
     category_id: str = Field(default="", max_length=24)
-    tsetmc_bars: dict[str, list[dict[str, Any]]] | None = None
-    tsetmc_fetch_ms: dict[str, int] = Field(default_factory=dict)
+    chart_bars: dict[str, list[dict[str, Any]]] | None = None
+    chart_fetch_ms: dict[str, int] = Field(default_factory=dict)
 
 
 class FundTechnicalBarsInput(BaseModel):
     bars: list[dict[str, Any]] = Field(min_length=2, max_length=500)
-    tsetmc_fetch_ms: int | None = Field(default=None, ge=0, le=120000)
+    chart_fetch_ms: int | None = Field(default=None, ge=0, le=120000)
 
 
 class FundNavBatchInput(BaseModel):
@@ -216,9 +216,9 @@ def evaluate_alerts() -> list[dict[str, Any]]:
         if fund and fund.get("source") == "Rahavard365" and alert["condition"] in {
                 "rsi_overbought", "rsi_oversold", "volume_spike"}:
             raw = fund.get("raw") if isinstance(fund.get("raw"), dict) else {}
-            ticker = str(raw.get("trade_symbol") or raw.get("name") or "").strip()
+            asset_id = str(raw.get("rahavard_asset_id") or fund.get("registration_no") or fund.get("symbol") or "").strip()
             try:
-                bars = tsetmc_fund_history(ticker)
+                bars = rahavard_fund_history(asset_id)
             except SourceError:
                 continue
             if alert["condition"] == "volume_spike":
@@ -226,10 +226,10 @@ def evaluate_alerts() -> list[dict[str, Any]]:
                 continue
             if stale_status(bars[-1].get("timestamp"), max_hours=MAX_STALE_HOURS):
                 continue
-            indicator_payload = tsetmc_fund_indicator_groups(bars)
+            indicator_payload = fund_chart_indicator_groups(bars)
             result = analyze_rahavard(
                 fund["symbol"], indicator_payload, bars[-1].get("timestamp"),
-                bars[-1].get("close"), indicator_source="TSETMC")
+                bars[-1].get("close"), indicator_source="Rahavard365Chart")
             rsi_item = next((item for item in result["indicators"].get("oscillators", [])
                              if str(item.get("short_name_en") or "").startswith("RSI(14)")), None)
             rsi_value = None
@@ -314,8 +314,7 @@ async def lifespan(_: FastAPI):
         ("yahoo_dxy", "شاخص دلار آمریکا", "https://finance.yahoo.com/quote/DX-Y.NYB/"),
         ("rahavard_funds", "صندوق‌های قابل معامله / ره‌آورد۳۶۵", RAHAVARD_ETF_FUNDS_URL),
         ("rahavard_fund_details", "نمایه و NAV صندوق / ره‌آورد۳۶۵", RAHAVARD_API_BASE_URL + "/asset/{asset_id}"),
-        ("rahavard_fund_charts", "نمودار صندوق / ره‌آورد۳۶۵", RAHAVARD_LIGHT_BARS_URL + "?symbol=exchange.asset:{asset_id}:real_close"),
-        ("tsetmc_fund_technicals", "تحلیل تکنیکال صندوق‌ها / TSETMC", "https://cdn.tsetmc.com/api/ClosingPrice/GetClosingPriceDailyList"),
+        ("rahavard_fund_charts", "نمودار و محاسبهٔ تکنیکال صندوق / ره‌آورد۳۶۵", RAHAVARD_LIGHT_BARS_URL + "?symbol=exchange.asset:{asset_id}:real_close"),
     ]:
         existing_source = _source_map().get(key)
         if existing_source is None:
@@ -326,13 +325,14 @@ async def lifespan(_: FastAPI):
             db.update_source_label(key, label)
     legacy_sources = _source_map()
     for key, label in [("tsetmc", "منبع قبلی قیمت صندوق‌ها · غیرفعال"),
+                       ("tsetmc_fund_technicals", "تحلیل تکنیکال صندوق‌ها / TSETMC · غیرفعال"),
                        ("fipiran", "منبع قبلی مشخصات صندوق‌ها · غیرفعال"),
                        ("rahavard_indicators", "اندیکاتورهای قبلی صندوق‌ها / ره‌آورد · غیرفعال")]:
         previous = legacy_sources.get(key)
         if previous and previous.get("status") != "disabled":
             db.save_source(key, label, "disabled", previous.get("source_url"),
                            previous.get("last_data_timestamp"),
-                            "تحلیل تکنیکال صندوق‌ها در این نسخه از کندل‌های TSETMC محاسبه می‌شود؛ این منبع قبلی دیگر در تحلیل استفاده نمی‌شود.", None)
+                            "تحلیل صندوق‌ها اکنون از کندل‌های نمودار ره‌آورد محاسبه می‌شود.", None)
         elif previous and previous.get("label") != label:
             db.update_source_label(key, label)
     for key, label in [("yahoo_gold", "Yahoo Finance · تاریخچه پیشین"),
@@ -632,7 +632,7 @@ def _record_fund_score_history(result: dict[str, Any] | None, fund_key: str,
             fund_key, score_date, float(result["technical_score"]),
             result.get("data_coverage_pct"), method)
         bars = price_history if price_history is not None else db.history(
-            fund_key, 60, source="TSETMC" if result.get("indicator_source") == "TSETMC" else "Rahavard365")
+            fund_key, 60, source="Rahavard365")
         sessions = [str(row.get("timestamp") or "")[:10] for row in bars]
         result.update(db.fund_score_changes(fund_key, score_date, method, sessions))
     except Exception:
@@ -697,47 +697,45 @@ def _fund_model_context(fund: dict[str, Any], *, category_id: str | None = None,
     return context
 
 
-async def _analyze_fund_tsetmc(fund: dict[str, Any], *,
-                               horizon: str = "long",
-                               profile: dict[str, Any] | None = None,
-                               model_context: dict[str, Any] | None = None,
-                               preloaded_bars: list[dict[str, Any]] | None = None
-                               ) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
+async def _analyze_fund_chart(fund: dict[str, Any], *,
+                              horizon: str = "long",
+                              profile: dict[str, Any] | None = None,
+                              model_context: dict[str, Any] | None = None,
+                              preloaded_bars: list[dict[str, Any]] | None = None
+                              ) -> tuple[dict[str, Any], list[dict[str, Any]], dict[str, Any]]:
     profile = profile if isinstance(profile, dict) else {}
     asset = profile.get("asset") if isinstance(profile.get("asset"), dict) else {}
     raw = fund.get("raw") if isinstance(fund.get("raw"), dict) else {}
-    ticker = str(asset.get("trade_symbol") or raw.get("trade_symbol") or raw.get("name") or "").strip()
-    bars = (await fetch_fund_tsetmc_history(fund["fund_key"], ticker or None)
-            if preloaded_bars is None else _normalize_client_tsetmc_bars(preloaded_bars))
+    bars = (await fetch_fund_price_history(fund["fund_key"])
+            if preloaded_bars is None else _normalize_client_chart_bars(preloaded_bars))
     if not bars:
-        raise SourceError("تاریخچهٔ روزانهٔ TSETMC برای محاسبهٔ تحلیل صندوق موجود نیست")
-    payload = tsetmc_fund_indicator_groups(bars)
+        raise SourceError("کندل‌های نمودار ره‌آورد برای محاسبهٔ تحلیل صندوق موجود نیست")
+    payload = fund_chart_indicator_groups(bars)
     technical_price = float(bars[-1]["close"])
     context = dict(model_context or _fund_model_context(fund, price_history=bars))
     context["fund_history"] = bars
     context["price_timestamp"] = bars[-1].get("timestamp")
+    trade_symbol = (asset.get("trade_symbol") or raw.get("trade_symbol")
+                    or raw.get("name") or fund.get("symbol"))
     result = analyze_rahavard(
-        asset.get("trade_symbol") or fund.get("symbol"), payload,
+        trade_symbol, payload,
         bars[-1].get("timestamp"), technical_price, context,
-        horizon=horizon, indicator_source="TSETMC")
+        horizon=horizon, indicator_source="Rahavard365Chart")
     result["indicator_source_url"] = bars[-1].get("source_url")
     result["indicator_data_timestamp"] = bars[-1].get("timestamp")
     result["price_is_cached"] = _timestamp_is_cached(bars[-1].get("timestamp"))
     return result, bars, payload
 
 
-def _normalize_client_tsetmc_bars(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _normalize_client_chart_bars(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     by_date: dict[str, dict[str, Any]] = {}
     for row in rows:
-        if not isinstance(row, dict) or str(row.get("source") or "") != "TSETMC":
+        if not isinstance(row, dict) or str(row.get("source") or "") != "Rahavard365":
             continue
         timestamp = str(row.get("timestamp") or "")[:10]
         source_url = str(row.get("source_url") or "")
         if (len(timestamp) != 10 or timestamp[4:5] != "-"
-                or not source_url.startswith((
-                    "https://cdn.tsetmc.com/api/ClosingPrice/GetClosingPriceDailyList/",
-                    "https://cdn.tsetmc.com/api/ClosingPrice/GetClosingPriceInfo/",
-                ))):
+                or not source_url.startswith(RAHAVARD_LIGHT_BARS_URL)):
             continue
         try:
             close = float(row.get("close"))
@@ -752,13 +750,12 @@ def _normalize_client_tsetmc_bars(rows: list[dict[str, Any]]) -> list[dict[str, 
         by_date[timestamp] = {
             "timestamp": timestamp, "fetched_at": row.get("fetched_at"),
             "open": open_price, "high": high, "low": low, "close": close,
-            "volume": max(0.0, volume), "source": "TSETMC", "source_url": source_url,
-            "instrument_code": str(row.get("instrument_code") or ""),
-            "ticker": str(row.get("ticker") or ""),
+            "volume": max(0.0, volume), "source": "Rahavard365", "source_url": source_url,
+            "asset_id": str(row.get("asset_id") or ""),
         }
     bars = [by_date[key] for key in sorted(by_date)][-500:]
     if len(bars) < 2:
-        raise SourceError("کندل روزانهٔ معتبر از TSETMC به محاسبه‌گر نرسید")
+        raise SourceError("کندل معتبر نمودار ره‌آورد به محاسبه‌گر نرسید")
     return bars
 
 
@@ -938,7 +935,7 @@ def funds(search: str = "", category: str = "", sort: str = "data_timestamp",
         item["buy_suitability_rank"] = item["purchase_assessment"]["rank"]
         item["trend"] = result.get("trend") if result else "unavailable"
         item["indicator_fetched_at"] = None
-        item["technical_source"] = "TSETMC"
+        item["technical_source"] = "Rahavard365"
     sort_key = {"return": "one_year_return", "technical_score": "technical_score"}.get(sort, sort)
     if sort_key in {"one_year_return", "monthly_return", "daily_return", "technical_score"}:
         items.sort(key=lambda f: f.get(sort_key) if f.get(sort_key) is not None else float("-inf"), reverse=True)
@@ -1047,13 +1044,11 @@ async def fund_score_batch(payload: FundScoreBatchInput,
                 if not category_id:
                     _apply_fund_category_map(fund, category_map)
                 client_bars = None
-                if payload.tsetmc_bars is not None:
-                    client_bars = payload.tsetmc_bars.get(fund["fund_key"])
+                profile = None
+                if payload.chart_bars is not None:
+                    client_bars = payload.chart_bars.get(fund["fund_key"])
                     if not client_bars:
-                        raise SourceError("تاریخچهٔ مستقیم TSETMC برای این نماد از مرورگر دریافت نشد")
-                    profile = None
-                else:
-                    profile = await fetch_rahavard_fund_profile(fund["fund_key"])
+                        raise SourceError("کندل نمودار ره‌آورد برای این نماد دریافت نشد")
                 raw = fund.get("raw") if isinstance(fund.get("raw"), dict) else {}
                 current_price = _watchlist_number(fund.get("market_price"))
                 if current_price is None or current_price <= 0:
@@ -1063,19 +1058,14 @@ async def fund_score_batch(payload: FundScoreBatchInput,
                 model_context = _fund_model_context(
                     fund, category_id=actual_category_id,
                     peer_items=peer_groups.get(peer_key or ""))
-                analysis_result, tsetmc_bars, _ = await _analyze_fund_tsetmc(
+                analysis_result, chart_bars, _ = await _analyze_fund_chart(
                     fund, profile=profile, model_context=model_context, horizon=horizon,
                     preloaded_bars=client_bars)
                 _record_fund_score_history(analysis_result, fund["fund_key"],
-                                           analysis_result.get("data_timestamp"), tsetmc_bars)
-                if payload.tsetmc_bars is not None:
-                    db.save_source(
-                        "tsetmc_fund_technicals", "تحلیل تکنیکال صندوق‌ها / TSETMC", "connected",
-                        tsetmc_bars[-1].get("source_url"), tsetmc_bars[-1].get("timestamp"), None,
-                        payload.tsetmc_fetch_ms.get(fund["fund_key"]))
+                                           analysis_result.get("data_timestamp"), chart_bars)
                 purchase_assessment = _fund_purchase_assessment(current_price, analysis_result)
                 return {"fund_key": fund["fund_key"], "technical_score": analysis_result.get("technical_score"),
-                        "technical_source": "TSETMC",
+                        "technical_source": "Rahavard365",
                         "analysis": analysis_result,
                         "investment_horizon": analysis_result.get("investment_horizon"),
                         "investment_horizon_label": analysis_result.get("investment_horizon_label"),
@@ -1373,7 +1363,7 @@ def _watchlist_levels(indicator_data: dict[str, Any] | None,
 
 @app.get("/api/watchlist")
 async def get_watchlist(horizon: str = Query(default="long"),
-                        skip_tsetmc: bool = Query(default=False)):
+                        skip_technical: bool = Query(default=False)):
     horizon = normalize_horizon(horizon)
     _seed_default_watchlist()
     records = db.watchlist_items()
@@ -1438,15 +1428,15 @@ async def get_watchlist(horizon: str = Query(default="long"),
         change_ratio = _watchlist_number(trade.get("real_close_price_change_percent"))
         daily_return = change_ratio * 100 if change_ratio is not None else fund.get("daily_return")
         analysis_result = None
-        tsetmc_bars: list[dict[str, Any]] = []
+        chart_bars: list[dict[str, Any]] = []
         indicator_data: dict[str, Any] | None = None
-        if not skip_tsetmc:
+        if not skip_technical:
             try:
-                analysis_result, tsetmc_bars, indicator_data = await _analyze_fund_tsetmc(
+                analysis_result, chart_bars, indicator_data = await _analyze_fund_chart(
                     fund, profile=profile, horizon=horizon)
             except Exception:
                 pass
-        confirmed_daily_bar = _latest_confirmed_daily_bar(tsetmc_bars)
+        confirmed_daily_bar = _latest_confirmed_daily_bar(chart_bars)
         last_daily_close = _watchlist_number(confirmed_daily_bar.get("close")) if confirmed_daily_bar else None
         stamp = (trade.get("end_date_time") if live_price is not None else None) \
             or ((cached_history[-1].get("timestamp") if cached_history else None)) \
@@ -1541,9 +1531,9 @@ async def get_watchlist(horizon: str = Query(default="long"),
             "purchase_assessment": purchase_assessment,
             "midterm_outlook": outlook,
             "outlook_tone": tone,
-            "overall_status": analysis_result.get("explanation") if analysis_result else "دادهٔ تحلیلی TSETMC در دسترس نیست.",
+            "overall_status": analysis_result.get("explanation") if analysis_result else "دادهٔ نمودار ره‌آورد برای تحلیل در دسترس نیست.",
             "source": "Rahavard365",
-            "technical_source": "TSETMC",
+            "technical_source": "Rahavard365",
         }
 
     items = await asyncio.gather(*(load_item(record) for record in records))
@@ -1589,7 +1579,7 @@ def add_watchlist_item(data: WatchlistAddInput):
 
 @app.get("/api/funds/{symbol}")
 async def fund_detail(symbol: str, horizon: str = Query(default="long"),
-                      skip_tsetmc: bool = Query(default=False)):
+                      skip_technical: bool = Query(default=False)):
     horizon = normalize_horizon(horizon)
     fund = _fund_or_error(symbol)
     fund_key = fund["fund_key"]
@@ -1668,10 +1658,11 @@ async def fund_detail(symbol: str, horizon: str = Query(default="long"),
     analysis_result = None
     technical_bars: list[dict[str, Any]] = []
     technical_source_error = None
-    if not skip_tsetmc:
+    if not skip_technical:
         try:
-            analysis_result, technical_bars, _ = await _analyze_fund_tsetmc(
-                fund, horizon=horizon, profile=profile, model_context=model_context)
+            analysis_result, technical_bars, _ = await _analyze_fund_chart(
+                fund, horizon=horizon, profile=profile, model_context=model_context,
+                preloaded_bars=bars)
         except SourceError as exc:
             technical_source_error = str(exc)
     if analysis_result:
@@ -1684,7 +1675,7 @@ async def fund_detail(symbol: str, horizon: str = Query(default="long"),
             "market_data_available": bool(bars),
             "fundamentals_source": "Rahavard365", "market_price_source": "Rahavard365" if fund.get("market_price") is not None else None,
             "history_source": "Rahavard365" if bars else None,
-            "technical_source": "TSETMC"}
+            "technical_source": "Rahavard365"}
 
 
 @app.get("/api/funds/{symbol}/history")
@@ -1712,7 +1703,7 @@ async def fund_technical(symbol: str, horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)
     fund = _fund_or_error(symbol)
     try:
-        result, bars, _ = await _analyze_fund_tsetmc(fund, horizon=horizon)
+        result, bars, _ = await _analyze_fund_chart(fund, horizon=horizon)
     except SourceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     _record_fund_score_history(result, fund["fund_key"], result.get("data_timestamp"), bars)
@@ -1725,14 +1716,14 @@ async def fund_technical_from_client(symbol: str, payload: FundTechnicalBarsInpu
     horizon = normalize_horizon(horizon)
     fund = _fund_or_error(symbol)
     try:
-        result, bars, _ = await _analyze_fund_tsetmc(
+        result, bars, _ = await _analyze_fund_chart(
             fund, horizon=horizon, preloaded_bars=payload.bars)
     except SourceError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     _record_fund_score_history(result, fund["fund_key"], result.get("data_timestamp"), bars)
-    db.save_source("tsetmc_fund_technicals", "تحلیل تکنیکال صندوق‌ها / TSETMC", "connected",
+    db.save_source("rahavard_fund_charts", "نمودار و محاسبهٔ تکنیکال صندوق / ره‌آورد۳۶۵", "connected",
                    bars[-1].get("source_url"), bars[-1].get("timestamp"), None,
-                   payload.tsetmc_fetch_ms)
+                   payload.chart_fetch_ms)
     return {**result, "purchase_assessment": _fund_purchase_assessment(fund.get("market_price"), result)}
 
 
@@ -1741,11 +1732,11 @@ async def fund_signals(symbol: str, horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)
     fund = _fund_or_error(symbol)
     try:
-        result, bars, _ = await _analyze_fund_tsetmc(fund, horizon=horizon)
+        result, bars, _ = await _analyze_fund_chart(fund, horizon=horizon)
     except SourceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     _record_fund_score_history(result, fund["fund_key"], result.get("data_timestamp"), bars)
-    return {"symbol": fund["symbol"], "fund_key": fund["fund_key"], "source": "TSETMC",
+    return {"symbol": fund["symbol"], "fund_key": fund["fund_key"], "source": "Rahavard365",
             "signal": result["signal"], "score": result["technical_score"],
             "investment_horizon": result["investment_horizon"],
             "investment_horizon_label": result["investment_horizon_label"],
@@ -1759,7 +1750,7 @@ async def fund_analysis(symbol: str, horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)
     fund = _fund_or_error(symbol)
     try:
-        result, bars, _ = await _analyze_fund_tsetmc(fund, horizon=horizon)
+        result, bars, _ = await _analyze_fund_chart(fund, horizon=horizon)
     except SourceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     _record_fund_score_history(result, fund["fund_key"], result.get("data_timestamp"), bars)

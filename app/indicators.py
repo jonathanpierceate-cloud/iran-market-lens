@@ -414,8 +414,8 @@ def compute_indicators(bars: list[dict[str, Any]]) -> dict[str, Any]:
     return output
 
 
-def tsetmc_fund_indicator_groups(bars: list[dict[str, Any]]) -> dict[str, Any]:
-    """Build the fund-scoring indicator groups from TSETMC daily OHLCV bars."""
+def fund_chart_indicator_groups(bars: list[dict[str, Any]], *, source: str = "Rahavard365Chart") -> dict[str, Any]:
+    """Calculate fund-scoring indicators from daily OHLCV chart candles."""
     computed = compute_indicators(bars)
     raw = computed.get("indicators") or {}
 
@@ -526,5 +526,5 @@ def tsetmc_fund_indicator_groups(bars: list[dict[str, Any]]) -> dict[str, Any]:
     return {"data": {"oscillators": oscillators,
                      "moving_averages": moving_averages,
                      "pivots": pivots, "bands": bands, "volumes": volumes},
-            "source": "TSETMC", "observations": computed.get("observations"),
+            "source": source, "observations": computed.get("observations"),
             "data_status": computed.get("data_status")}

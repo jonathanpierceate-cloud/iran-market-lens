@@ -78,118 +78,6 @@
     return data;
   }
 
-  const TSETMC_API_BASE = "https://cdn.tsetmc.com/api";
-  const tsetmcHistoryCache = new Map();
-  const tsetmcHistoryInFlight = new Map();
-  const tsetmcInstrumentCache = new Map();
-  function normalizeTsetmcSymbol(value) {
-    return String(value || "").normalize("NFKC").replace(/[ي]/g, "ی").replace(/[ك]/g, "ک")
-      .replace(/[\s\u200c\u200e\u200f\ufeff]/g, "").trim();
-  }
-  async function fetchTsetmcJson(url) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
-    try {
-      const response = await fetch(url, { mode: "cors", credentials: "omit", cache: "no-store", signal: controller.signal });
-      if (!response.ok) throw new Error(`پاسخ TSETMC: HTTP ${response.status}`);
-      return await response.json();
-    } catch (error) {
-      if (error?.name === "AbortError") throw new Error("مهلت دریافت مستقیم از TSETMC تمام شد.");
-      throw new Error(`دریافت مستقیم از TSETMC ناموفق بود: ${error?.message || "خطای اتصال"}`);
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-  async function fetchTsetmcBarsForFund(fund) {
-    let raw = fund?.raw;
-    if ((!raw || typeof raw !== "object") && typeof fund?.raw_json === "string") {
-      try { raw = JSON.parse(fund.raw_json); } catch { raw = {}; }
-    }
-    raw = raw && typeof raw === "object" ? raw : {};
-    const ticker = String(fund?.trade_symbol || raw.trade_symbol || fund?.display_symbol || raw.name || fund?.name || fund?.fund_name || "").trim();
-    const normalizedTicker = normalizeTsetmcSymbol(ticker);
-    if (!normalizedTicker) throw new Error("نماد معاملاتی برای جست‌وجو در TSETMC پیدا نشد.");
-    const cached = tsetmcHistoryCache.get(normalizedTicker);
-    if (cached && Date.now() - cached.savedAt < 15 * 60 * 1000) return cached.value;
-    const inFlight = tsetmcHistoryInFlight.get(normalizedTicker);
-    if (inFlight) return inFlight;
-
-    const request = (async () => {
-      const started = performance.now();
-      let instrument = tsetmcInstrumentCache.get(normalizedTicker);
-      if (!instrument) {
-        const searchUrl = `${TSETMC_API_BASE}/Instrument/GetInstrumentSearch/${encodeURIComponent(ticker)}`;
-        const payload = await fetchTsetmcJson(searchUrl);
-        const rows = Array.isArray(payload?.instrumentSearch) ? payload.instrumentSearch : [];
-        const exact = rows.filter((row) => normalizeTsetmcSymbol(row?.lVal18AFC) === normalizedTicker && /^\d+$/.test(String(row?.insCode || "")));
-        const funds = exact.filter((row) => /صندوق|ص\.س/i.test(String(row?.lVal30 || "")));
-        const candidates = funds.length === 1 ? funds : exact;
-        if (candidates.length !== 1) throw new Error(candidates.length ? `نماد «${ticker}» در TSETMC چند نتیجه دارد.` : `نماد «${ticker}» در TSETMC پیدا نشد.`);
-        instrument = { code: String(candidates[0].insCode), ticker: String(candidates[0].lVal18AFC || ticker) };
-        tsetmcInstrumentCache.set(normalizedTicker, instrument);
-      }
-
-      const historyUrl = `${TSETMC_API_BASE}/ClosingPrice/GetClosingPriceDailyList/${instrument.code}/0`;
-      const quoteUrl = `${TSETMC_API_BASE}/ClosingPrice/GetClosingPriceInfo/${instrument.code}`;
-      const [history, quotePayload] = await Promise.all([
-        fetchTsetmcJson(historyUrl),
-        fetchTsetmcJson(quoteUrl).catch(() => null),
-      ]);
-      const rows = Array.isArray(history?.closingPriceDaily) ? history.closingPriceDaily : [];
-      const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tehran", year: "numeric", month: "2-digit", day: "2-digit" })
-        .formatToParts(new Date()).map((part) => [part.type, part.value]));
-      const today = `${parts.year}-${parts.month}-${parts.day}`;
-      const fetchedAt = new Date().toISOString();
-      const barsByDate = new Map();
-      for (const row of rows) {
-        const rawDate = String(row?.dEven || "");
-        if (!/^\d{8}$/.test(rawDate)) continue;
-        const timestamp = `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`;
-        if (timestamp >= today) continue;
-        const close = Number(row.pDrCotVal) || Number(row.pClosing);
-        if (!Number.isFinite(close) || close <= 0) continue;
-        const numeric = (value, fallback = close) => {
-          const parsed = Number(value);
-          return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-        };
-        barsByDate.set(timestamp, {
-          timestamp, fetched_at: fetchedAt,
-          open: numeric(row.priceFirst), high: numeric(row.priceMax), low: numeric(row.priceMin),
-          close, volume: Math.max(0, Number(row.qTotTran5J) || 0), source: "TSETMC",
-          source_url: historyUrl, instrument_code: instrument.code, ticker: instrument.ticker,
-        });
-      }
-      const bars = [...barsByDate.keys()].sort().slice(-499).map((date) => barsByDate.get(date));
-      const quote = quotePayload?.closingPriceInfo;
-      const quoteDate = String(quote?.dEven || "");
-      const quoteTimestamp = /^\d{8}$/.test(quoteDate)
-        ? `${quoteDate.slice(0, 4)}-${quoteDate.slice(4, 6)}-${quoteDate.slice(6, 8)}` : "";
-      const quoteClose = Number(quote?.pDrCotVal) || Number(quote?.pClosing);
-      if (quoteTimestamp === today && Number.isFinite(quoteClose) && quoteClose > 0) {
-        const numeric = (value, fallback = quoteClose) => {
-          const parsed = Number(value);
-          return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-        };
-        bars.push({
-          timestamp: quoteTimestamp, fetched_at: fetchedAt,
-          open: numeric(quote.priceFirst), high: numeric(quote.priceMax), low: numeric(quote.priceMin),
-          close: quoteClose, volume: Math.max(0, Number(quote.qTotTran5J) || 0), source: "TSETMC",
-          source_url: quoteUrl, instrument_code: instrument.code, ticker: instrument.ticker,
-        });
-      }
-      if (bars.length < 2) throw new Error(`تاریخچهٔ روزانهٔ کافی برای «${ticker}» در TSETMC موجود نیست.`);
-      return { bars, ticker: instrument.ticker, fetch_ms: Math.max(0, Math.round(performance.now() - started)) };
-    })();
-    tsetmcHistoryInFlight.set(normalizedTicker, request);
-    try {
-      const value = await request;
-      tsetmcHistoryCache.set(normalizedTicker, { savedAt: Date.now(), value });
-      return value;
-    } finally {
-      tsetmcHistoryInFlight.delete(normalizedTicker);
-    }
-  }
-
   function toast(message, isError = false) {
     const node = $("#toast");
     node.textContent = message;
@@ -1048,6 +936,7 @@
   }
 
   function rahavardAnalysisHtml(a) {
+    const computedFromChart = a.indicator_source === "Rahavard365Chart";
     const signalFa = { buy: "خرید · مثبت", sell: "فروش · منفی", hold: "خنثی", strong_buy: "خرید قوی", strong_sell: "فروش قوی" };
     const siteSignals = {
       buy: ["خرید / مثبت", "positive"], strongbuy: ["خرید قوی", "positive"], bullish: ["صعودی", "positive"],
@@ -1086,12 +975,10 @@
         const rendered = percentValue ? pct(val * 100) : num(val, priceIndicator ? 0 : 2);
         return `<div class="rahavard-indicator-value"><span>${esc(valueNames[key] || part.long_name_en || key)}</span><b>${rendered}</b></div>`;
       }).join("");
-      const noValueNote = a.indicator_source === "TSETMC"
+      const noValueNote = computedFromChart
         ? name === "SM(15)" ? "فرمول این شاخص مشخص نیست و از امتیاز حذف شده است." : "دادهٔ کافی برای محاسبهٔ این شاخص موجود نیست."
         : "مقداری در پاسخ ره‌آورد نبود.";
-      const numericSummary = a.indicator_source === "TSETMC" && name === "SM(15)"
-        ? "در این آزمایش به‌دلیل مشخص نبودن فرمول، محاسبه نشده است."
-        : indicatorNumericSummary(name, item);
+      const numericSummary = indicatorNumericSummary(name, item);
       return `<article class="indicator-card rahavard-indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(groupNames[group] || group)}</small></div><span class="indicator-status ${state}">${esc(signalLabel)}</span></div><div class="rahavard-indicator-values">${values || `<span class="factor-foot">${esc(noValueNote)}</span>`}</div><p>${esc(numericSummary)}</p><div class="indicator-range-guide"><b>این شاخص چه می‌گوید؟</b><span>${esc(note.meaning || indicatorPlainMeaning(name))}</span></div></article>`;
     }));
     const gaugeCards = ["main", "pivot", "volume"].map((key) => {
@@ -1100,7 +987,7 @@
       const title = key === "main" ? "جمع‌بندی تکنیکال" : key === "pivot" ? "پیوت" : "حجم";
       const counts = gauge.footer || {};
       const countText = Object.entries(counts).map(([label, value]) => `${label}: ${value?.value ?? "—"}`).join(" · ");
-      return `<div class="readout-card"><span>${title} · سیگنال ره‌آورد</span><strong>${num(gauge.signal?.value, 0)}</strong><em class="indicator-status neutral">${esc(countText)}</em></div>`;
+      return `<div class="readout-card"><span>${title} · ${computedFromChart ? "محاسبه از نمودار" : "سیگنال ره‌آورد"}</span><strong>${num(gauge.signal?.value, 0)}</strong><em class="indicator-status neutral">${esc(countText)}</em></div>`;
     }).join("");
     const score = a.technical_score == null ? "—" : num(a.technical_score, 0);
     const cls = a.signal === "buy" ? "bullish" : a.signal === "sell" ? "bearish" : "";
@@ -1108,16 +995,16 @@
     const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
     const dashboardModel = a.score_method?.startsWith("dashboard_rahavard_three_group_weighted_");
     const tradePlan = dashboardModel ? exitManagementHtml(a) : tradePlanHtml(a);
-    const indicatorSourceName = a.indicator_source === "TSETMC" ? "TSETMC" : "ره‌آورد۳۶۵";
+    const indicatorSourceName = a.indicator_source === "Rahavard365Chart" ? "ره‌آورد۳۶۵ · محاسبهٔ داخلی" : "ره‌آورد۳۶۵";
     const indicatorSource = a.indicator_source_url
       ? ` · <a href="${esc(a.indicator_source_url)}" target="_blank" rel="noopener">منبع اندیکاتورها: ${esc(indicatorSourceName)}</a>` : ` · منبع اندیکاتورها: ${esc(indicatorSourceName)}`;
     const indicatorTime = a.indicator_data_timestamp ? ` · دریافت ${esc(formatDate(a.indicator_data_timestamp))}` : "";
-    const signalDescription = a.indicator_source === "TSETMC" ? "سیگنال محاسبه‌شده" : "سیگنال رسمی";
+    const signalDescription = computedFromChart ? "سیگنال محاسبه‌شده از کندل‌های نمودار" : "سیگنال رسمی";
     return `${overview}${tradePlan}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و ${signalDescription}${indicatorSource}${indicatorTime}</p></div></div>${pivotTable}<div class="indicator-readouts">${gaugeCards}</div><div class="indicator-card-grid">${cards.join("")}${missing}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
 
   function analysisHtml(a) {
-    if (a?.indicator_source === "TSETMC" || (a?.source === "Rahavard365" && (a?.indicator_source === "Rahavard365" || !a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")))) return rahavardAnalysisHtml(a);
+    if (a?.indicator_source === "Rahavard365Chart" || (a?.source === "Rahavard365" && (a?.indicator_source === "Rahavard365" || !a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")))) return rahavardAnalysisHtml(a);
     if (!a || a.technical_score == null) return `<div class="empty-state compact"><b>داده کافی برای محاسبه امتیاز موجود نیست</b><small>مدل فقط داده ذخیره‌شده از منبع را تحلیل می‌کند.</small></div>`;
     const all = a.indicators?.indicators || {};
     const seen = new Set();
@@ -1492,32 +1379,16 @@
       for (let offset = 0; offset < pending.length; offset += 4) {
         const batch = pending.slice(offset, offset + 4);
         let response;
-        const sourceErrors = new Map();
         try {
-          const tsetmcBars = {};
-          const tsetmcFetchMs = {};
-          const fundByKey = new Map(state.funds.map((fund) => [String(fund.fund_key || fund.symbol), fund]));
-          const fetchedBars = await Promise.all(batch.map(async (key) => {
-            const fund = fundByKey.get(key);
-            if (!fund) return { key, error: "نماد در فهرست پیدا نشد" };
-            try { return { key, value: await fetchTsetmcBarsForFund(fund) }; }
-            catch (error) { return { key, error: error?.message || "دریافت از TSETMC ناموفق بود" }; }
-          }));
-          for (const item of fetchedBars) {
-            if (item.value) {
-              tsetmcBars[item.key] = item.value.bars;
-              tsetmcFetchMs[item.key] = item.value.fetch_ms;
-            } else if (item.error) sourceErrors.set(item.key, item.error);
-          }
           response = await api("/api/funds/scores/batch", {
             method: "POST",
-            body: JSON.stringify({ fund_keys: batch, category_id: $("#fund-category")?.value || "", tsetmc_bars: tsetmcBars, tsetmc_fetch_ms: tsetmcFetchMs })
+            body: JSON.stringify({ fund_keys: batch, category_id: $("#fund-category")?.value || "" })
           });
         } catch (error) {
           if (generation !== fundScoreGeneration || requestedHorizon !== state.investmentHorizon) return;
           batch.forEach((key) => fundScoreAttemptedKeys.add(key));
           unavailable += batch.length;
-          if (progress) progress.textContent = "دریافت امتیازها موقتاً متوقف شد؛ دوباره فهرست را به‌روز کنید.";
+          if (progress) progress.textContent = "دریافت امتیازهای نمودار ره‌آورد موقتاً متوقف شد؛ دوباره فهرست را به‌روز کنید.";
           break;
         }
         if (generation !== fundScoreGeneration || requestedHorizon !== state.investmentHorizon) return;
@@ -1549,7 +1420,7 @@
           } else {
             unavailable += 1;
             if (listed) {
-              listed.technical_error = result.error || sourceErrors.get(key) || "دادهٔ کافی از TSETMC برای محاسبهٔ امتیاز موجود نیست.";
+              listed.technical_error = result.error || "دادهٔ کافی از نمودار ره‌آورد برای محاسبهٔ امتیاز موجود نیست.";
               if (listed.purchase_assessment) listed.purchase_assessment = { ...listed.purchase_assessment, reason: listed.technical_error };
             }
           }
@@ -1560,7 +1431,7 @@
             unavailable += 1;
             const listed = state.funds.find((fund) => String(fund.fund_key || fund.symbol) === key);
             if (listed) {
-              listed.technical_error = sourceErrors.get(key) || "پاسخی برای محاسبهٔ تکنیکال از سرور دریافت نشد.";
+              listed.technical_error = "پاسخی برای محاسبهٔ تکنیکال نمودار ره‌آورد از سرور دریافت نشد.";
               if (listed.purchase_assessment) listed.purchase_assessment = { ...listed.purchase_assessment, reason: listed.technical_error };
             }
           }
@@ -1601,7 +1472,7 @@
   async function showFund(symbol) {
     const requestedHorizon = state.investmentHorizon;
     try {
-      const data = await api(`/api/funds/${encodeURIComponent(symbol)}?skip_tsetmc=true`);
+      const data = await api(`/api/funds/${encodeURIComponent(symbol)}?skip_technical=true`);
       if (requestedHorizon !== state.investmentHorizon) return;
       const section = $("#fund-detail");
       section.dataset.fundSymbol = symbol;
@@ -1611,16 +1482,12 @@
       let technicalError = data.technical_source_error || "";
       if (!a) {
         try {
-          const candles = await fetchTsetmcBarsForFund(f);
-          a = await api(`/api/funds/${encodeURIComponent(symbol)}/technical`, {
-            method: "POST",
-            body: JSON.stringify({ bars: candles.bars, tsetmc_fetch_ms: candles.fetch_ms })
-          });
+          a = await api(`/api/funds/${encodeURIComponent(symbol)}/technical?horizon=${encodeURIComponent(requestedHorizon)}`);
           data.analysis = a;
           data.purchase_assessment = a.purchase_assessment;
           technicalError = "";
         } catch (error) {
-          technicalError = error?.message || "دریافت دادهٔ تکنیکال از TSETMC ناموفق بود.";
+          technicalError = error?.message || "دریافت دادهٔ نمودار تکنیکال ره‌آورد ناموفق بود.";
         }
       }
       const id = f.rahavard_asset_id || f.symbol;
@@ -1652,8 +1519,8 @@
         const rendered = typeof value === "number" ? money(value) : text(value);
         return `<div class="property"><span>${label}</span><b>${esc(rendered)}</b></div>`;
       }).join("");
-      const technicalHtml = a ? analysisHtml(a) : `<div class="empty-state compact"><b>دادهٔ تکنیکال TSETMC دریافت نشد</b><small>${esc(technicalError || "اتصال به منبع برقرار نشد. لطفاً کمی بعد دوباره تلاش کنید.")}</small></div>`;
-      section.innerHTML = `<div class="fund-detail-head"><div><span class="panel-kicker">نمایه صندوق · ${esc(displaySymbol)}</span><h2>${esc(f.name || displaySymbol)}</h2><p>فهرست، قیمت و NAV از ره‌آورد۳۶۵ · داده تا ${esc(formatDate(f.data_timestamp))}</p></div><button class="icon-button" data-close-fund aria-label="بستن">×</button></div><div class="fund-detail-body"><div><div class="fund-properties">${propsHtml}</div></div><div><h3>داده‌های تکمیلی</h3><p class="fund-chart-caption">تاریخچهٔ نمودار و NAV از ره‌آورد دریافت شده‌اند؛ محاسبات تحلیل تکنیکال از داده‌های روزانهٔ TSETMC انجام می‌شوند.</p><div class="source-line">قیمت و NAV: ره‌آورد۳۶۵ · ${nf.format(data.history?.length || 0)} مشاهده قیمت · ${nf.format(data.nav_history?.length || 0)} مشاهدهٔ NAV · اندیکاتورها: TSETMC</div><a class="button button-quiet" href="/api/funds/${encodeURIComponent(symbol)}/history" target="_blank" rel="noopener">مشاهدهٔ دادهٔ خام قیمت و NAV</a></div></div><div class="fund-analysis-full"><h3>تحلیل تکنیکال TSETMC</h3>${technicalHtml}</div>`;
+      const technicalHtml = a ? analysisHtml(a) : `<div class="empty-state compact"><b>دادهٔ تحلیل نمودار ره‌آورد دریافت نشد</b><small>${esc(technicalError || "دریافت کندل‌های نمودار ناموفق بود. لطفاً کمی بعد دوباره تلاش کنید.")}</small></div>`;
+      section.innerHTML = `<div class="fund-detail-head"><div><span class="panel-kicker">نمایه صندوق · ${esc(displaySymbol)}</span><h2>${esc(f.name || displaySymbol)}</h2><p>فهرست، قیمت و NAV از ره‌آورد۳۶۵ · داده تا ${esc(formatDate(f.data_timestamp))}</p></div><button class="icon-button" data-close-fund aria-label="بستن">×</button></div><div class="fund-detail-body"><div><div class="fund-properties">${propsHtml}</div></div><div><h3>داده‌های تکمیلی</h3><p class="fund-chart-caption">کندل‌های نمودار ره‌آورد دریافت می‌شوند و مقدار اندیکاتورها داخل سامانه از روی آن‌ها محاسبه می‌شود.</p><div class="source-line">قیمت، NAV و کندل‌های تکنیکال: ره‌آورد۳۶۵ · ${nf.format(data.history?.length || 0)} مشاهده قیمت · ${nf.format(data.nav_history?.length || 0)} مشاهدهٔ NAV · محاسبهٔ اندیکاتورها: داخلی</div><a class="button button-quiet" href="/api/funds/${encodeURIComponent(symbol)}/history" target="_blank" rel="noopener">مشاهدهٔ دادهٔ خام قیمت و NAV</a></div></div><div class="fund-analysis-full"><h3>تحلیل تکنیکال از روی نمودار ره‌آورد</h3>${technicalHtml}</div>`;
       section.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
       toast(`نمایه صندوق باز نشد: ${err.message}`, true);
@@ -1698,7 +1565,7 @@
         <td data-label="آخرین قیمت"><span class="watch-cell-primary">${money(item.price)}</span><small class="watch-cell-secondary ${priceTone}">${item.daily_return == null ? "—" : pct(item.daily_return)}</small></td>
         <td data-label="سود/زیان فعلی"><span class="watch-cell-primary ${profitTone}">${profit.total == null ? "—" : money(profit.total)}</span><small class="watch-cell-secondary ${profitTone}">${profit.pct == null ? "" : `(${pct(profit.pct)})`}</small></td>
         <td data-label="حد خروج" title="حد خروج با بسته‌شدن کندل روزانه زیر ${esc(exitAverage)} فعال می‌شود"><span class="watch-cell-primary">${money(item.active_exit_price)}</span><small class="watch-cell-secondary">${esc(exitAverage)}</small></td>
-        <td data-label="امتیاز نماد"><span class="watch-score ${scoreTone}" title="${esc(item.technical_error || "امتیاز بر پایهٔ داده‌های روزانهٔ TSETMC")}">${scoreValue == null || !Number.isFinite(scoreValue) ? "—" : `${num(scoreValue, 0)}٪`}</span></td>
+        <td data-label="امتیاز نماد"><span class="watch-score ${scoreTone}" title="${esc(item.technical_error || "امتیاز بر پایهٔ محاسبهٔ اندیکاتورها از نمودار روزانهٔ ره‌آورد")}">${scoreValue == null || !Number.isFinite(scoreValue) ? "—" : `${num(scoreValue, 0)}٪`}</span></td>
       </tr>`;
     }).join("");
     body.innerHTML = `<table class="watchlist-table"><thead><tr><th scope="col">نماد <small>(${nf.format(items.length)})</small></th><th scope="col">تعداد</th><th scope="col">قیمت سربه‌سر</th><th scope="col">ارزش فعلی</th><th scope="col">آخرین قیمت</th><th scope="col">سود/زیان فعلی</th><th scope="col">حد خروج</th><th scope="col">امتیاز نماد</th></tr></thead><tbody>${rows}</tbody></table>`;
@@ -1755,7 +1622,7 @@
     const body = $("#watchlist-items");
     if (!state.watchlist.length) body.innerHTML = `<div class="empty-state compact watchlist-empty"><b>در حال دریافت قیمت و تحلیل ره‌آورد…</b></div>`;
     try {
-      const data = await api("/api/watchlist?skip_tsetmc=true");
+      const data = await api("/api/watchlist?skip_technical=true");
       if (requestedHorizon !== state.investmentHorizon) return;
       state.watchlist = data.items || [];
       renderPersonalWatchlist(state.watchlist, data.totals || {});
@@ -1763,33 +1630,17 @@
       for (let offset = 0; offset < technicalItems.length; offset += 4) {
         if (requestedHorizon !== state.investmentHorizon) return;
         const batch = technicalItems.slice(offset, offset + 4);
-        const tsetmcBars = {};
-        const tsetmcFetchMs = {};
-        await Promise.all(batch.map(async (item) => {
-          const key = String(item.fund_key);
-          try {
-            const candles = await fetchTsetmcBarsForFund(item);
-            tsetmcBars[key] = candles.bars;
-            tsetmcFetchMs[key] = candles.fetch_ms;
-          } catch (error) {
-            item.technical_error = error?.message || "دریافت از TSETMC ناموفق بود.";
-          }
-        }));
-        if (!Object.keys(tsetmcBars).length) {
-          renderPersonalWatchlist(state.watchlist, data.totals || {});
-          continue;
-        }
         try {
           const scores = await api("/api/funds/scores/batch", {
             method: "POST",
-            body: JSON.stringify({ fund_keys: batch.map((item) => String(item.fund_key)), tsetmc_bars: tsetmcBars, tsetmc_fetch_ms: tsetmcFetchMs })
+            body: JSON.stringify({ fund_keys: batch.map((item) => String(item.fund_key)) })
           });
           const resultByKey = new Map((scores.items || []).map((result) => [String(result.fund_key), result]));
           for (const item of batch) {
             const result = resultByKey.get(String(item.fund_key));
             const analysis = result?.analysis;
             if (!analysis) {
-              item.technical_error = result?.error || item.technical_error || "تحلیل تکنیکال از TSETMC آماده نشد.";
+              item.technical_error = result?.error || "تحلیل تکنیکال نمودار ره‌آورد آماده نشد.";
               continue;
             }
             item.technical_error = "";
