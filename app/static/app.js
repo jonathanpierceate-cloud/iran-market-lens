@@ -467,10 +467,8 @@
       demark: "PivotPointDeMark(30)"
     };
     const bandLabels = {
-      very_strong: "هم‌جهتی قوی؛ ورود دیرهنگام بررسی شود", strong: "قوی",
-      relatively_positive: "نسبتاً مساعد", uncertain: "نامطمئن",
-      review: "قابل بررسی؛ تأیید ناکافی", neutral: "خنثی",
-      weak: "ضعیف", very_weak: "بسیار ضعیف", unavailable: "داده کافی نیست"
+      very_strong: "بسیار قوی", strong: "قوی", relatively_positive: "نسبتاً مثبت",
+      neutral: "خنثی", weak: "ضعیف", very_weak: "بسیار ضعیف", unavailable: "داده کافی نیست"
     };
     const familyNames = Object.fromEntries(Object.entries(labels).map(([key, [label]]) => [key, label]));
     const riskLabels = { low: "پایین", medium: "متوسط", elevated: "بالا", high: "بسیار بالا" };
@@ -482,19 +480,6 @@
     const scoreWeightText = `مدل ${horizonName} · میانگین متحرک ${num(scoreWeights.moving_averages ?? 0, 0)}٪ · نوسان‌گر ${num(scoreWeights.oscillators ?? 0, 0)}٪ · حجم ${num(scoreWeights.volume ?? 0, 0)}٪ · حمایت و مقاومت ${num(scoreWeights.support_resistance ?? 0, 0)}٪`;
     const effectiveScoreWeights = a.effective_score_weights || {};
     const familyScores = a.family_scores || {};
-    const mainScore = a.main_score == null ? null : Number(a.main_score);
-    const confirmationScore = a.confirmation_score == null ? null : Number(a.confirmation_score);
-    const confirmationCoverage = a.confirmation_coverage_pct == null ? null : Number(a.confirmation_coverage_pct);
-    const confirmationLabels = { trend: "T · روند", momentum: "M · مومنتوم", volume: "V · حجم", entry: "L · کیفیت ورود" };
-    const confirmationComponents = a.confirmation_components || {};
-    const confirmationCards = Object.entries(confirmationLabels).map(([key, label]) => {
-      const item = confirmationComponents[key] || {};
-      const value = item.score == null ? null : Number(item.score);
-      const tone = value == null ? "unavailable" : value >= 60 ? "positive" : value < 45 ? "negative" : "neutral";
-      return `<article class="trial-confirmation-card ${tone}"><span>${label} · وزن ${num(item.weight_pct, 0)}٪</span><b>${value == null || !Number.isFinite(value) ? "—" : num(value, 0)}</b></article>`;
-    }).join("");
-    const purchase = a.purchase_assessment || {};
-    const purchaseLabel = purchase.label || ({ suitable: "قابل بررسی برای خرید", confirmation: "صبر برای تأیید", unsuitable: "فعلاً مناسب خرید نیست", unavailable: "داده کافی نیست" }[a.entry_quality?.status] || "داده کافی نیست");
     const familyCards = Object.entries(labels).map(([key, [label, description]]) => {
       const family = familyScores[key] || {};
       const value = family.score == null ? NaN : Number(family.score);
@@ -555,8 +540,8 @@
     return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       <div class="fund-model-score-head">
         <div><span class="recommendation-kicker">مدل ${horizonName} AliVest · محاسبه بر پایه داده‌های ره‌آورد</span>
-          <h3>امتیاز ترکیبی F صندوق: <strong>${validScore ? `${num(score, 0)} از ۱۰۰` : "دادهٔ تأیید کافی نیست"}</strong></h3>
-          <p>${scoreWeightText}. امتیاز اصلی S: <b>${mainScore == null ? "—" : `${num(mainScore, 0)} از ۱۰۰`}</b> · وضعیت S: ${bandLabels[a.score_band] || "نامشخص"} · تأیید C: <b>${confirmationScore == null ? "—" : `${num(confirmationScore, 0)} از ۱۰۰`}</b> (${confirmationCoverage == null ? "—" : `${num(confirmationCoverage, 0)}٪ پوشش`}).</p>
+          <h3>امتیاز تکنیکال صندوق: <strong>${validScore ? `${num(score, 0)} از ۱۰۰` : "داده کافی نیست"}</strong></h3>
+          <p>${scoreWeightText}. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · RSI به‌تنهایی مبنای خرید نیست.</p>
         </div>
         <div class="fund-model-meta">
           <span>پوشش کل داده‌ها <b>${Number.isFinite(coverage) ? `${num(coverage, 0)}٪` : "—"}</b></span>
@@ -565,12 +550,10 @@
         </div>
       </div>
       <div class="fund-family-score-grid">${familyCards}</div>
-      <div class="trial-confirmation-grid">${confirmationCards}</div>
-      <div class="trial-purchase-assessment"><span>جمع‌بندی خرید طبق آستانه‌های مدل</span><b>${esc(purchaseLabel)}</b>${purchase.reason ? `<small>${esc(purchase.reason)}</small>` : ""}</div>
       ${factorSummary}
       <div class="fund-model-context"><span>${navText}</span></div>
       <div class="fund-score-changes"><b>تغییر امتیاز در روزهای معاملاتی گذشته</b>${changeChip("۵ روز", a.score_change_5d)}${changeChip("۲۰ روز", a.score_change_20d)}</div>
-      <div class="fund-model-disclaimer"><b>مدل آزمایشی و نحوهٔ خواندن امتیاز</b><span>${modelNote} S برآیند چهار گروه اندیکاتور است؛ C از روند، مومنتوم، همراهی حجم با قیمت و کیفیت ورود ساخته می‌شود؛ F = ۷۵٪ S + ۲۵٪ C. برای L مناسب، نسبت سود به ریسک دست‌کم ۱٫۵ و فاصله تا مقاومت دست‌کم ۲٪ در نظر گرفته شده است. فرصت خرید فقط با عبور هم‌زمان از آستانه‌های S و C و مناسب‌بودن موقعیت ورود بررسی می‌شود. وزن شاخص‌های بی‌داده متناسب می‌شود؛ امتیازها بک‌تست نشده‌اند و تضمین بازده نیستند.</span></div>
+      <div class="fund-model-disclaimer"><b>نحوهٔ خواندن امتیاز</b><span>${modelNote} شاخص‌های بدون دادهٔ معتبر از محاسبه کنار گذاشته می‌شوند و وزن شاخص‌های موجود در همان گروه متناسب تنظیم می‌شود؛ NAV و نوسان برای نمایش جداگانه‌اند و در امتیاز کل دخالت ندارند.</span></div>
     </section>`;
   }
 
@@ -586,19 +569,15 @@
     const strengthLabels = { strong: "قوی", medium: "متوسط", weak: "ضعیف", unavailable: "نامشخص" };
     const riskLabels = { low: "کم", medium: "متوسط", high: "بالا", very_high: "بسیار بالا", unavailable: "نامشخص" };
     const entryLabels = { suitable: "مناسب", confirmation: "نیازمند تأیید", unsuitable: "نامناسب", unavailable: "داده کافی نیست" };
-    const bandLabels = { very_strong: "هم‌جهتی قوی؛ ورود دیرهنگام بررسی شود", strong: "قوی", relatively_positive: "نسبتاً مساعد", review: "قابل بررسی؛ تأیید ناکافی", uncertain: "نامطمئن", neutral: "خنثی", weak: "ضعیف", very_weak: "بسیار ضعیف", unavailable: "داده کافی نیست" };
+    const bandLabels = { very_strong: "بسیار قوی", strong: "قوی", relatively_positive: "نسبتاً مثبت", neutral: "خنثی", weak: "نسبتاً منفی", very_weak: "بسیار ضعیف", unavailable: "داده کافی نیست" };
     const trend = trendLabels[a.trend || a.medium_term_trend] || "داده کافی نیست";
     const strength = strengthLabels[a.trend_strength] || "نامشخص";
     const risk = riskLabels[a.risk] || "نامشخص";
-    const entry = a.purchase_assessment?.label || entryLabels[a.entry_quality?.status] || "داده کافی نیست";
-    const mainScore = finite(a.main_score) ? Number(a.main_score) : null;
-    const confirmationScore = finite(a.confirmation_score) ? Number(a.confirmation_score) : null;
-    const confirmationCoverage = finite(a.confirmation_coverage_pct) ? Number(a.confirmation_coverage_pct) : null;
-    const scoreWeightText = "مدل " + horizonName + " · نوسان‌گر " + num(weights.oscillators ?? 0, 0) + "٪ · میانگین متحرک " + num(weights.moving_averages ?? 0, 0) + "٪ · حجم " + num(weights.volume ?? 0, 0) + "٪ · حمایت و مقاومت " + num(weights.support_resistance ?? 0, 0) + "٪";
+    const entry = entryLabels[a.entry_quality?.status] || "داده کافی نیست";
+    const scoreWeightText = "مدل " + horizonName + " · میانگین متحرک " + num(weights.moving_averages ?? 0, 0) + "٪ · نوسان‌گر " + num(weights.oscillators ?? 0, 0) + "٪ · حمایت و مقاومت " + num(weights.support_resistance ?? 0, 0) + "٪";
     const familyDefinitions = [
       { key: "moving_averages", label: "میانگین متحرک", description: "EMA، SMA، ایچیموکو و باندها" },
       { key: "oscillators", label: "نوسان‌گر", description: "مومنتوم و قدرت روند؛ RSI فقط یکی از چند رأی است" },
-      { key: "volume", label: "حجم", description: "حجم فقط همراه جهت حرکت قیمت امتیاز می‌گیرد" },
       { key: "support_resistance", label: "حمایت و مقاومت", description: "پیوت‌های فیبوناچی، کلاسیک، کاماریلا، وودی و دیمارک" },
     ];
     const familyCards = familyDefinitions.map((factor) => {
@@ -623,14 +602,6 @@
         "<details class=\"dashboard-score-details\"><summary>جزئیات وزن و امتیاز اندیکاتورها (" + details.length + ")</summary><div>" + detailRows + "</div></details>" +
         "<i style=\"width:" + (value == null ? 0 : Math.max(0, Math.min(100, value))) + "%\"></i></article>";
     }).join("");
-    const confirmationLabels = { trend: "T · روند", momentum: "M · مومنتوم", volume: "V · حجم", entry: "L · کیفیت ورود" };
-    const confirmationComponents = a.confirmation_components || {};
-    const confirmationCards = Object.entries(confirmationLabels).map(([key, label]) => {
-      const item = confirmationComponents[key] || {};
-      const value = finite(item.score) ? Number(item.score) : null;
-      const tone = value == null ? "unavailable" : value >= 60 ? "positive" : value < 45 ? "negative" : "neutral";
-      return "<article class=\"trial-confirmation-card " + tone + "\"><span>" + label + " · وزن " + num(item.weight_pct, 0) + "٪</span><b>" + (value == null ? "—" : num(value, 0)) + "</b></article>";
-    }).join("");
     const unitLabels = { GOLD: "دلار / اونس", USD_IR_FREE: "تومان", TEPIX: "واحد", GOLD_18K: "ریال / گرم" };
     const price = finite(a.price) ? money(a.price) + " " + (unitLabels[a.symbol] || "") : "قیمت در دسترس نیست";
     const daily = finite(a.daily_return_pct) ? (Number(a.daily_return_pct) > 0 ? "+" : "") + num(a.daily_return_pct, 2) + "٪" : "تغییر روزانه موجود نیست";
@@ -643,29 +614,27 @@
     const limitations = Array.isArray(a.data_limitations) ? a.data_limitations : [];
     return "<section class=\"fund-recommendation " + scoreTone + " fund-model-recommendation dashboard-model-recommendation\">" +
       "<div class=\"fund-model-score-head\"><div><span class=\"recommendation-kicker\">مدل " + horizonName + " · امتیاز اختصاصی AliVest بر پایهٔ داده‌های ره‌آورد</span>" +
-      "<h3>امتیاز ترکیبی F: <strong>" + (scoreValue == null ? "دادهٔ تأیید کافی نیست" : num(scoreValue, 0) + " از ۱۰۰") + "</strong></h3>" +
-      "<p>" + scoreWeightText + " · امتیاز اصلی S: <b>" + (mainScore == null ? "—" : num(mainScore, 0) + " از ۱۰۰") + "</b> · وضعیت S: " + (bandLabels[a.score_band] || "نامشخص") + " · امتیاز تأیید C: <b>" + (confirmationScore == null ? "—" : num(confirmationScore, 0) + " از ۱۰۰") + "</b> (پوشش " + (confirmationCoverage == null ? "—" : num(confirmationCoverage, 0) + "٪") + ").</p></div>" +
+      "<h3>امتیاز تکنیکال: <strong>" + (scoreValue == null ? "داده کافی نیست" : num(scoreValue, 0) + " از ۱۰۰") + "</strong> · " + (bandLabels[a.score_band] || "نامشخص") + "</h3>" +
+      "<p>" + scoreWeightText + " · وزن شاخص‌های بی‌داده در گروه متناسب می‌شود؛ RSI به‌تنهایی مبنای خرید نیست.</p></div>" +
       "<div class=\"fund-model-meta\"><span>قیمت فعلی <b>" + price + "</b></span><span>تغییر روزانه <b>" + daily + "</b></span>" +
       "<span>جهت " + horizonName + " <b>" + trend + "</b></span><span>قدرت روند <b>" + strength + "</b></span>" +
       "<span>ریسک نوسان <b>" + risk + (finite(a.risk_score) ? " · " + num(a.risk_score, 0) : "") + "</b></span>" +
-      "<span>جمع‌بندی خرید <b>" + entry + (finite(a.entry_quality?.score) ? " · کیفیت ورود L: " + num(a.entry_quality.score, 0) : "") + "</b></span>" +
+      "<span>ارزیابی خرید <b>" + entry + (finite(a.entry_quality?.score) ? " · امتیاز کل " + num(a.entry_quality.score, 0) : "") + "</b></span>" +
       "<span>پوشش داده <b>" + (finite(a.data_coverage_pct) ? num(a.data_coverage_pct, 0) + "٪" : "—") + "</b></span>" +
       "<span>به‌روزرسانی <b>" + esc(formatDate(a.data_timestamp)) + "</b></span></div></div>" +
       "<div class=\"fund-family-score-grid\">" + familyCards + "</div>" +
-      "<div class=\"trial-confirmation-grid\">" + confirmationCards + "</div>" +
-      (a.purchase_assessment?.reason ? "<div class=\"trial-purchase-assessment\"><span>جمع‌بندی طبق آستانه‌های مدل</span><small>" + esc(a.purchase_assessment.reason) + "</small></div>" : "") +
       "<div class=\"fund-model-factors\"><div class=\"positive\"><b>شواهد مثبت</b>" + evidenceText(a.positive_evidence, "عامل مثبت برجسته‌ای از داده‌های موجود به دست نیامد.") + "</div>" +
       "<div class=\"negative\"><b>نیازمند توجه</b>" + evidenceText(a.negative_evidence, "عامل منفی برجسته‌ای از داده‌های موجود به دست نیامد.") + "</div></div>" +
       "<div class=\"fund-model-context dashboard-levels\">" + levelText("حمایت نزدیک", a.nearest_support?.midpoint, a.score_breakdown?.support_distance_pct) +
       levelText("مقاومت پیش‌رو", a.nearest_resistance?.midpoint, a.score_breakdown?.resistance_distance_pct) +
       levelText("سطح ساختاری", a.structural_invalidation_level, null) + "</div>" +
-      "<div class=\"fund-model-disclaimer\"><b>مدل آزمایشی و محدودیت محاسبه</b><span>امتیاز اصلی S از چهار گروه ساخته می‌شود؛ امتیاز تأیید C از روند، مومنتوم، همراهی حجم با قیمت و کیفیت ورود تشکیل شده و F = ۷۵٪ S + ۲۵٪ C است. برای L مناسب، نسبت سود به ریسک دست‌کم ۱٫۵ و فاصله تا مقاومت دست‌کم ۲٪ در نظر گرفته شده است. داده‌های مفقود امتیاز جایگزین نمی‌گیرند و وزن موجودها متناسب می‌شود. آستانه‌ها بک‌تست نشده‌اند و تضمین بازده یا سیگنال قطعی نیستند. " +
+      "<div class=\"fund-model-disclaimer\"><b>روش و محدودیت محاسبه</b><span>امتیاز کل برآیند سه گروه میانگین متحرک، نوسان‌گر و حمایت‌ومقاومت با وزن‌های نمایش‌داده‌شده است. وزن شاخص‌های فاقد داده حذف و وزن‌های معتبر متناسب می‌شوند. این امتیاز اختصاصی و بدون آزمون تاریخی است و توصیه قطعی معامله محسوب نمی‌شود. " +
       limitations.map(esc).join(" ") + "</span></div></section>";
   }
 
 
   function rahavardRecommendationHtml(a) {
-    if (a?.score_method?.startsWith("dashboard_rahavard_four_group_weighted_") || a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")) {
+    if (a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")) {
       return dashboardModelRecommendationHtml(a);
     }
     if (a?.score_method?.startsWith("fund_rahavard_four_group_weighted_") && a.family_scores) {
@@ -989,9 +958,8 @@
   }
 
   function analysisHtml(a) {
-    if (a?.source === "Rahavard365" && !a?.score_method?.startsWith("dashboard_rahavard_four_group_weighted_") && !a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")) return rahavardAnalysisHtml(a);
-    const isDashboardModel = a?.score_method?.startsWith("dashboard_rahavard_four_group_weighted_") || a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_");
-    if (!a || (a.technical_score == null && !isDashboardModel)) return `<div class="empty-state compact"><b>داده کافی برای محاسبه امتیاز موجود نیست</b><small>مدل فقط داده ذخیره‌شده از منبع را تحلیل می‌کند.</small></div>`;
+    if (a?.source === "Rahavard365" && !a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")) return rahavardAnalysisHtml(a);
+    if (!a || a.technical_score == null) return `<div class="empty-state compact"><b>داده کافی برای محاسبه امتیاز موجود نیست</b><small>مدل فقط داده ذخیره‌شده از منبع را تحلیل می‌کند.</small></div>`;
     const all = a.indicators?.indicators || {};
     const seen = new Set();
     const entries = Object.entries(all).filter(([key]) => {
@@ -1024,6 +992,7 @@
       summary("میانگین‌های EMA", maAlignment.length ? `${maAlignment.filter(Boolean).length} از ${maAlignment.length}` : "—", maState, `${maLabel} · نسبت قیمت به EMA20/50/200`)
     ].join("");
     const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
+    const isDashboardModel = a.score_method?.startsWith("dashboard_rahavard_three_group_weighted_");
     const tradePlan = isDashboardModel ? exitManagementHtml(a) : tradePlanHtml(a);
     return `${overview}${tradePlan}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(entries.length)} شاخص با مقدار فعلی، تفسیر عددی و سیگنال رسمی</p></div></div>${pivotTable}<div class="indicator-readouts">${summaryCards}</div><div class="indicator-card-grid">${cards}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
@@ -1074,7 +1043,7 @@
       const direction = trendLabels[analysis.trend || analysis.medium_term_trend] || "نامشخص";
       const strength = strengthLabels[analysis.trend_strength] || "نامشخص";
       const risk = riskLabels[analysis.risk] || "نامشخص";
-      const entry = analysis.purchase_assessment?.label || entryLabels[analysis.entry_quality?.status] || "نامشخص";
+      const entry = entryLabels[analysis.entry_quality?.status] || "نامشخص";
       const coverage = analysis.data_coverage_pct == null ? "—" : `${num(analysis.data_coverage_pct, 0)}٪`;
       const tone = analysis.trend || analysis.medium_term_trend || "unavailable";
       return `<tr><th scope="row">${name}</th><td>${price}</td><td>${score}</td><td><span class="asset-comparison-tag ${tone}">${direction}</span></td><td>${strength}</td><td>${risk}</td><td>${entry}</td><td>${coverage}</td></tr>`;

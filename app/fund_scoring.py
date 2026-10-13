@@ -11,7 +11,6 @@ import re
 from typing import Any
 
 from .scoring_profiles import FUND_SCORING_PROFILES, normalize_horizon, horizon_label
-from .scoring_confirmation import assess_purchase, combine_scores, compute_confirmation
 
 FAMILY_WEIGHTS = FUND_SCORING_PROFILES["long"]["family_weights"]
 
@@ -667,24 +666,35 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     family["oscillators"] = _momentum_score(rows, price, context, indicator_weights["oscillators"])
     family["volume"] = _volume_score(rows, price, context, indicator_weights["volume"])
     family["support_resistance"] = _pivot_score(rows, price, indicator_weights["support_resistance"])
-    volatility_assessment = _entry_quality_score(rows, price, context)
+    entry_quality = _entry_quality_score(rows, price, context)
     nav_assessment = _nav_score(price, context)
-    support_family = family["support_resistance"]
-    confirmation = compute_confirmation(
-        horizon, context.get("fund_history") or [], price,
-        support_family.get("nearest_support"), support_family.get("nearest_resistance"))
-    combined = combine_scores(family, family_weights, confirmation)
-    final_score = combined["combined_score"]
-    main_score = combined["main_score"]
-    available_family_weight = combined["available_family_weight_pct"] / 100.0
-    effective_family_weights = combined["effective_family_weights"]
+
+    valid_families = [(key, value["score"], family_weights[key])
+                      for key, value in family.items() if value.get("score") is not None]
+    available_family_weight = sum(weight for _, _, weight in valid_families)
+    final_score = (sum(score * weight for _, score, weight in valid_families) / available_family_weight
+                   if available_family_weight else None)
+    effective_family_weights = ({key: round(weight / available_family_weight * 100.0, 1)
+                                 for key, _, weight in valid_families}
+                                if available_family_weight else {})
     coverage = sum(family_weights[key] * float(value.get("coverage_pct") or 0.0) / 100.0
                    for key, value in family.items()) * 100.0
-    purchase_assessment = assess_purchase(
-        main_score, confirmation["score"], confirmation["coverage_pct"],
-        confirmation["entry_quality"], confirmation["components"])
+    if final_score is None:
+        band = "unavailable"
+    elif final_score >= 80:
+        band = "very_strong"
+    elif final_score >= 70:
+        band = "strong"
+    elif final_score >= 60:
+        band = "relatively_positive"
+    elif final_score >= 45:
+        band = "neutral"
+    elif final_score >= 30:
+        band = "weak"
+    else:
+        band = "very_weak"
 
-    volatility = _number(volatility_assessment.get("realized_volatility_pct"))
+    volatility = _number(entry_quality.get("realized_volatility_pct"))
     risk_scale = VOLATILITY_SCALE_PCT.get(kind or "", 45.0)
     risk_score = min(100.0, volatility / risk_scale * 60.0) if volatility is not None else None
     if risk_score is not None and kind == "leveraged":
@@ -692,17 +702,6 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     risk_level = None
     if risk_score is not None:
         risk_level = "high" if risk_score >= 70 else "elevated" if risk_score >= 50 else "medium" if risk_score >= 30 else "low"
-    if purchase_assessment.get("status") == "suitable":
-        if coverage < 30 or combined["available_family_weight_pct"] < 50:
-            purchase_assessment = {
-                "status": "confirmation", "label": "صبر · پوشش داده کم",
-                "reason": "پوشش داده یا خانواده‌های قابل‌محاسبه برای تأیید فرصت خرید کافی نیست.", "rank": 2,
-            }
-        elif risk_level == "high":
-            purchase_assessment = {
-                "status": "confirmation", "label": "صبر · ریسک بالا",
-                "reason": "رتبهٔ ریسک نوسان بالاست؛ امتیاز تکنیکال به‌تنهایی برای ورود کافی نیست.", "rank": 2,
-            }
 
     diagnostics = []
     for family_key, result in family.items():
@@ -716,12 +715,7 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     top_negative = min(scored_families, key=lambda row: row[1]) if scored_families else None
     return {
         "technical_score": round(final_score, 1) if final_score is not None else None,
-        "main_score": main_score,
-        "confirmation_score": confirmation["score"],
-        "confirmation_coverage_pct": confirmation["coverage_pct"],
-        "confirmation_components": confirmation["components"],
-        "combined_score": combined["combined_score"],
-        "score_method": f"fund_rahavard_four_group_weighted_{horizon}_trial_v1",
+        "score_method": f"fund_rahavard_four_group_weighted_{horizon}_v2",
         "score_weights": {key: round(weight * 100) for key, weight in family_weights.items()},
         "indicator_weights": {
             family_key: {key: round(weight * 100, 1) for key, weight in weights.items()}
@@ -736,16 +730,14 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
         "family_scores": family,
         "data_coverage_pct": round(coverage, 1),
         "available_family_weight_pct": round(available_family_weight * 100, 1),
-        "score_band": combined["score_band"],
+        "score_band": band,
         "score_validation": "initial_unbacktested",
         "risk_rank": {"score": round(risk_score, 1) if risk_score is not None else None,
                       "level": risk_level,
                       "basis": "annualized_20d_realized_volatility_with_type_specific_scale",
                       "fund_type": kind, "type_adjusted": kind in VOLATILITY_SCALE_PCT},
         "nav_assessment": nav_assessment,
-        "entry_quality": confirmation["entry_quality"],
-        "purchase_assessment": purchase_assessment,
-        "volatility_assessment": volatility_assessment,
+        "entry_quality": entry_quality,
         "top_factors": {
             "positive": ({"family": top_positive[0], "score": round(top_positive[1], 1)}
                           if top_positive and top_positive[1] >= 50 else None),
