@@ -130,7 +130,11 @@
       }
 
       const historyUrl = `${TSETMC_API_BASE}/ClosingPrice/GetClosingPriceDailyList/${instrument.code}/0`;
-      const history = await fetchTsetmcJson(historyUrl);
+      const quoteUrl = `${TSETMC_API_BASE}/ClosingPrice/GetClosingPriceInfo/${instrument.code}`;
+      const [history, quotePayload] = await Promise.all([
+        fetchTsetmcJson(historyUrl),
+        fetchTsetmcJson(quoteUrl).catch(() => null),
+      ]);
       const rows = Array.isArray(history?.closingPriceDaily) ? history.closingPriceDaily : [];
       const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tehran", year: "numeric", month: "2-digit", day: "2-digit" })
         .formatToParts(new Date()).map((part) => [part.type, part.value]));
@@ -142,7 +146,7 @@
         if (!/^\d{8}$/.test(rawDate)) continue;
         const timestamp = `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`;
         if (timestamp >= today) continue;
-        const close = Number(row.pClosing);
+        const close = Number(row.pDrCotVal) || Number(row.pClosing);
         if (!Number.isFinite(close) || close <= 0) continue;
         const numeric = (value, fallback = close) => {
           const parsed = Number(value);
@@ -155,7 +159,24 @@
           source_url: historyUrl, instrument_code: instrument.code, ticker: instrument.ticker,
         });
       }
-      const bars = [...barsByDate.keys()].sort().slice(-500).map((date) => barsByDate.get(date));
+      const bars = [...barsByDate.keys()].sort().slice(-499).map((date) => barsByDate.get(date));
+      const quote = quotePayload?.closingPriceInfo;
+      const quoteDate = String(quote?.dEven || "");
+      const quoteTimestamp = /^\d{8}$/.test(quoteDate)
+        ? `${quoteDate.slice(0, 4)}-${quoteDate.slice(4, 6)}-${quoteDate.slice(6, 8)}` : "";
+      const quoteClose = Number(quote?.pDrCotVal) || Number(quote?.pClosing);
+      if (quoteTimestamp === today && Number.isFinite(quoteClose) && quoteClose > 0) {
+        const numeric = (value, fallback = quoteClose) => {
+          const parsed = Number(value);
+          return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+        };
+        bars.push({
+          timestamp: quoteTimestamp, fetched_at: fetchedAt,
+          open: numeric(quote.priceFirst), high: numeric(quote.priceMax), low: numeric(quote.priceMin),
+          close: quoteClose, volume: Math.max(0, Number(quote.qTotTran5J) || 0), source: "TSETMC",
+          source_url: quoteUrl, instrument_code: instrument.code, ticker: instrument.ticker,
+        });
+      }
       if (bars.length < 2) throw new Error(`تاریخچهٔ روزانهٔ کافی برای «${ticker}» در TSETMC موجود نیست.`);
       return { bars, ticker: instrument.ticker, fetch_ms: Math.max(0, Math.round(performance.now() - started)) };
     })();

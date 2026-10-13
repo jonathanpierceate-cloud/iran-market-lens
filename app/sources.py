@@ -845,10 +845,13 @@ def tsetmc_fund_history(ticker: str) -> list[dict[str, Any]]:
             stamp = datetime.strptime(str(row.get("dEven")), "%Y%m%d").date().isoformat()
         except (TypeError, ValueError):
             continue
-        # The current session's candle is still forming; use completed daily candles only.
+        # The current session is added below from GetClosingPriceInfo.
         if stamp >= today:
             continue
-        close = _num(row.get("pClosing"))
+        # Rahavard's real_close chart series follows the last traded price,
+        # which TSETMC exposes as pDrCotVal. pClosing is the weighted official
+        # close and can materially skew RSI/average values for live sessions.
+        close = _num(row.get("pDrCotVal")) or _num(row.get("pClosing"))
         if close is None or close <= 0:
             continue
         bars_by_date[stamp] = {
@@ -864,7 +867,34 @@ def tsetmc_fund_history(ticker: str) -> list[dict[str, Any]]:
             "instrument_code": code,
             "ticker": instrument["ticker"],
         }
-    bars = [bars_by_date[stamp] for stamp in sorted(bars_by_date)][-500:]
+    bars = [bars_by_date[stamp] for stamp in sorted(bars_by_date)][-499:]
+    # The daily-history endpoint omits the in-progress session. Add its live
+    # TSETMC quote so indicators use the same latest traded price as the chart.
+    quote_url = f"{TSETMC_API_BASE}/ClosingPrice/GetClosingPriceInfo/{code}"
+    try:
+        quote_payload = _json(quote_url, referer=TSETMC_WEB_URL)
+        quote = quote_payload.get("closingPriceInfo") if isinstance(quote_payload, dict) else None
+        quote = quote if isinstance(quote, dict) else {}
+        quote_date = datetime.strptime(str(quote.get("dEven") or ""), "%Y%m%d").date().isoformat()
+        quote_close = _num(quote.get("pDrCotVal")) or _num(quote.get("pClosing"))
+        if quote_date == today and quote_close is not None and quote_close > 0:
+            bars = [bar for bar in bars if bar["timestamp"] != quote_date]
+            bars.append({
+                "timestamp": quote_date,
+                "fetched_at": fetched_at,
+                "open": _num(quote.get("priceFirst")) or quote_close,
+                "high": _num(quote.get("priceMax")) or quote_close,
+                "low": _num(quote.get("priceMin")) or quote_close,
+                "close": quote_close,
+                "volume": _num(quote.get("qTotTran5J")) or 0.0,
+                "source": "TSETMC",
+                "source_url": quote_url,
+                "instrument_code": code,
+                "ticker": instrument["ticker"],
+            })
+    except (SourceError, TypeError, ValueError, OverflowError):
+        # Keep completed daily bars usable if the optional live quote is down.
+        pass
     if len(bars) < 2:
         raise SourceError(f"تاریخچهٔ روزانهٔ کافی در TSETMC برای نماد {ticker} موجود نیست")
     TSETMC_HISTORY_CACHE[code] = (time.monotonic(), bars)

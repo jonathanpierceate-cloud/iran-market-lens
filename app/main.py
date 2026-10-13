@@ -734,7 +734,10 @@ def _normalize_client_tsetmc_bars(rows: list[dict[str, Any]]) -> list[dict[str, 
         timestamp = str(row.get("timestamp") or "")[:10]
         source_url = str(row.get("source_url") or "")
         if (len(timestamp) != 10 or timestamp[4:5] != "-"
-                or not source_url.startswith("https://cdn.tsetmc.com/api/ClosingPrice/GetClosingPriceDailyList/")):
+                or not source_url.startswith((
+                    "https://cdn.tsetmc.com/api/ClosingPrice/GetClosingPriceDailyList/",
+                    "https://cdn.tsetmc.com/api/ClosingPrice/GetClosingPriceInfo/",
+                ))):
             continue
         try:
             close = float(row.get("close"))
