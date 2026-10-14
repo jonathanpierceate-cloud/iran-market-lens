@@ -125,7 +125,7 @@ def pivot_points(high: float, low: float, close: float, open_: float) -> dict[st
             "Fibonacci": fib, "DeMark": demark, "Camarilla": camarilla}
 
 
-def compute_indicators(bars: list[dict[str, Any]]) -> dict[str, Any]:
+def compute_indicators(bars: list[dict[str, Any]], *, include_series: bool = False) -> dict[str, Any]:
     bars = [b for b in bars if b.get("close") is not None]
     close = [float(b["close"]) for b in bars]
     high = [float(b.get("high") if b.get("high") is not None else b["close"]) for b in bars]
@@ -428,6 +428,28 @@ def compute_indicators(bars: list[dict[str, Any]]) -> dict[str, Any]:
     bb_lower = [mid - 2 * std if mid is not None and std is not None else None for mid, std in zip(bbmid, bbstd)]
     macd_histogram = [line - signal if line is not None and signal is not None else None
                       for line, signal in zip(macd_line, macd_signal)]
+    if include_series:
+        span_a_cloud = ([None] * 26 + span_a[:-26]) if n > 26 else [None] * n
+        output["indicator_series"] = {
+            "open": open_, "high": high, "low": low, "close": close, "volume": volume,
+            "atr14": atr14, "atr16": adx16_atr,
+            "rsi14": rsi, "mfi14": mfi, "cci14": cci, "wr14": wr,
+            "so_k": stoch, "so_d": stoch_d,
+            "aroon_up25": aroon_up, "aroon_down25": aroon_down,
+            "adx14": adx, "plus_di14": plus_di, "minus_di14": minus_di,
+            "ema": {period: values for period, values in ema_by_period.items()},
+            "sma": {period: values for period, values in sma_by_period.items()},
+            "macd_line": macd_line, "macd_signal": macd_signal,
+            "macd_histogram": macd_histogram, "ao534": ao,
+            "stochrsi14": stoch_rsi, "mtm6": momentum,
+            "tenkan": tenkan, "kijun": kijun,
+            "span_a_cloud": span_a_cloud, "span_b_cloud": ([None] * 26 + span_b[:-26]) if n > 26 else [None] * n,
+            "span_a_future": span_a, "span_b_future": span_b,
+            "keltner_mid": ema16, "bb_mid": bbmid,
+            "bb_upper": bb_upper, "bb_lower": bb_lower,
+            "volume_rsi14": volume_rsi, "vmacd_line": vmacd,
+            "vmacd_signal": vmacd_signal, "obv20": obv, "obv_sma20": obv_ma,
+        }
     output["chart_series"] = {
         "timestamps": chart_timestamps,
         "close": chart_values(close),

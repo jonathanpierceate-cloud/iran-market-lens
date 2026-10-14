@@ -35,13 +35,6 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     is_tsetmc = source_name.casefold() == "tsetmc"
     groups = {key: data.get(key) if isinstance(data.get(key), list) else []
               for key in ("oscillators", "moving_averages", "pivots", "bands", "volumes")}
-    for group_name, items in groups.items():
-        groups[group_name] = [
-            item for item in items
-            if not isinstance(item, dict) or re.sub(
-                r"[^a-z0-9]", "", str(item.get("short_name_en") or item.get("name_en") or "").casefold()
-            ) != "sm15"
-        ]
     for item in groups["oscillators"]:
         if not isinstance(item, dict):
             continue
@@ -104,13 +97,10 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         net_signal = float(main_signal.get("value"))
     except (TypeError, ValueError):
         net_signal = 0
-    if is_tsetmc:
-        score_value = fund_model.get("technical_score")
-        signal = "buy" if score_value is not None and score_value >= 60 else \
-                 "sell" if score_value is not None and score_value <= 40 else "hold"
-        net_signal = (1 if signal == "buy" else -1 if signal == "sell" else 0)
-    else:
-        signal = "buy" if net_signal > 0 else "sell" if net_signal < 0 else "hold"
+    model_signal = fund_model.get("signal")
+    signal = {"Bullish": "buy", "Bearish": "sell", "Neutral": "hold"}.get(
+        model_signal, "hold")
+    net_signal = 1 if signal == "buy" else -1 if signal == "sell" else 0
 
     meaning_by_prefix = (
         ("RSI", "زیر ۳۰ ناحیه خرید، ۳۰ تا ۷۰ خنثی و بالای ۷۰ ناحیه فروش است؛ در بازه خنثی امتیاز نزدیک ۷۰ کمتر می‌شود."),
@@ -391,7 +381,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         "score_change_20d": fund_model["score_change_20d"],
         "score_breakdown": {
             "moving_averages": moving_average_score,
-            **({"volume": volume_score} if not dashboard_model else {}),
+            "volume": volume_score,
             "oscillators": oscillator_score,
             "rsi": rsi,
             "resistance": resistance_score,
@@ -408,15 +398,15 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
             "overbought_count": overbought_count,
         },
         "signal": signal, "trend": trend, "risk": "unavailable",
-        "confidence": None,
-        "confidence_basis": ("امتیاز تکنیکال چهارگروهی توسط AliVest و بر پایهٔ کندل‌های روزانهٔ TSETMC محاسبه می‌شود؛ امتیاز رسمی TSETMC یا احتمال سود نیست."
-                             if is_tsetmc else
-                             "امتیاز تکنیکال چهارگروهی توسط AliVest و بر پایه داده‌های ره‌آورد محاسبه می‌شود؛ امتیاز رسمی ره‌آورد یا احتمال سود نیست."),
+        "confidence": fund_model.get("confidence"),
+        "inter_group_dispersion": fund_model.get("inter_group_dispersion"),
+        "damping_factor": fund_model.get("damping_factor"),
+        "raw_technical_score": fund_model.get("raw_technical_score"),
+        "confidence_basis": "اعتماد بر پایهٔ پوشش داده، توافق گروه‌ها و فاصلهٔ امتیاز از آستانه‌ها محاسبه می‌شود؛ احتمال سود نیست.",
         "decision_support": explanation,
         "explanation": explanation, "site_gauges": gauges,
         "indicators": groups, "indicator_notes": notes,
-        "indicator_count": sum(len(items) for key, items in groups.items()
-                                if not dashboard_model or key != "volumes"),
+        "indicator_count": sum(len(items) for items in groups.values()),
         "missing_indicators": missing, "scenarios": scenarios,
         "scenario_note": ("درصد سناریو برآورد داخلی AliVest از امتیاز اندیکاتورهای محاسبه‌شده روی کندل‌های TSETMC است و احتمال آماریِ بک‌تست‌شده نیست."
                           if is_tsetmc else

@@ -10,7 +10,7 @@ import math
 import re
 from typing import Any
 
-from .scoring_profiles import FUND_SCORING_PROFILES, normalize_horizon, horizon_label
+from .scoring_profiles import normalize_horizon, horizon_label
 from .scoring_rules import (adx_directional_score, band_position_score,
                             ichimoku_cloud_score, inverted_linear_score,
                             macd_histogram_score, moving_average_score,
@@ -18,8 +18,9 @@ from .scoring_rules import (adx_directional_score, band_position_score,
                             pivot_level_score, relative_volume_score,
                             rsi_entry_score, stoch_rsi_entry_score,
                             volume_macd_histogram_score)
+from .tse_scoring import GROUP_WEIGHTS, SUBCLUSTERS, score_tse_bars
 
-FAMILY_WEIGHTS = FUND_SCORING_PROFILES["long"]["family_weights"]
+FAMILY_WEIGHTS = GROUP_WEIGHTS
 
 FUND_TYPE_LABELS = {
     "fixed_income": "درآمد ثابت", "mixed": "مختلط", "equity": "سهامی",
@@ -30,7 +31,11 @@ FUND_TYPE_LABELS = {
     "leveraged": "اهرمی", "silver": "نقره",
 }
 
-INDICATOR_WEIGHTS = FUND_SCORING_PROFILES["long"]["indicator_weights"]
+INDICATOR_WEIGHTS = {
+    family: {name: weight for cluster in clusters.values()
+             for name, weight in cluster["indicators"].items()}
+    for family, clusters in SUBCLUSTERS.items()
+}
 
 FUND_TYPE_BY_CATEGORY_ID = {
     "255": "fixed_income", "256": "mixed", "257": "equity", "301": "gold",
@@ -616,61 +621,29 @@ def _date_distance_days(left: Any, right: Any) -> int | None:
 def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | None,
                      context: dict[str, Any] | None = None,
                      horizon: str = "long", dashboard_model: bool = False) -> dict[str, Any]:
-    """Score a fund with its selected, four-family investment-horizon profile."""
+    """Score a fund's OHLCV chart with the hierarchical TSE v1 scoring spec."""
     context = context or {}
     horizon = normalize_horizon(horizon)
-    model = FUND_SCORING_PROFILES[horizon]
-    if dashboard_model:
-        base_weights = model["family_weights"]
-        family_weights = {
-            "moving_averages": base_weights["moving_averages"] + (base_weights["volume"] if horizon == "long" else 0),
-            "oscillators": base_weights["oscillators"] + (base_weights["volume"] if horizon == "short" else 0),
-            "support_resistance": base_weights["support_resistance"],
-        }
-        indicator_weights = {key: model["indicator_weights"][key]
-                             for key in family_weights}
-        model_profile = f"dashboard_{horizon}_volume_reallocated"
-    else:
-        family_weights = model["family_weights"]
-        indicator_weights = model["indicator_weights"]
-        model_profile = model["profile"]
     kind = _type(context)
     rows = _group_items(groups)
-    family = {
-        "moving_averages": _trend_score(rows, price, indicator_weights["moving_averages"]),
-    }
-    family["oscillators"] = _momentum_score(
-        rows, price, context, indicator_weights["oscillators"])
-    if not dashboard_model:
-        family["volume"] = _volume_score(rows, price, context, indicator_weights["volume"])
-    family["support_resistance"] = _pivot_score(rows, price, indicator_weights["support_resistance"])
+    engine = score_tse_bars(
+        context.get("fund_history"),
+        trend_value=context.get("trend_value"),
+        trend_schema_type=context.get("trend_schema_type"),
+    )
+    family = engine["family_scores"]
+    family_weights = {key: float(value) / 100.0
+                      for key, value in engine["score_weights"].items()}
+    indicator_weights = engine["indicator_weights"]
+    model_profile = f"{horizon}_tse_technical_scoring_engine_v1"
     entry_quality = _entry_quality_score(rows, price, context)
     nav_assessment = _nav_score(price, context)
 
-    valid_families = [(key, value["score"], family_weights[key])
-                      for key, value in family.items() if value.get("score") is not None]
-    available_family_weight = sum(weight for _, _, weight in valid_families)
-    final_score = (sum(score * weight for _, score, weight in valid_families) / available_family_weight
-                   if available_family_weight else None)
-    effective_family_weights = ({key: round(weight / available_family_weight * 100.0, 1)
-                                 for key, _, weight in valid_families}
-                                if available_family_weight else {})
-    coverage = sum(family_weights[key] * float(value.get("coverage_pct") or 0.0) / 100.0
-                   for key, value in family.items()) * 100.0
-    if final_score is None:
-        band = "unavailable"
-    elif final_score >= 80:
-        band = "very_strong"
-    elif final_score >= 70:
-        band = "strong"
-    elif final_score >= 60:
-        band = "relatively_positive"
-    elif final_score >= 45:
-        band = "neutral"
-    elif final_score >= 30:
-        band = "weak"
-    else:
-        band = "very_weak"
+    final_score = engine["technical_score"]
+    available_family_weight = float(engine["available_family_weight_pct"]) / 100.0
+    effective_family_weights = engine["effective_score_weights"]
+    coverage = engine["data_coverage_pct"]
+    band = engine["score_band"]
 
     volatility = _number(entry_quality.get("realized_volatility_pct"))
     risk_scale = VOLATILITY_SCALE_PCT.get(kind or "", 45.0)
@@ -693,12 +666,12 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     top_negative = min(scored_families, key=lambda row: row[1]) if scored_families else None
     return {
         "technical_score": round(final_score, 1) if final_score is not None else None,
-         "score_method": (f"dashboard_rahavard_three_group_weighted_{horizon}_v2_indicator_table"
+        "score_method": (f"dashboard_rahavard_four_group_weighted_{horizon}_tse_spec_v1"
                           if dashboard_model else
-                          f"fund_rahavard_four_group_weighted_{horizon}_v4_indicator_table"),
+                          f"fund_rahavard_four_group_weighted_{horizon}_tse_spec_v1"),
         "score_weights": {key: round(weight * 100) for key, weight in family_weights.items()},
         "indicator_weights": {
-            family_key: {key: round(weight * 100, 1) for key, weight in weights.items()}
+            family_key: {key: round(float(weight), 1) for key, weight in weights.items()}
             for family_key, weights in indicator_weights.items()
         },
         "effective_score_weights": effective_family_weights,
@@ -711,7 +684,12 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
         "data_coverage_pct": round(coverage, 1),
         "available_family_weight_pct": round(available_family_weight * 100, 1),
         "score_band": band,
-        "score_validation": "initial_unbacktested",
+        "score_validation": "tse_spec_v1_unbacktested",
+        "confidence": engine["confidence"],
+        "inter_group_dispersion": engine["inter_group_dispersion"],
+        "damping_factor": engine["damping_factor"],
+        "raw_technical_score": engine["raw_score"],
+        "signal": engine["signal"],
         "risk_rank": {"score": round(risk_score, 1) if risk_score is not None else None,
                       "level": risk_level,
                       "basis": "annualized_20d_realized_volatility_with_type_specific_scale",
@@ -725,6 +703,8 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
                           if top_negative and top_negative[1] < 50 else None),
         },
         "missing_data": diagnostics,
+        "valid_groups": engine["valid_groups"],
+        "observations": engine["observations"],
         "score_change_5d": None,
         "score_change_20d": None,
     }

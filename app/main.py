@@ -149,7 +149,7 @@ def _tabdeal_dollar_chart_history() -> tuple[list[dict[str, Any]], str]:
 def _analyze_chart_candles(symbol: str, bars: list[dict[str, Any]], *,
                            horizon: str, indicator_source: str,
                            source_url: str | None = None) -> dict[str, Any]:
-    """Score dashboard chart indicators without a volume family."""
+    """Score dashboard chart indicators with the shared four-family engine."""
     timestamp = bars[-1].get("timestamp") if bars else None
     payload = fund_chart_indicator_groups(bars, source=indicator_source)
     context = {"fund_history": bars, "price_timestamp": timestamp}
@@ -163,11 +163,11 @@ def _analyze_chart_candles(symbol: str, bars: list[dict[str, Any]], *,
     result["price_is_cached"] = _timestamp_is_cached(timestamp)
     if not result.get("volume_data_available"):
         if indicator_source == "MilliChart":
-            result["volume_data_note"] = "Milli نمودار قیمت را منتشر می‌کند اما تاریخچهٔ حجم ندارد؛ اندیکاتورهای حجم محاسبه و در امتیاز منظور نمی‌شوند."
+            result["volume_data_note"] = "نمودار Milli تاریخچهٔ حجم ندارد؛ اندیکاتورهای حجم ناموجود می‌مانند و پوشش گروه حجم کاهش می‌یابد."
         elif symbol == "TEPIX":
-            result["volume_data_note"] = "تاریخچهٔ حجم شاخص در ره‌آورد موجود نیست و منبع TSETMC هنوز به سامانه وصل نشده؛ اندیکاتورهای حجم محاسبه و در امتیاز منظور نمی‌شوند."
+            result["volume_data_note"] = "حجم تاریخی شاخص در دادهٔ نمودار موجود نیست؛ امتیازهای فاقد داده حذف می‌شوند و پوشش گروه حجم کاهش می‌یابد."
         else:
-            result["volume_data_note"] = "حجم آخرین کندل در دادهٔ نمودار موجود نیست؛ اندیکاتورهای حجم در امتیاز منظور نمی‌شوند."
+            result["volume_data_note"] = "دادهٔ حجم نمودار ناقص است؛ اندیکاتورهای فاقد داده حذف می‌شوند و پوشش گروه حجم کاهش می‌یابد."
     return result
 
 

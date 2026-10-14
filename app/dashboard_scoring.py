@@ -11,9 +11,10 @@ from .scoring_rules import (adx_directional_score, band_position_score,
                             entry_recommendation, percent_change_score,
                             pivot_level_score, rsi_entry_score,
                             stoch_rsi_entry_score)
+from .tse_scoring import GROUP_WEIGHTS, score_tse_bars
 
 
-DASHBOARD_SCORE_WEIGHTS = DASHBOARD_SCORING_PROFILES["long"]["family_weights"]
+DASHBOARD_SCORE_WEIGHTS = GROUP_WEIGHTS
 
 DASHBOARD_INDICATOR_NAMES = {
     "moving_averages": {
@@ -113,7 +114,7 @@ def _support_resistance_levels(bars: list[dict[str, Any]], tech: dict[str, Any],
 
 def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
                             horizon: str = "long") -> dict[str, Any]:
-    """AliVest score using the selected horizon's three indicator families."""
+    """AliVest score using the chart-derived four-family TSE v1 engine."""
     horizon = normalize_horizon(horizon)
     model = DASHBOARD_SCORING_PROFILES[horizon]
     family_weights = model["family_weights"]
@@ -124,13 +125,14 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
     }
     bars = bars or []
     tech = compute_indicators(bars)
+    engine = score_tse_bars(bars)
     indicators = tech.get("indicators", {})
     current = _number(tech.get("latest"))
     closes = [_number(row.get("close")) for row in bars]
     closes = [value for value in closes if value is not None and value > 0]
     volumes = [max(0.0, _number(row.get("volume")) or 0.0) for row in bars]
     names = {"moving_averages": "میانگین متحرک", "oscillators": "نوسان‌گر",
-             "support_resistance": "حمایت و مقاومت"}
+             "volume": "حجم و جریان پول", "support_resistance": "حمایت و مقاومت"}
 
     def ind(key: str) -> dict[str, Any]:
         found = indicators.get(key)
@@ -207,8 +209,7 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
     for key, (score, raw, note) in osc_data.items():
         rows[family].append(row(family, key, score, raw, note))
 
-    # Relative volume remains available as a raw indicator, but is not one of
-    # the three weighted scoring families.
+    # Keep raw relative-volume readouts visible alongside the weighted engine.
     relative_volumes = {}
     for period in (30, 90, 15):
         ratio = None
@@ -245,27 +246,19 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
             raw = {"pivot": pivot, upper_name: upper, lower_name: lower}
         rows[family].append(row(family, key, score, raw, "فرمول خطی پیوت؛ برای کاماریلا از H3 و L3 استفاده می‌شود."))
 
-    family_scores = {}
-    for family, indicator_family_weights in weights.items():
-        valid = [item for item in rows[family] if item["score"] is not None]
-        weight_sum = sum(indicator_family_weights[item["name"]] for item in valid)
-        score = sum(item["score"]*indicator_family_weights[item["name"]] for item in valid)/weight_sum if weight_sum else None
-        family_scores[family] = {
-            "score": round(score, 1) if score is not None else None,
-            "coverage_pct": round(weight_sum*100, 1), "indicators": rows[family],
-            "missing_indicators": [key for key in indicator_family_weights if key not in {item["name"] for item in valid}],
-        }
-    valid_groups = [(family_scores[key]["score"], family_weights[key])
-                    for key in family_weights if family_scores[key]["score"] is not None]
-    available_weight = sum(weight for _, weight in valid_groups)
-    total = sum(score*weight for score, weight in valid_groups)/available_weight if available_weight else None
-    effective = {key: round(family_weights[key]/available_weight*100, 1)
-                 for key in family_weights if family_scores[key]["score"] is not None} if available_weight else {}
-    coverage = sum(family_weights[key]*family_scores[key]["coverage_pct"]/100
-                   for key in family_weights)*100
-    direction = "unavailable" if total is None else "bullish" if total >= 56 else "bearish" if total <= 44 else "neutral"
-    band = ("unavailable" if total is None else "very_strong" if total >= 80 else "strong" if total >= 70
-            else "relatively_positive" if total >= 60 else "neutral" if total >= 45 else "weak" if total >= 30 else "very_weak")
+    family_scores = engine["family_scores"]
+    family_weights = {key: float(value) / 100.0
+                      for key, value in engine["score_weights"].items()}
+    weights = {family: {key: float(value) / 100.0 for key, value in entries.items()}
+               for family, entries in engine["indicator_weights"].items()}
+    rows = {family: result["indicators"] for family, result in family_scores.items()}
+    total = engine["technical_score"]
+    available_weight = float(engine["available_family_weight_pct"]) / 100.0
+    effective = engine["effective_score_weights"]
+    coverage = engine["data_coverage_pct"]
+    direction = {"Bullish": "bullish", "Bearish": "bearish", "Neutral": "neutral"}.get(
+        engine["signal"], "unavailable")
+    band = engine["score_band"]
 
     levels = _support_resistance_levels(bars, tech, current)
     supports = [item for item in levels if item["kind"] == "support"]
@@ -306,14 +299,15 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
                 for key in sorted(family_scores, key=lambda k: family_scores[k]["score"] or 101)
                 if family_scores[key]["score"] is not None and family_scores[key]["score"] <= 40][:2]
     factors = [{"name": key, "score": family_scores[key]["score"], "weight": family_weights[key],
-                "evidence": ", ".join(item["name"] for item in rows[key] if item["score"] is not None)}
+                "evidence": ", ".join((item.get("name") or item.get("key") or "")
+                                       for item in rows[key] if item["score"] is not None)}
                for key in family_weights if family_scores[key]["score"] is not None]
     missing = [f"{names[family]}: {key}" for family in weights for key in family_scores[family]["missing_indicators"]]
     limitations = [
         "این امتیاز محاسبهٔ اختصاصی AliVest است، نه امتیاز رسمی ره‌آورد یا احتمال آماری موفقیت.",
         "وزن شاخص‌های بدون داده در همان گروه متناسب می‌شود؛ در نبود کامل یک گروه، وزن گروه‌های دیگر متناسب می‌شود و پوشش نمایش داده می‌شود.",
-        f"RSI یکی از ۱۲ شاخص نوسان‌گر و {family_weights['oscillators'] * weights['oscillators']['RSI(14)'] * 100:.1f}٪ از وزن پایهٔ کل است؛ خرید بر پایهٔ برآیند هر سه گروه ارزیابی می‌شود.",
-        "حجم نسبی فقط به‌عنوان دادهٔ زمینه‌ای نمایش داده می‌شود و در امتیاز کل وزن ندارد؛ ریسک با نوسان تاریخی و ATR سنجیده می‌شود.",
+        f"RSI یکی از شاخص‌های نوسان‌گر و {family_weights['oscillators'] * weights['oscillators']['RSI(14)'] * 100:.1f}٪ از وزن پایهٔ کل است؛ خرید بر پایهٔ برآیند چهار گروه ارزیابی می‌شود.",
+        "حجم و جریان پول سهم ۲۵٪ در امتیاز دارند؛ اگر دادهٔ حجم موجود نباشد، پوشش آن گروه کاهش می‌یابد.",
     ]
     if missing:
         limitations.append("شاخص‌های فاقد داده یا فرمول قابل اتکا حذف شدند: "+"، ".join(missing))
@@ -356,21 +350,22 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "long_term_trend": "unavailable" if current is None or ema100 is None else "bullish" if current > ema100 else "bearish" if current < ema100 else "neutral",
         "trend_direction_score": round(total, 1) if total is not None else None,
         "trend_strength": strength, "technical_score": round(total, 1) if total is not None else None,
-        "score_method": "dashboard_rahavard_three_group_weighted_v4_indicator_table",
-        "score_origin": "AliVest", "score_profile": model["profile"],
+        "score_method": f"dashboard_rahavard_four_group_weighted_{horizon}_tse_spec_v1",
+        "score_origin": "AliVest", "score_profile": f"{horizon}_tse_technical_scoring_engine_v1",
         "investment_horizon": horizon, "investment_horizon_label": horizon_label(horizon),
         "score_weights": {key: round(value*100) for key, value in family_weights.items()},
-        "indicator_weights": {family: {key: round(value*100, 1) for key, value in values.items()}
-                              for family, values in weights.items()},
+        "indicator_weights": engine["indicator_weights"],
         "effective_score_weights": effective, "family_scores": family_scores, "score_band": band,
-        "score_validation": "initial_unbacktested", "score_breakdown": breakdown,
+        "score_validation": "tse_spec_v1_unbacktested", "score_breakdown": breakdown,
         "data_coverage_pct": round(coverage, 1), "available_family_weight_pct": round(available_weight*100, 1),
-        "confidence": round(coverage, 1), "confidence_score": round(coverage, 1),
-        "confidence_level": "high" if coverage >= 75 else "medium" if coverage >= 50 else "low",
-        "confidence_label": "بالا" if coverage >= 75 else "متوسط" if coverage >= 50 else "پایین",
+        "confidence": engine["confidence"], "confidence_score": engine["confidence"],
+        "inter_group_dispersion": engine["inter_group_dispersion"],
+        "damping_factor": engine["damping_factor"], "raw_technical_score": engine["raw_score"],
+        "confidence_level": "high" if (engine["confidence"] or 0) >= 75 else "medium" if (engine["confidence"] or 0) >= 50 else "low",
+        "confidence_label": "بالا" if (engine["confidence"] or 0) >= 75 else "متوسط" if (engine["confidence"] or 0) >= 50 else "پایین",
         "confidence_basis": "پوشش دادهٔ قابل محاسبه؛ این عدد احتمال موفقیت معامله نیست.",
-        "breakout_confidence": "volume_not_in_model",
-        "breakout_confidence_label": "حجم جزو این مدل امتیازدهی نیست",
+        "breakout_confidence": "volume_in_model",
+        "breakout_confidence_label": "حجم و جریان پول در امتیاز لحاظ می‌شوند",
         "risk": risk, "risk_score": round(risk_value, 1) if risk_value is not None else None,
         "risk_label": {"low":"کم","medium":"متوسط","high":"بالا","unavailable":"نامشخص"}[risk],
         "risk_basis": "نوسان تاریخی RV(30)، و در نبود آن تخمین از ATR(14).",
@@ -388,5 +383,5 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "support_resistance": levels, "support_levels": supports, "resistance_levels": resistances,
         "nearest_support": near_support, "nearest_resistance": near_resistance,
         "structural_invalidation_level": near_support.get("midpoint") if near_support else None,
-        "decision_support": "امتیاز برآیند وزنی میانگین متحرک، نوسان‌گر و حمایت/مقاومت است؛ توصیه قطعی خرید یا فروش نیست.",
+        "decision_support": "امتیاز برآیند چهار گروه حمایت و مقاومت، میانگین متحرک، حجم و نوسان‌گر است؛ توصیه قطعی خرید یا فروش نیست.",
     }
