@@ -11,7 +11,7 @@ import re
 from typing import Any
 
 from .scoring_profiles import FUND_SCORING_PROFILES, normalize_horizon, horizon_label
-from .scoring_rules import adx_directional_score, rsi_entry_score
+from .scoring_rules import adx_directional_score, band_position_score, rsi_entry_score
 
 FAMILY_WEIGHTS = FUND_SCORING_PROFILES["long"]["family_weights"]
 
@@ -188,18 +188,7 @@ def _band_position_score(item: dict[str, Any] | None, price: float | None) -> fl
         return None
     values = _item_values(item)
     upper, lower = _value(values, "upper"), _value(values, "lower")
-    if upper is None or lower is None:
-        return _signal_score(item)
-    signal = _norm(item.get("signal"))
-    if signal == "bouncefromlower":
-        return 65.0
-    if signal == "nearupperuptrend":
-        return 35.0
-    if upper is not None and lower is not None and lower <= price <= upper:
-        return 50.0
-    if signal == "breakoutdown":
-        return 35.0
-    return 50.0
+    return band_position_score(price, lower, upper)
 
 
 def _trend_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | None,
@@ -583,15 +572,9 @@ def _entry_quality_score(rows: list[tuple[str, str, dict[str, Any]]], price: flo
         upper, lower = _value(values, "upper"), _value(values, "lower")
         if price is None or upper is None or lower is None or upper <= lower:
             continue
-        position = (price - lower) / (upper - lower)
-        signal = _norm(item.get("signal")) if item else ""
-        if position < 0:
-            score = 20.0
-        elif position > 1:
-            score = 60.0 if signal in {"buy", "bullish", "breakoutup"} else 35.0
-        else:
-            score = _clamp(100.0 - 60.0 * abs(position - 0.5))
-        rows_scored.append((key, score, weights[key]))
+        score = band_position_score(price, lower, upper)
+        if score is not None:
+            rows_scored.append((key, score, weights[key]))
     atr_item = _find(rows, "atr14")
     atr_values = _item_values(atr_item)
     atr = _value(atr_values, "atr", "value")

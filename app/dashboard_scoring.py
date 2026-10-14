@@ -5,7 +5,7 @@ from typing import Any
 
 from .indicators import compute_indicators, pivot_points
 from .scoring_profiles import DASHBOARD_SCORING_PROFILES, normalize_horizon, horizon_label
-from .scoring_rules import adx_directional_score, entry_recommendation, rsi_entry_score
+from .scoring_rules import adx_directional_score, band_position_score, entry_recommendation, rsi_entry_score
 
 
 DASHBOARD_SCORE_WEIGHTS = DASHBOARD_SCORING_PROFILES["long"]["family_weights"]
@@ -170,17 +170,8 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
             middle = _number(item.get("middle", item.get("value")))
             upper, lower = _number(item.get("upper")), _number(item.get("lower"))
             scenario = str(item.get("signal") or "").lower()
-            if upper is None or lower is None:
-                score = None
-            elif scenario == "bounce_from_lower":
-                score = 65.0
-            elif scenario in ("near_upper_uptrend", "breakout_down"):
-                score = 35.0
-            elif current is not None and upper is not None and lower is not None and lower <= current <= upper:
-                score = 50.0
-            else:
-                score = 50.0
-            raw, note = {"middle": middle, "upper": upper, "lower": lower, "scenario": scenario}, "داخل باند خنثی؛ برگشت از کف مثبت؛ نزدیکی به سقف در روند صعودی منفی"
+            score = band_position_score(current, lower, upper)
+            raw, note = {"middle": middle, "upper": upper, "lower": lower, "scenario": scenario}, "داخل باند خنثی است و نزدیک‌شدن به سقف امتیاز را کاهش می‌دهد؛ زیر کف ناحیه خرید و بالای سقف ناحیه فروش است."
         rows[family].append(row(family, key, score, raw, note))
 
     # Oscillators: RSI is one bounded vote, never the sole buy criterion.

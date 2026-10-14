@@ -81,23 +81,15 @@ def _value(series: list[float | None], index: int = -1) -> float | None:
     return float(value) if value is not None and math.isfinite(value) else None
 
 
-def _band_scenario(price: float, candle_low: float, upper: float | None,
-                   lower: float | None, middle: float | None,
-                   previous_middle: float | None) -> tuple[str, str]:
-    if upper is None or lower is None or middle is None:
+def _band_scenario(price: float, upper: float | None,
+                   lower: float | None) -> tuple[str, str]:
+    if upper is None or lower is None or upper <= lower:
         return "unavailable", "داده کافی برای تعیین جایگاه قیمت نسبت به باند نیست"
-    if candle_low <= lower and lower < price <= upper:
-        return "bounce_from_lower", "برخورد به کف باند و بسته‌شدن دوباره داخل باند؛ نشانه مثبت"
-    width = upper - lower
-    position = (price - lower) / width if width > 0 else 0.5
-    uptrend = price > middle and previous_middle is not None and middle > previous_middle
-    if uptrend and position >= 0.90:
-        return "near_upper_uptrend", "قیمت در ۱۰٪ بالایی باند و میانگین میانی صعودی است؛ نشانه منفی از کشیدگی قیمت"
-    if lower <= price <= upper:
-        return "neutral", "قیمت داخل باند است؛ وضعیت خنثی"
     if price > upper:
-        return "breakout_up", "قیمت بالاتر از سقف باند بسته شده است"
-    return "breakout_down", "قیمت پایین‌تر از کف باند بسته شده است"
+        return "sell", "قیمت بالاتر از سقف باند است؛ ناحیه فروش"
+    if price < lower:
+        return "buy", "قیمت پایین‌تر از کف باند است؛ ناحیه خرید"
+    return "neutral", "قیمت داخل محدوده باند است؛ وضعیت خنثی و با نزدیک‌شدن به سقف، امتیاز کمتر می‌شود"
 
 
 def _indicator(value: float | None, previous: float | None, *, signal="neutral", interpretation="داده کافی نیست",
@@ -337,7 +329,7 @@ def compute_indicators(bars: list[dict[str, Any]]) -> dict[str, Any]:
     k_mid, k_atr = _value(ema16), _value(adx16_atr)
     k_upper = k_mid + 2 * k_atr if k_mid is not None and k_atr is not None else None
     k_lower = k_mid - 2 * k_atr if k_mid is not None and k_atr is not None else None
-    k_signal, k_interpretation = _band_scenario(current, low[-1], k_upper, k_lower, k_mid, _value(ema16, -2))
+    k_signal, k_interpretation = _band_scenario(current, k_upper, k_lower)
     ind["KELTNER(16)"] = _indicator(k_mid, _value(ema16, -2), signal=k_signal,
         interpretation=k_interpretation,
         formula="Middle=EMA16; Upper/Lower=Middle ± 2×ATR16", parameters={"period": 16, "atr_period": 16, "multiplier": 2},
@@ -351,7 +343,7 @@ def compute_indicators(bars: list[dict[str, Any]]) -> dict[str, Any]:
     bup, blow = (bmid + 2*bstd, bmid - 2*bstd) if bmid is not None and bstd is not None else (None, None)
     pctb = (current - blow) / (bup - blow) if bup is not None and blow is not None and bup != blow else None
     bbwidth = ((bup - blow) / bmid) if bup is not None and blow is not None and bmid else None
-    bb_signal, bb_interpretation = _band_scenario(current, low[-1], bup, blow, bmid, _value(bbmid, -2))
+    bb_signal, bb_interpretation = _band_scenario(current, bup, blow)
     ind["BB(20)"] = _indicator(bmid, _value(bbmid, -2), signal=bb_signal,
         interpretation=bb_interpretation,
         formula="Middle=SMA20; Upper/Lower=Middle ± 2×population SD20", parameters={"period": 20, "deviations": 2},
