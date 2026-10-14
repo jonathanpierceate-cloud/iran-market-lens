@@ -75,10 +75,10 @@ FUND_SCORING_PROFILES = {
 
 DASHBOARD_SCORING_PROFILES = {
     "short": {
-        "profile": "dashboard_three_group_short_term_v2",
+        "profile": "dashboard_three_group_short_term_v3_volume_reallocated",
         "family_weights": {
-            "oscillators": .50, "moving_averages": .40,
-            "support_resistance": .10,
+            "oscillators": .60, "moving_averages": .20,
+            "support_resistance": .20,
         },
         "indicator_weights": {
             "oscillators": _SHORT_OSCILLATORS,
@@ -87,9 +87,9 @@ DASHBOARD_SCORING_PROFILES = {
         },
     },
     "long": {
-        "profile": "dashboard_three_group_long_term_v1",
+        "profile": "dashboard_three_group_medium_term_v2_volume_reallocated",
         "family_weights": {
-            "moving_averages": .45, "oscillators": .45,
+            "moving_averages": .50, "oscillators": .40,
             "support_resistance": .10,
         },
         "indicator_weights": {

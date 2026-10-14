@@ -26,14 +26,16 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
                      current_price: float | None = None,
                      model_context: dict[str, Any] | None = None,
                      horizon: str = "long",
-                     indicator_source: str = "Rahavard365") -> dict[str, Any]:
+                     indicator_source: str = "Rahavard365",
+                     dashboard_model: bool = False) -> dict[str, Any]:
     """Analyze an indicator payload with the shared fund scoring and presentation model."""
     data = payload.get("data") if isinstance(payload.get("data"), dict) else payload
     source_name = str(indicator_source or payload.get("source") or "Rahavard365")
     is_tsetmc = source_name.casefold() == "tsetmc"
     groups = {key: data.get(key) if isinstance(data.get(key), list) else []
               for key in ("oscillators", "moving_averages", "pivots", "bands", "volumes")}
-    fund_model = score_fund_model(groups, current_price, model_context, horizon=horizon)
+    fund_model = score_fund_model(groups, current_price, model_context, horizon=horizon,
+                                  dashboard_model=dashboard_model)
     def indicator_values(items: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
         output: dict[str, dict[str, float]] = {}
         for item in items:
@@ -320,6 +322,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     return {
         "source": source_name, "indicator_source": source_name,
         "volume_data_available": payload.get("volume_data_available"),
+        "dashboard_asset": dashboard_model,
         "symbol": symbol, "data_timestamp": data_timestamp,
         "price": price, "support_levels": supports, "resistance_levels": resistances,
         "short_term_exit_price": short_term_exit_price,
@@ -359,7 +362,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         "score_change_20d": fund_model["score_change_20d"],
         "score_breakdown": {
             "moving_averages": moving_average_score,
-            "volume": volume_score,
+            **({"volume": volume_score} if not dashboard_model else {}),
             "oscillators": oscillator_score,
             "rsi": rsi,
             "resistance": resistance_score,
@@ -383,7 +386,8 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         "decision_support": explanation,
         "explanation": explanation, "site_gauges": gauges,
         "indicators": groups, "indicator_notes": notes,
-        "indicator_count": sum(len(items) for items in groups.values()),
+        "indicator_count": sum(len(items) for key, items in groups.items()
+                                if not dashboard_model or key != "volumes"),
         "missing_indicators": missing, "scenarios": scenarios,
         "scenario_note": ("درصد سناریو برآورد داخلی AliVest از امتیاز اندیکاتورهای محاسبه‌شده روی کندل‌های TSETMC است و احتمال آماریِ بک‌تست‌شده نیست."
                           if is_tsetmc else

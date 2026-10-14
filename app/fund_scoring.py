@@ -674,13 +674,25 @@ def _date_distance_days(left: Any, right: Any) -> int | None:
 
 def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | None,
                      context: dict[str, Any] | None = None,
-                     horizon: str = "long") -> dict[str, Any]:
+                     horizon: str = "long", dashboard_model: bool = False) -> dict[str, Any]:
     """Score a fund with its selected, four-family investment-horizon profile."""
     context = context or {}
     horizon = normalize_horizon(horizon)
     model = FUND_SCORING_PROFILES[horizon]
-    family_weights = model["family_weights"]
-    indicator_weights = model["indicator_weights"]
+    if dashboard_model:
+        base_weights = model["family_weights"]
+        family_weights = {
+            "moving_averages": base_weights["moving_averages"] + (base_weights["volume"] if horizon == "long" else 0),
+            "oscillators": base_weights["oscillators"] + (base_weights["volume"] if horizon == "short" else 0),
+            "support_resistance": base_weights["support_resistance"],
+        }
+        indicator_weights = {key: model["indicator_weights"][key]
+                             for key in family_weights}
+        model_profile = f"dashboard_{horizon}_volume_reallocated"
+    else:
+        family_weights = model["family_weights"]
+        indicator_weights = model["indicator_weights"]
+        model_profile = model["profile"]
     kind = _type(context)
     rows = _group_items(groups)
     family = {
@@ -689,7 +701,8 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     family["oscillators"] = _momentum_score(
         rows, price, context, indicator_weights["oscillators"],
         direction_score=family["moving_averages"].get("score"))
-    family["volume"] = _volume_score(rows, price, context, indicator_weights["volume"])
+    if not dashboard_model:
+        family["volume"] = _volume_score(rows, price, context, indicator_weights["volume"])
     family["support_resistance"] = _pivot_score(rows, price, indicator_weights["support_resistance"])
     entry_quality = _entry_quality_score(rows, price, context)
     nav_assessment = _nav_score(price, context)
@@ -740,7 +753,9 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     top_negative = min(scored_families, key=lambda row: row[1]) if scored_families else None
     return {
         "technical_score": round(final_score, 1) if final_score is not None else None,
-        "score_method": f"fund_rahavard_four_group_weighted_{horizon}_v3_entry_aware",
+        "score_method": (f"dashboard_rahavard_three_group_weighted_{horizon}_v1"
+                         if dashboard_model else
+                         f"fund_rahavard_four_group_weighted_{horizon}_v3_entry_aware"),
         "score_weights": {key: round(weight * 100) for key, weight in family_weights.items()},
         "indicator_weights": {
             family_key: {key: round(weight * 100, 1) for key, weight in weights.items()}
@@ -749,7 +764,7 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
         "effective_score_weights": effective_family_weights,
         "fund_type": kind,
         "fund_type_label": FUND_TYPE_LABELS.get(kind, "نامشخص"),
-        "model_profile": model["profile"],
+        "model_profile": model_profile,
         "investment_horizon": horizon,
         "investment_horizon_label": horizon_label(horizon),
         "family_scores": family,

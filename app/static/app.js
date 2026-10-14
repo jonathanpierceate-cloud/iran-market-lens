@@ -486,10 +486,12 @@
     const tone = !validScore ? "unknown" : score >= 60 ? "positive" : score < 45 ? "negative" : "neutral";
     const scoreWeights = a.score_weights || {};
     const horizonName = a.investment_horizon_label || horizonLabel();
-    const scoreWeightText = `مدل ${horizonName} · میانگین متحرک ${num(scoreWeights.moving_averages ?? 0, 0)}٪ · نوسان‌گر ${num(scoreWeights.oscillators ?? 0, 0)}٪ · حجم ${num(scoreWeights.volume ?? 0, 0)}٪ · حمایت و مقاومت ${num(scoreWeights.support_resistance ?? 0, 0)}٪`;
+    const scoreWeightText = a.dashboard_asset
+      ? `مدل ${horizonName} · میانگین متحرک ${num(scoreWeights.moving_averages ?? 0, 0)}٪ · نوسان‌گر ${num(scoreWeights.oscillators ?? 0, 0)}٪ · حمایت و مقاومت ${num(scoreWeights.support_resistance ?? 0, 0)}٪`
+      : `مدل ${horizonName} · میانگین متحرک ${num(scoreWeights.moving_averages ?? 0, 0)}٪ · نوسان‌گر ${num(scoreWeights.oscillators ?? 0, 0)}٪ · حجم ${num(scoreWeights.volume ?? 0, 0)}٪ · حمایت و مقاومت ${num(scoreWeights.support_resistance ?? 0, 0)}٪`;
     const effectiveScoreWeights = a.effective_score_weights || {};
     const familyScores = a.family_scores || {};
-    const familyCards = Object.entries(labels).map(([key, [label, description]]) => {
+    const familyCards = Object.entries(labels).filter(([key]) => !a.dashboard_asset || key !== "volume").map(([key, [label, description]]) => {
       const family = familyScores[key] || {};
       const value = family.score == null ? NaN : Number(family.score);
       const available = Number.isFinite(value);
@@ -552,7 +554,7 @@
     return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       <div class="fund-model-score-head">
         <div><span class="recommendation-kicker">مدل ${horizonName} AliVest · محاسبه بر پایه داده‌های ره‌آورد</span>
-          <h3>امتیاز تکنیکال صندوق: <strong>${validScore ? `${num(score, 0)} از ۱۰۰` : "داده کافی نیست"}</strong></h3>
+          <h3>امتیاز تکنیکال ${a.dashboard_asset ? "دارایی" : "صندوق"}: <strong>${validScore ? `${num(score, 0)} از ۱۰۰` : "داده کافی نیست"}</strong></h3>
           <p>${scoreWeightText}. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · RSI در ۵۰–۶۰ امتیاز اندیکاتوری بیشتری می‌گیرد؛ خرید یا افزایش حجم فقط با RSI بین ۴۵–۶۵ و امتیاز میانگین و کل حداقل ۶۰ بررسی می‌شود. RSI بالای ۷۰ خریدزدگی است؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p>
         </div>
         <div class="fund-model-meta">
@@ -650,6 +652,9 @@
 
 
   function rahavardRecommendationHtml(a) {
+    if (a?.dashboard_asset && a.family_scores) {
+      return fundModelRecommendationHtml(a);
+    }
     if (a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")) {
       return dashboardModelRecommendationHtml(a);
     }
@@ -953,7 +958,7 @@
       bouncefromlower: ["برگشت از کف · مثبت", "positive"],
       nearupperuptrend: ["نزدیک سقف در روند صعودی · منفی", "caution"]
     };
-    const groups = a.indicators || {};
+    const groups = a.dashboard_asset ? { ...(a.indicators || {}), volumes: [] } : (a.indicators || {});
     const notes = new Map((a.indicator_notes || []).map((x) => [x.name, x]));
     const groupNames = { oscillators: "نوسانگرها و روند", moving_averages: "میانگین‌ها و باندها", bands: "باندهای نوسان", pivots: "پیوت‌ها و سطوح", volumes: "شاخص‌های حجم" };
     const pivotTable = pivotTableHtml(groups.pivots, a.price);
@@ -988,7 +993,7 @@
       const numericSummary = indicatorNumericSummary(name, item);
       return `<article class="indicator-card rahavard-indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(groupNames[group] || group)}</small></div><span class="indicator-status ${state}">${esc(signalLabel)}</span></div><div class="rahavard-indicator-values">${values || `<span class="factor-foot">${esc(noValueNote)}</span>`}</div><p>${esc(numericSummary)}</p><div class="indicator-range-guide"><b>این شاخص چه می‌گوید؟</b><span>${esc(note.meaning || indicatorPlainMeaning(name))}</span></div></article>`;
     }));
-    const gaugeCards = ["main", "pivot", "volume"].map((key) => {
+    const gaugeCards = (a.dashboard_asset ? ["main", "pivot"] : ["main", "pivot", "volume"]).map((key) => {
       const gauge = a.site_gauges?.[key];
       if (!gauge) return "";
       const title = key === "main" ? "جمع‌بندی تکنیکال" : key === "pivot" ? "پیوت" : "حجم";
@@ -1009,7 +1014,7 @@
     const indicatorSource = a.indicator_source_url
       ? ` · <a href="${esc(a.indicator_source_url)}" target="_blank" rel="noopener">منبع اندیکاتورها: ${esc(indicatorSourceName)}</a>` : ` · منبع اندیکاتورها: ${esc(indicatorSourceName)}`;
     const indicatorTime = a.indicator_data_timestamp ? ` · دریافت ${esc(formatDate(a.indicator_data_timestamp))}` : "";
-    const volumeDataNote = a.volume_data_note
+    const volumeDataNote = !a.dashboard_asset && a.volume_data_note
       ? `<div class="indicator-key-note">${esc(a.volume_data_note)}</div>` : "";
     const signalDescription = computedFromChart ? "سیگنال محاسبه‌شده از کندل‌های نمودار" : "سیگنال رسمی";
     return `${overview}${tradePlan}${volumeDataNote}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و ${signalDescription}${indicatorSource}${indicatorTime}</p></div></div>${pivotTable}<div class="indicator-readouts">${gaugeCards}</div><div class="indicator-card-grid">${cards.join("")}${missing}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;

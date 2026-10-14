@@ -149,14 +149,14 @@ def _tabdeal_dollar_chart_history() -> tuple[list[dict[str, Any]], str]:
 def _analyze_chart_candles(symbol: str, bars: list[dict[str, Any]], *,
                            horizon: str, indicator_source: str,
                            source_url: str | None = None) -> dict[str, Any]:
-    """Use the same locally calculated, four-family analysis pipeline as funds."""
+    """Score dashboard chart indicators without a volume family."""
     timestamp = bars[-1].get("timestamp") if bars else None
     payload = fund_chart_indicator_groups(bars, source=indicator_source)
     context = {"fund_history": bars, "price_timestamp": timestamp}
     current_price = bars[-1].get("close") if bars else None
     result = analyze_rahavard(
         symbol, payload, timestamp, current_price, context,
-        horizon=horizon, indicator_source=indicator_source)
+        horizon=horizon, indicator_source=indicator_source, dashboard_model=True)
     result["indicator_source_url"] = (
         source_url or (bars[-1].get("source_url") if bars else None))
     result["indicator_data_timestamp"] = timestamp
