@@ -19,7 +19,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from .analysis import DASHBOARD_SCORE_WEIGHTS, analyze, analyze_rahavard, stale_status
+from .analysis import analyze, analyze_rahavard, stale_status
 from .config import (MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
                      RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_PAGE_URL,
                      RAHAVARD_GOLD_18K_PAGE_URL,
@@ -145,6 +145,24 @@ def _tabdeal_dollar_chart_history() -> tuple[list[dict[str, Any]], str]:
         return [], "failed"
 
 
+def _analyze_chart_candles(symbol: str, bars: list[dict[str, Any]], *,
+                           horizon: str, indicator_source: str,
+                           source_url: str | None = None) -> dict[str, Any]:
+    """Use the same locally calculated, four-family analysis pipeline as funds."""
+    timestamp = bars[-1].get("timestamp") if bars else None
+    payload = fund_chart_indicator_groups(bars, source=indicator_source)
+    context = {"fund_history": bars, "price_timestamp": timestamp}
+    current_price = bars[-1].get("close") if bars else None
+    result = analyze_rahavard(
+        symbol, payload, timestamp, current_price, context,
+        horizon=horizon, indicator_source=indicator_source)
+    result["indicator_source_url"] = (
+        source_url or (bars[-1].get("source_url") if bars else None))
+    result["indicator_data_timestamp"] = timestamp
+    result["price_is_cached"] = _timestamp_is_cached(timestamp)
+    return result
+
+
 def _refresh_interval() -> int:
     try:
         return max(60, min(86400, int(db.get_settings().get("refresh_interval_seconds", REFRESH_INTERVAL_SECONDS))))
@@ -152,8 +170,7 @@ def _refresh_interval() -> int:
         return REFRESH_INTERVAL_SECONDS
 
 
-def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None,
-                  horizon: str = "long") -> dict[str, Any]:
+def _market_quote(symbol: str, horizon: str = "long") -> dict[str, Any]:
     is_usd_quote = symbol == "USD_IR_FREE"
     bars = _market_history(symbol, 10000)
     quote_bars = db.history(symbol, 10, source="Tabdeal") if is_usd_quote else bars
@@ -228,13 +245,22 @@ def _market_quote(symbol: str, analysis_weights: dict[str, float] | None = None,
         "stale": bool(price_stale), "status": status,
     }
     output["price_is_cached"] = _timestamp_is_cached(observed_timestamp)
-    output["analysis"] = analyze(symbol, analysis_bars, weights=analysis_weights, horizon=horizon)
+    chart_indicator_source = (
+        "TabdealChart" if is_usd_quote else
+        "Rahavard365Chart" if output.get("source") == "Rahavard365" else None)
+    if chart_indicator_source:
+        output["analysis"] = _analyze_chart_candles(
+            symbol, analysis_bars, horizon=horizon,
+            indicator_source=chart_indicator_source,
+            source_url=(TABDEAL_USDT_CHART_PAGE_URL if is_usd_quote else None))
+    else:
+        output["analysis"] = analyze(symbol, analysis_bars, horizon=horizon)
     output["analysis"]["source"] = "Tabdeal" if is_usd_quote else output.get("source")
     output["analysis"]["data_timestamp"] = analysis_timestamp
     output["analysis"]["status"] = (chart_analysis_status if is_usd_quote
                                       else status_for(analysis_source, analysis_stale))
     if is_usd_quote or output.get("source") == "Rahavard365":
-        output["analysis"]["indicator_source"] = "TabdealChart" if is_usd_quote else "Rahavard365Chart"
+        output["analysis"]["indicator_source"] = chart_indicator_source
         output["analysis"]["indicator_source_url"] = (
             TABDEAL_USDT_CHART_PAGE_URL if is_usd_quote else
             (analysis_bars[-1].get("source_url") if analysis_bars else data.get("source_url"))
@@ -479,10 +505,10 @@ def _gold18k_valuation(gold_quote: dict[str, Any], dollar_quote: dict[str, Any],
 def market_summary(horizon: str = Query(default="long")):
     horizon = normalize_horizon(horizon)
     funds = _exclude_fixed_income_funds(db.funds(sort="data_timestamp", source="Rahavard365"))
-    gold_quote = _market_quote("GOLD", DASHBOARD_SCORE_WEIGHTS, horizon)
-    gold18k_quote = _market_quote("GOLD_18K", DASHBOARD_SCORE_WEIGHTS, horizon)
-    dollar_quote = _market_quote("USD_IR_FREE", DASHBOARD_SCORE_WEIGHTS, horizon)
-    tepix_quote = _market_quote("TEPIX", DASHBOARD_SCORE_WEIGHTS, horizon)
+    gold_quote = _market_quote("GOLD", horizon)
+    gold18k_quote = _market_quote("GOLD_18K", horizon)
+    dollar_quote = _market_quote("USD_IR_FREE", horizon)
+    tepix_quote = _market_quote("TEPIX", horizon)
     gold_quote.pop("history", None)
     gold18k_quote.pop("history", None)
     dollar_quote.pop("history", None)
@@ -500,12 +526,12 @@ def market_summary(horizon: str = Query(default="long")):
 
 @app.get("/api/gold")
 def gold(horizon: str = Query(default="long")):
-    return _market_quote("GOLD", DASHBOARD_SCORE_WEIGHTS, normalize_horizon(horizon))
+    return _market_quote("GOLD", normalize_horizon(horizon))
 
 
 @app.get("/api/gold-18k")
 def gold_18k(horizon: str = Query(default="long")):
-    return _market_quote("GOLD_18K", DASHBOARD_SCORE_WEIGHTS, normalize_horizon(horizon))
+    return _market_quote("GOLD_18K", normalize_horizon(horizon))
 
 
 @app.get("/api/gold/history")
@@ -521,7 +547,7 @@ def gold_history(limit: int = Query(default=1000, ge=1, le=5000)):
 
 @app.get("/api/dollar")
 def dollar(horizon: str = Query(default="long")):
-    return _market_quote("USD_IR_FREE", DASHBOARD_SCORE_WEIGHTS, normalize_horizon(horizon))
+    return _market_quote("USD_IR_FREE", normalize_horizon(horizon))
 
 
 @app.get("/api/dollar/indicators")
@@ -536,7 +562,9 @@ async def dollar_indicators(horizon: str = Query(default="long")):
             "error": "کندل روزانهٔ دلار در نمودار Tabdeal برای محاسبهٔ اندیکاتورها در دسترس نیست.",
         }
     data_timestamp = bars[-1].get("timestamp")
-    analysis = analyze("USD_IR_FREE", bars, horizon=horizon)
+    analysis = _analyze_chart_candles(
+        "USD_IR_FREE", bars, horizon=horizon,
+        indicator_source="TabdealChart", source_url=TABDEAL_USDT_CHART_PAGE_URL)
     analysis["source"] = "Tabdeal"
     analysis["data_timestamp"] = data_timestamp
     analysis["status"] = status
@@ -552,7 +580,7 @@ async def dollar_indicators(horizon: str = Query(default="long")):
 
 @app.get("/api/tepix")
 def tepix(horizon: str = Query(default="long")):
-    return _market_quote("TEPIX", DASHBOARD_SCORE_WEIGHTS, normalize_horizon(horizon))
+    return _market_quote("TEPIX", normalize_horizon(horizon))
 
 
 @app.get("/api/dollar/history")
