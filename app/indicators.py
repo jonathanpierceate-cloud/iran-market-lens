@@ -139,7 +139,9 @@ def compute_indicators(bars: list[dict[str, Any]]) -> dict[str, Any]:
     low = [float(b.get("low") if b.get("low") is not None else b["close"]) for b in bars]
     open_ = [float(b.get("open") if b.get("open") is not None else b["close"]) for b in bars]
     volume = [float(b.get("volume") or 0) for b in bars]
-    has_volume = any(v > 0 for v in volume)
+    # A missing current volume (often encoded by chart vendors as zero) makes
+    # current volume indicators stale/unavailable even if older bars had volume.
+    has_volume = bool(volume) and volume[-1] > 0 and any(v > 0 for v in volume)
     n = len(close)
     current = close[-1] if n else None
     previous_close = close[-2] if n > 1 else None
@@ -535,7 +537,11 @@ def fund_chart_indicator_groups(bars: list[dict[str, Any]], *, source: str = "Ra
 
     usable_bars = [bar for bar in bars if bar.get("close") is not None]
     volume_values = [float(bar.get("volume") or 0) for bar in usable_bars]
+    volume_available = bool(computed.get("volume_analysis", {}).get("available"))
     for period in (15, 30, 90):
+        if not volume_available:
+            volumes.append(item(f"RV({period})", {}, "unavailable"))
+            continue
         current_volume = volume_values[-1] if volume_values else 0
         baseline = volume_values[-period-1:-1]
         average = sum(baseline) / len(baseline) if baseline else 0
@@ -556,4 +562,5 @@ def fund_chart_indicator_groups(bars: list[dict[str, Any]], *, source: str = "Ra
                      "moving_averages": moving_averages,
                      "pivots": pivots, "bands": bands, "volumes": volumes},
             "source": source, "observations": computed.get("observations"),
-            "data_status": computed.get("data_status")}
+            "data_status": computed.get("data_status"),
+            "volume_data_available": bool(computed.get("volume_analysis", {}).get("available"))}

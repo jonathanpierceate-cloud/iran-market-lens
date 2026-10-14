@@ -22,7 +22,8 @@ from .config import (HTTP_TIMEOUT_SECONDS, NEWS_RSS_URLS,
                      RAHAVARD_TEPIX_INDEX_ID, RAHAVARD_TEPIX_PAGE_URL,
                      RAHAVARD_USDT_ASSET_ID,
                      RAHAVARD_USDT_PAGE_URL, TABDEAL_TRADES_URL,
-                     TABDEAL_USDT_PAGE_URL)
+                     TABDEAL_USDT_PAGE_URL, MILLI_GOLD_18K_PAGE_URL,
+                     MILLI_GOLD_18K_PRICE_URL, MILLI_GOLD_18K_HISTORY_URL)
 from .db import db, utc_now
 
 YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
@@ -340,6 +341,84 @@ def rahavard_gold_18k_history() -> list[dict[str, Any]]:
     return bars
 
 
+def milli_gold_18k_data() -> dict[str, Any]:
+    """Return Milli's current 18K quote and daily candles from its public chart API."""
+    price_payload = _json(MILLI_GOLD_18K_PRICE_URL, referer=MILLI_GOLD_18K_PAGE_URL)
+    price_data = price_payload.get("data") if isinstance(price_payload, dict) else None
+    price18 = _num(price_data.get("price18")) if isinstance(price_data, dict) else None
+    if price18 is None or price18 <= 0:
+        raise SourceError("Milli did not return a valid 18K gold price")
+    try:
+        observed = datetime.fromisoformat(str(price_data.get("date")).replace("Z", "+00:00"))
+        if observed.tzinfo is None:
+            observed = observed.replace(tzinfo=timezone(timedelta(hours=3, minutes=30)))
+        observed = observed.astimezone(timezone.utc)
+    except (TypeError, ValueError, OverflowError):
+        observed = datetime.now(timezone.utc)
+    current_price = price18 * 1000  # Milli API quotes thousands of rials per gram.
+
+    history_payload = _json(MILLI_GOLD_18K_HISTORY_URL, referer=MILLI_GOLD_18K_PAGE_URL)
+    history_data = history_payload.get("data") if isinstance(history_payload, dict) else None
+    price_groups = history_data.get("prices") if isinstance(history_data, dict) else None
+    if not isinstance(price_groups, dict):
+        raise SourceError("Milli did not return 18K chart history")
+    points: dict[int, float] = {}
+    for group in price_groups.values():
+        if not isinstance(group, list):
+            continue
+        for point in group:
+            if not isinstance(point, dict):
+                continue
+            stamp, value = _num(point.get("timestamp")), _num(point.get("value"))
+            if stamp is None or value is None or value <= 0:
+                continue
+            points[int(stamp)] = value * 1000
+    if not points:
+        raise SourceError("Milli returned no valid 18K chart points")
+
+    tehran = timezone(timedelta(hours=3, minutes=30))
+    grouped: dict[str, dict[str, Any]] = {}
+    for stamp_ms, value in sorted(points.items()):
+        point_time = datetime.fromtimestamp(stamp_ms / 1000, timezone.utc).astimezone(tehran)
+        day = point_time.date().isoformat()
+        candle = grouped.get(day)
+        if candle is None:
+            grouped[day] = {
+                "timestamp": f"{day}T00:00:00+03:30",
+                "observed_at": point_time.astimezone(timezone.utc).isoformat(timespec="seconds"),
+                "fetched_at": utc_now(), "open": value, "high": value,
+                "low": value, "close": value, "volume": None,
+            }
+        else:
+            candle["high"] = max(candle["high"], value)
+            candle["low"] = min(candle["low"], value)
+            candle["close"] = value
+            candle["observed_at"] = point_time.astimezone(timezone.utc).isoformat(timespec="seconds")
+
+    today = observed.astimezone(tehran).date().isoformat()
+    if today not in grouped:
+        grouped[today] = {
+            "timestamp": f"{today}T00:00:00+03:30", "observed_at": observed.isoformat(timespec="seconds"),
+            "fetched_at": utc_now(), "open": current_price, "high": current_price,
+            "low": current_price, "close": current_price, "volume": None,
+        }
+    else:
+        candle = grouped[today]
+        candle["high"] = max(candle["high"], current_price)
+        candle["low"] = min(candle["low"], current_price)
+        candle["close"] = current_price
+        candle["observed_at"] = observed.isoformat(timespec="seconds")
+        candle["fetched_at"] = utc_now()
+
+    bars = [grouped[day] for day in sorted(grouped)]
+    return {
+        "bars": bars,
+        "quote": {"timestamp": observed.isoformat(timespec="seconds"),
+                  "fetched_at": utc_now(), "open": None, "high": None,
+                  "low": None, "close": current_price, "volume": None},
+    }
+
+
 def rahavard_tepix_current() -> dict[str, Any]:
     """Return the latest TEPIX (شاخص کل بورس) observation from Rahavard365."""
     url = f"{RAHAVARD_INDEX_BASE_URL}/{RAHAVARD_TEPIX_INDEX_ID}/last-value"
@@ -640,11 +719,11 @@ async def refresh_all() -> dict[str, Any]:
                      "Rahavard365", RAHAVARD_GOLD_PAGE_URL, bars)
         return len(bars), bars[-1].get("observed_at") or bars[-1]["timestamp"]
 
-    def apply_gold_18k(result):
-        bars = result
+    def apply_milli_gold_18k(result):
+        bars, quote = result["bars"], result["quote"]
         db.save_bars("GOLD_18K", "طلای ۱۸ عیار", "commodity", "IRR", "ریال/گرم",
-                     "Rahavard365", RAHAVARD_GOLD_18K_PAGE_URL, bars)
-        return len(bars), bars[-1].get("observed_at") or bars[-1]["timestamp"]
+                     "Milli", MILLI_GOLD_18K_PAGE_URL, bars)
+        return len(bars), quote["timestamp"]
 
     def apply_dxy(result):
         bars, meta = result
@@ -694,8 +773,8 @@ async def refresh_all() -> dict[str, Any]:
     tasks = [
         run_source("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL,
                    rahavard_gold_history, apply_gold),
-        run_source("rahavard_gold_18k", "طلای ۱۸ عیار / ره‌آورد۳۶۵", RAHAVARD_GOLD_18K_PAGE_URL,
-                   rahavard_gold_18k_history, apply_gold_18k),
+        run_source("milli_gold_18k", "18K gold / Milli", MILLI_GOLD_18K_PAGE_URL,
+                   milli_gold_18k_data, apply_milli_gold_18k),
         run_source("yahoo_dxy", "شاخص دلار آمریکا", YAHOO_CHART.format(symbol="DX-Y.NYB"),
                    lambda: yahoo_history("DX-Y.NYB"), apply_dxy),
         run_source("rahavard_usdt", "تاریخچهٔ دلار / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL,

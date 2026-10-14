@@ -59,6 +59,11 @@ RAHAVARD_GOLD_18K_PAGE_URL = os.getenv(
     "RAHAVARD_GOLD_18K_PAGE_URL",
     "https://rahavard365.com/asset/1560/%D8%B7%D9%84%D8%A7-%DA%AF%D8%B1%D9%85-18-%D8%B9%DB%8C%D8%A7%D8%B1",
 )
+MILLI_GOLD_18K_PAGE_URL = os.getenv("MILLI_GOLD_18K_PAGE_URL", "https://milli.gold/landing/")
+MILLI_GOLD_18K_PRICE_URL = os.getenv(
+    "MILLI_GOLD_18K_PRICE_URL", "https://milli.gold/api/v1/public/milli-price/external")
+MILLI_GOLD_18K_HISTORY_URL = os.getenv(
+    "MILLI_GOLD_18K_HISTORY_URL", "https://milli.gold/api/v1/public/milli-price/widget/external")
 RAHAVARD_USDT_PAGE_URL = "https://rahavard365.com/asset/44167/indicator"
 RAHAVARD_GOLD_ASSET_ID = os.getenv("RAHAVARD_GOLD_ASSET_ID", "2016")
 RAHAVARD_GOLD_18K_ASSET_ID = os.getenv("RAHAVARD_GOLD_18K_ASSET_ID", "1560")

@@ -20,9 +20,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .analysis import analyze, analyze_rahavard, stale_status
-from .config import (MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
+from .config import (MAX_STALE_HOURS, MILLI_GOLD_18K_PAGE_URL, RAHAVARD_API_BASE_URL,
                      RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_PAGE_URL,
-                     RAHAVARD_GOLD_18K_PAGE_URL,
                      RAHAVARD_LIGHT_BARS_URL, RAHAVARD_TEPIX_PAGE_URL,
                      RAHAVARD_USDT_PAGE_URL,
                      TABDEAL_USDT_PAGE_URL,
@@ -79,7 +78,7 @@ def _market_history(symbol: str, limit: int = 1000) -> list[dict[str, Any]]:
     fund = db.get_fund(symbol)
     if fund and not fund.get("ambiguous") and fund.get("source") == "Rahavard365":
         return db.history(fund["fund_key"], limit, source="Rahavard365")
-    preferred = {"GOLD": "Rahavard365", "GOLD_18K": "Rahavard365", "USD_IR_FREE": "Rahavard365", "TEPIX": "Rahavard365"}.get(symbol)
+    preferred = {"GOLD": "Rahavard365", "GOLD_18K": "Milli", "USD_IR_FREE": "Rahavard365", "TEPIX": "Rahavard365"}.get(symbol)
     if preferred:
         bars = db.history(symbol, limit, source=preferred)
         if symbol == "USD_IR_FREE":
@@ -87,6 +86,8 @@ def _market_history(symbol: str, limit: int = 1000) -> list[dict[str, Any]]:
             bars = [bar for bar in bars if bar.get("source_url") == RAHAVARD_USDT_PAGE_URL]
             if not bars:
                 return []
+        if symbol == "GOLD_18K" and not bars:
+            return []
         if bars:
             if symbol == "USD_IR_FREE":
                 iran_tz = timezone(timedelta(hours=3, minutes=30))
@@ -160,6 +161,13 @@ def _analyze_chart_candles(symbol: str, bars: list[dict[str, Any]], *,
         source_url or (bars[-1].get("source_url") if bars else None))
     result["indicator_data_timestamp"] = timestamp
     result["price_is_cached"] = _timestamp_is_cached(timestamp)
+    if not result.get("volume_data_available"):
+        if indicator_source == "MilliChart":
+            result["volume_data_note"] = "Milli نمودار قیمت را منتشر می‌کند اما تاریخچهٔ حجم ندارد؛ اندیکاتورهای حجم محاسبه و در امتیاز منظور نمی‌شوند."
+        elif symbol == "TEPIX":
+            result["volume_data_note"] = "تاریخچهٔ حجم شاخص در ره‌آورد موجود نیست و منبع TSETMC هنوز به سامانه وصل نشده؛ اندیکاتورهای حجم محاسبه و در امتیاز منظور نمی‌شوند."
+        else:
+            result["volume_data_note"] = "حجم آخرین کندل در دادهٔ نمودار موجود نیست؛ اندیکاتورهای حجم در امتیاز منظور نمی‌شوند."
     return result
 
 
@@ -180,16 +188,18 @@ def _market_quote(symbol: str, horizon: str = "long") -> dict[str, Any]:
         asset = conn.execute("SELECT * FROM assets WHERE symbol=?", (symbol,)).fetchone()
     asset_defaults = {
         "GOLD": {"name": "طلای جهانی", "source": "Rahavard365", "source_url": RAHAVARD_GOLD_PAGE_URL},
-        "GOLD_18K": {"name": "طلای ۱۸ عیار", "source": "Rahavard365", "source_url": RAHAVARD_GOLD_18K_PAGE_URL},
+        "GOLD_18K": {"name": "طلای ۱۸ عیار", "source": "Milli", "source_url": MILLI_GOLD_18K_PAGE_URL},
         "USD_IR_FREE": {"name": "دلار", "source": "Tabdeal", "source_url": TABDEAL_USDT_PAGE_URL},
         "TEPIX": {"name": "شاخص کل بورس", "source": "Rahavard365", "source_url": RAHAVARD_TEPIX_PAGE_URL},
     }
     data = dict(asset) if asset else asset_defaults.get(symbol)
+    if symbol == "GOLD_18K":
+        data = {**(data or {}), **asset_defaults[symbol]}
     if data is None:
         raise HTTPException(status_code=404, detail="دارایی پیدا نشد")
     display_name = asset_defaults.get(symbol, {}).get("name") or data["name"]
     source_url = TABDEAL_USDT_PAGE_URL if is_usd_quote else data.get("source_url")
-    source_key = {"GOLD": "rahavard_gold", "GOLD_18K": "rahavard_gold_18k", "DXY": "yahoo_dxy",
+    source_key = {"GOLD": "rahavard_gold", "GOLD_18K": "milli_gold_18k", "DXY": "yahoo_dxy",
                   "USD_IR_FREE": "tabdeal_usdt", "TEPIX": "rahavard_tepix"}.get(symbol)
     quote_source = _source_map().get(source_key) if source_key else None
     analysis_source_key = "tabdeal_usdt" if is_usd_quote else source_key
@@ -245,19 +255,22 @@ def _market_quote(symbol: str, horizon: str = "long") -> dict[str, Any]:
         "stale": bool(price_stale), "status": status,
     }
     output["price_is_cached"] = _timestamp_is_cached(observed_timestamp)
-    chart_indicator_source = "TabdealChart" if is_usd_quote else "Rahavard365Chart"
+    chart_indicator_source = ("TabdealChart" if is_usd_quote else
+                              "MilliChart" if symbol == "GOLD_18K" else "Rahavard365Chart")
     output["analysis"] = _analyze_chart_candles(
         symbol, analysis_bars, horizon=horizon,
         indicator_source=chart_indicator_source,
-        source_url=(TABDEAL_USDT_CHART_PAGE_URL if is_usd_quote else None))
+        source_url=(TABDEAL_USDT_CHART_PAGE_URL if is_usd_quote else
+                    MILLI_GOLD_18K_PAGE_URL if symbol == "GOLD_18K" else None))
     output["analysis"]["source"] = "Tabdeal" if is_usd_quote else output.get("source")
     output["analysis"]["data_timestamp"] = analysis_timestamp
     output["analysis"]["status"] = (chart_analysis_status if is_usd_quote
                                       else status_for(analysis_source, analysis_stale))
-    if is_usd_quote or output.get("source") == "Rahavard365":
+    if is_usd_quote or symbol == "GOLD_18K" or output.get("source") == "Rahavard365":
         output["analysis"]["indicator_source"] = chart_indicator_source
         output["analysis"]["indicator_source_url"] = (
             TABDEAL_USDT_CHART_PAGE_URL if is_usd_quote else
+            MILLI_GOLD_18K_PAGE_URL if symbol == "GOLD_18K" else
             (analysis_bars[-1].get("source_url") if analysis_bars else data.get("source_url"))
         )
         output["analysis"]["indicator_data_timestamp"] = analysis_timestamp
@@ -370,7 +383,7 @@ async def lifespan(_: FastAPI):
     REFRESH_WAKE = asyncio.Event()
     for key, label, url in [
         ("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL),
-        ("rahavard_gold_18k", "طلای ۱۸ عیار / ره‌آورد۳۶۵", RAHAVARD_GOLD_18K_PAGE_URL),
+        ("milli_gold_18k", "18K gold / Milli", MILLI_GOLD_18K_PAGE_URL),
         ("rahavard_usdt", "تاریخچهٔ دلار / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL),
         ("tabdeal_usdt", "قیمت دلار / تتر · Tabdeal", TABDEAL_USDT_PAGE_URL),
         ("rahavard_tepix", "شاخص کل بورس / ره‌آورد۳۶۵", RAHAVARD_TEPIX_PAGE_URL),
@@ -387,7 +400,8 @@ async def lifespan(_: FastAPI):
         elif existing_source.get("label") != label:
             db.update_source_label(key, label)
     legacy_sources = _source_map()
-    for key, label in [("tsetmc", "منبع قبلی قیمت صندوق‌ها · غیرفعال"),
+    for key, label in [("rahavard_gold_18k", "Legacy 18K gold / Rahavard365 · inactive"),
+                       ("tsetmc", "منبع قبلی قیمت صندوق‌ها · غیرفعال"),
                        ("tsetmc_fund_technicals", "تحلیل تکنیکال صندوق‌ها / TSETMC · غیرفعال"),
                        ("fipiran", "منبع قبلی مشخصات صندوق‌ها · غیرفعال"),
                        ("rahavard_indicators", "اندیکاتورهای قبلی صندوق‌ها / ره‌آورد · غیرفعال")]:
@@ -413,7 +427,7 @@ async def lifespan(_: FastAPI):
         # once before serving the first request so a cold instance still has
         # live market prices, fund listings, and NAV instead of an empty
         # dashboard.  Warm instances can be refreshed through /api/refresh.
-        if not db.funds(source="Rahavard365") or not db.history("GOLD_18K", 1, source="Rahavard365"):
+        if not db.funds(source="Rahavard365") or not db.history("GOLD_18K", 1, source="Milli"):
             REFRESH_STATE["running"] = True
             try:
                 REFRESH_STATE["last_result"] = await refresh_all()
@@ -473,7 +487,7 @@ def _gold18k_valuation(gold_quote: dict[str, Any], dollar_quote: dict[str, Any],
     rahavard_irr_per_gram = number(rahavard_quote.get("price"))
     valuation: dict[str, Any] = {
         "theoretical_price": None,
-        "rahavard_price": rahavard_irr_per_gram,
+        "observed_price": rahavard_irr_per_gram,
         "bubble": None,
         "bubble_percent": None,
         "gold_usd_per_ounce": gold_usd_per_ounce,

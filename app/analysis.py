@@ -319,6 +319,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         score_method = score_method.replace("fund_rahavard_", "fund_tsetmc_", 1)
     return {
         "source": source_name, "indicator_source": source_name,
+        "volume_data_available": payload.get("volume_data_available"),
         "symbol": symbol, "data_timestamp": data_timestamp,
         "price": price, "support_levels": supports, "resistance_levels": resistances,
         "short_term_exit_price": short_term_exit_price,

@@ -139,7 +139,7 @@
     if (!price || !theoreticalEl || !bubble || !bubblePercent) return;
 
     const theoretical = valuation?.theoretical_price;
-    const observed = valuation?.rahavard_price;
+    const observed = valuation?.observed_price ?? valuation?.rahavard_price;
     const difference = valuation?.bubble;
     const percent = valuation?.bubble_percent;
     price.classList.remove("unavailable-text");
@@ -941,7 +941,7 @@
   }
 
   function rahavardAnalysisHtml(a) {
-    const computedFromChart = ["Rahavard365Chart", "TabdealChart"].includes(a.indicator_source);
+    const computedFromChart = ["Rahavard365Chart", "TabdealChart", "MilliChart"].includes(a.indicator_source);
     const signalFa = { buy: "خرید · مثبت", sell: "فروش · منفی", hold: "خنثی", strong_buy: "خرید قوی", strong_sell: "فروش قوی" };
     const siteSignals = {
       buy: ["خرید / مثبت", "positive"], strongbuy: ["خرید قوی", "positive"], bullish: ["صعودی", "positive"],
@@ -1004,16 +1004,19 @@
     const tradePlan = dashboardModel ? exitManagementHtml(a) : tradePlanHtml(a);
     const indicatorSourceName = a.indicator_source === "TabdealChart"
       ? "Tabdeal · محاسبهٔ داخلی"
+      : a.indicator_source === "MilliChart" ? "Milli · محاسبهٔ داخلی"
       : a.indicator_source === "Rahavard365Chart" ? "ره‌آورد۳۶۵ · محاسبهٔ داخلی" : "ره‌آورد۳۶۵";
     const indicatorSource = a.indicator_source_url
       ? ` · <a href="${esc(a.indicator_source_url)}" target="_blank" rel="noopener">منبع اندیکاتورها: ${esc(indicatorSourceName)}</a>` : ` · منبع اندیکاتورها: ${esc(indicatorSourceName)}`;
     const indicatorTime = a.indicator_data_timestamp ? ` · دریافت ${esc(formatDate(a.indicator_data_timestamp))}` : "";
+    const volumeDataNote = a.volume_data_note
+      ? `<div class="indicator-key-note">${esc(a.volume_data_note)}</div>` : "";
     const signalDescription = computedFromChart ? "سیگنال محاسبه‌شده از کندل‌های نمودار" : "سیگنال رسمی";
-    return `${overview}${tradePlan}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و ${signalDescription}${indicatorSource}${indicatorTime}</p></div></div>${pivotTable}<div class="indicator-readouts">${gaugeCards}</div><div class="indicator-card-grid">${cards.join("")}${missing}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
+    return `${overview}${tradePlan}${volumeDataNote}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و ${signalDescription}${indicatorSource}${indicatorTime}</p></div></div>${pivotTable}<div class="indicator-readouts">${gaugeCards}</div><div class="indicator-card-grid">${cards.join("")}${missing}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
 
   function analysisHtml(a) {
-    if ((["Rahavard365Chart", "TabdealChart"].includes(a?.indicator_source) && Array.isArray(a.indicators?.oscillators)) || (a?.source === "Rahavard365" && (a?.indicator_source === "Rahavard365" || !a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")))) return rahavardAnalysisHtml(a);
+    if ((["Rahavard365Chart", "TabdealChart", "MilliChart"].includes(a?.indicator_source) && Array.isArray(a.indicators?.oscillators)) || (a?.source === "Rahavard365" && (a?.indicator_source === "Rahavard365" || !a?.score_method?.startsWith("dashboard_rahavard_three_group_weighted_")))) return rahavardAnalysisHtml(a);
     if (!a || a.technical_score == null) return `<div class="empty-state compact"><b>داده کافی برای محاسبه امتیاز موجود نیست</b><small>مدل فقط داده ذخیره‌شده از منبع را تحلیل می‌کند.</small></div>`;
     const all = a.indicators?.indicators || {};
     const seen = new Set();
@@ -1049,10 +1052,10 @@
     const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
     const isDashboardModel = a.score_method?.startsWith("dashboard_rahavard_three_group_weighted_");
     const tradePlan = isDashboardModel ? exitManagementHtml(a) : tradePlanHtml(a);
-    const chartBased = ["Rahavard365Chart", "TabdealChart"].includes(a.indicator_source);
-    const chartSourceName = a.indicator_source === "TabdealChart" ? "نمودار Tabdeal" : "نمودار ره‌آورد۳۶۵";
+    const chartBased = ["Rahavard365Chart", "TabdealChart", "MilliChart"].includes(a.indicator_source);
+    const chartSourceName = a.indicator_source === "TabdealChart" ? "نمودار Tabdeal" : a.indicator_source === "MilliChart" ? "Milli chart" : "نمودار ره‌آورد۳۶۵";
     const chartSourceNote = chartBased
-      ? `<div class="indicator-key-note">اندیکاتورها و امتیاز با محاسبهٔ داخلی از کندل‌های <a href="${esc(a.indicator_source_url || (a.indicator_source === "TabdealChart" ? "https://tabdeal.org/buy-usdt" : "https://rahavard365.com"))}" target="_blank" rel="noopener">${chartSourceName}</a> به دست می‌آیند. زمان داده: ${esc(formatDate(a.indicator_data_timestamp || a.data_timestamp))}</div>`
+      ? `<div class="indicator-key-note">اندیکاتورها و امتیاز با محاسبهٔ داخلی از کندل‌های <a href="${esc(a.indicator_source_url || (a.indicator_source === "TabdealChart" ? "https://tabdeal.org/buy-usdt" : a.indicator_source === "MilliChart" ? "https://milli.gold/landing/" : "https://rahavard365.com"))}" target="_blank" rel="noopener">${chartSourceName}</a> به دست می‌آیند. زمان داده: ${esc(formatDate(a.indicator_data_timestamp || a.data_timestamp))}</div>`
       : "";
     const indicatorDescription = chartBased ? "مقادیر محاسبه‌شده از کندل‌های نمودار" : "سیگنال رسمی";
     return `${overview}${tradePlan}${chartSourceNote}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(entries.length)} شاخص با مقدار فعلی، تفسیر عددی و ${indicatorDescription}</p></div></div>${pivotTable}<div class="indicator-readouts">${summaryCards}</div><div class="indicator-card-grid">${cards}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
