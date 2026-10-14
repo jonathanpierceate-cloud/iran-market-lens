@@ -5,7 +5,9 @@ from typing import Any
 
 from .indicators import compute_indicators, pivot_points
 from .scoring_profiles import DASHBOARD_SCORING_PROFILES, normalize_horizon, horizon_label
-from .scoring_rules import adx_directional_score, band_position_score, entry_recommendation, rsi_entry_score
+from .scoring_rules import (adx_directional_score, band_position_score,
+                            entry_recommendation, rsi_entry_score,
+                            stoch_rsi_entry_score)
 
 
 DASHBOARD_SCORE_WEIGHTS = DASHBOARD_SCORING_PROFILES["long"]["family_weights"]
@@ -218,10 +220,10 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
 
     osc_data = {
         "MACD(26)": (macd_score, macd, "MACD ۱۲/۲۶ و خط سیگنال"),
-        "RSI(14)": (rsi_score, rsi, "بالاترین امتیاز RSI در محدوده ۵۰ تا ۶۰ است؛ بالای ۷۰ به‌دلیل خریدزدگی امتیاز افت می‌کند و فروش‌زدگی به‌تنهایی برگشت را تأیید نمی‌کند"),
+        "RSI(14)": (rsi_score, rsi, "زیر ۳۰ ناحیه خرید، ۳۰ تا ۷۰ خنثی با امتیاز کمتر نزدیک ۷۰، و بالای ۷۰ ناحیه فروش است"),
         "MFI(14)": (osc(mfi, 80, 20), mfi, "مومنتوم قیمت و جریان حجم"),
         "ADX(14)": (adx_score, {"ADX": adx, "+DI": pdi, "-DI": mdi}, "ADX قدرت روند را می‌سنجد؛ جهت امتیاز از DI یا از هم‌سویی میانگین‌های متحرک گرفته می‌شود"),
-        "StochRSI(14)": (osc(stoch, 80, 20), stoch, "شتاب RSI؛ مقدار افراطی رأی مستقل خرید نیست"),
+        "StochRSI(14)": (stoch_rsi_entry_score(stoch), stoch, "مقیاس ۰ تا ۱؛ ۰ تا ۰٫۲۰ ناحیه خرید، ۰٫۲۰ تا ۰٫۸۰ خنثی، و ۰٫۸۰ تا ۱ ناحیه فروش"),
         "Trend": (trend_score, return20, "شیب قیمت در حدود ۲۰ کندل اخیر"),
         "AO(5,34)": (_signed_score(val("AO(5,34)")/current, .003) if val("AO(5,34)") is not None and current else None,
                      val("AO(5,34)"), "شتاب میانگین‌های ۵ و ۳۴ دوره"),

@@ -233,7 +233,7 @@
   function indicatorMeaning(key, value) {
     if (/^(EMA|SMA)\(/.test(key)) return `میانگین قیمت در دوره ${key.match(/\d+/)?.[0] || "مشخص"}؛ قیمت بالاتر از آن معمولاً به نفع روند صعودی است.`;
     const meanings = {
-      "RSI(14)": "قدرت حرکت قیمت در ۱۴ دوره؛ زیر ۳۰ فروش‌زدگی و بالای ۷۰ خریدزدگی است. این وضعیت به‌تنهایی سیگنال معامله نیست.",
+      "RSI(14)": "زیر ۳۰ ناحیه خرید، ۳۰ تا ۷۰ خنثی و بالای ۷۰ ناحیه فروش است؛ در محدوده خنثی هرچه RSI به ۷۰ نزدیک‌تر شود امتیاز کمتر می‌شود.",
       "MFI(14)": "فشار خرید و فروش با درنظرگرفتن حجم؛ زیر ۲۰ فروش‌زدگی و بالای ۸۰ خریدزدگی را نشان می‌دهد.",
       "CCI(14)": "فاصله قیمت از میانگین؛ بالای ۱۰۰ حرکت قوی و زیر منفی ۱۰۰ ضعف یا فروش‌زدگی را نشان می‌دهد.",
       "WR(14)": "جایگاه قیمت در دامنه ۱۴ دوره؛ بالای منفی ۲۰ خریدزدگی و زیر منفی ۸۰ فروش‌زدگی است.",
@@ -242,7 +242,7 @@
       "ARRON(25)": "تازگی ثبت سقف و کف ۲۵ دوره را می‌سنجد؛ خط بالاتر جهت غالب را نشان می‌دهد.",
       "ADX(14)": "قدرت روند را می‌سنجد، نه جهت آن؛ بالای ۲۵ معمولاً روند قوی‌تر است. جهت از +DI و −DI خوانده می‌شود.",
       "AO(5,34)": "شتاب کوتاه‌مدت در برابر بلندمدت؛ مثبت به نفع شتاب صعودی و منفی نشانه شتاب نزولی است.",
-      "StochRSI(14)": "سرعت تغییر RSI؛ بالای ۸۰ یا زیر ۲۰ یعنی حرکت به ناحیه افراطی رسیده و احتمال نوسان برگشتی بیشتر است.",
+      "StochRSI(14)": "مقدار بین ۰ تا ۱ است: ۰ تا ۰٫۲۰ ناحیه خرید، ۰٫۲۰ تا ۰٫۸۰ خنثی و ۰٫۸۰ تا ۱ ناحیه فروش.",
       "MACD(12,26,9)": "اختلاف میانگین‌های نمایی؛ هیستوگرام مثبت یعنی خط MACD بالای خط سیگنال و منفی یعنی پایین آن است.",
       "MTM(6)": "تغییر قیمت نسبت به ۶ دوره قبل؛ مثبت یعنی شتاب رو به بالا و منفی یعنی شتاب رو به پایین.",
       "Ichimoku(9,26,52,26)": "خط عددی مقدار تنکان است؛ وضعیت روند را با جای قیمت نسبت به ابر و تقاطع تنکان/کیجون بسنجید.",
@@ -255,7 +255,7 @@
       "RV(15)": "نوسان تاریخی سالانه‌شده بر پایه بازده ۱۵روزه؛ مقدار بیشتر یعنی ریسک نوسان بیشتر، نه جهت خاص.",
       "RV(30)": "نوسان تاریخی سالانه‌شده بر پایه بازده ۳۰روزه؛ مقدار بیشتر یعنی ریسک نوسان بیشتر، نه جهت خاص.",
       "RV(90)": "نوسان تاریخی سالانه‌شده بر پایه بازده ۹۰روزه؛ مقدار بیشتر یعنی ریسک نوسان بیشتر، نه جهت خاص.",
-      "SM(15)": "در مشخصات ارسالی، تعریف محاسباتی این شاخص روشن نبود؛ بنابراین مقدار قابل اتکا محاسبه نشده است."
+      "SM(15)": "فرمول و ورودی‌های لازم این شاخص از تاریخچه کندل قیمت و حجم مشخص نیست؛ برای جلوگیری از عدد حدسی محاسبه نشده است."
     };
     return meanings[key] || value?.interpretation || "برای این شاخص تفسیر کافی ثبت نشده است.";
   }
@@ -272,7 +272,7 @@
           : signal === "lowvolume" ? "حجم پایین" : signal === "highvolume" ? "حجم بالا" : "خنثی";
     const first = value("value", "rsi", "mfi", "cci", "wr", "awesome", "mtm", "rv", "sm", "vrsi", "obv");
     if (/^hv/i.test(name) && Number.isFinite(first)) return "\u0646\u0648\u0633\u0627\u0646 \u062a\u0627\u0631\u06cc\u062e\u06cc \u0633\u0627\u0644\u0627\u0646\u0647\u200c\u0634\u062f\u0647 \u0628\u0631\u0627\u0628\u0631 " + num(first, 2) + "% \u0627\u0633\u062a\u061b \u0645\u0642\u062f\u0627\u0631 \u0628\u0627\u0644\u0627\u062a\u0631 \u0628\u0647\u200c\u0645\u0639\u0646\u06cc \u0631\u06cc\u0633\u06a9 \u0646\u0648\u0633\u0627\u0646 \u0628\u06cc\u0634\u062a\u0631 \u0627\u0633\u062a.";
-    if (/^rsi/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first >= 70 ? "بالاتر از ۷۰ و در ناحیه خریدزدگی است، پس احتمال اصلاح کوتاه‌مدت وجود دارد." : first <= 30 ? "زیر ۳۰ و در ناحیه فروش‌زدگی است، پس امکان برگشت وجود دارد." : "در محدوده میانی ۳۰ تا ۷۰ است و افراط دیده نمی‌شود."}`;
+    if (/^rsi/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first > 70 ? "بالاتر از ۷۰ و در ناحیه فروش است." : first < 30 ? "زیر ۳۰ و در ناحیه خرید است." : `در محدوده خنثی ۳۰ تا ۷۰ است${first > 50 ? "؛ نزدیک‌شدن به ۷۰ امتیاز را کمتر می‌کند." : "."}`}`;
     if (/^mfi/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first >= 80 ? "بالاتر از ۸۰ و نشان‌دهنده خریدزدگی جریان پول است." : first <= 20 ? "زیر ۲۰ و نشان‌دهنده فروش‌زدگی جریان پول است." : "در محدوده میانی جریان پول قرار دارد."}`;
     if (/^cci/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first >= 100 ? "بالاتر از ۱۰۰ و نشان‌دهنده حرکت قوی اما کشیده‌شده است." : first <= -100 ? "پایین‌تر از منفی ۱۰۰ و نشان‌دهنده فروش‌زدگی است." : "بین منفی ۱۰۰ و مثبت ۱۰۰ قرار دارد."}`;
     if (/^wr/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first >= -20 ? "نزدیک صفر و در ناحیه خریدزدگی است." : first <= -80 ? "زیر منفی ۸۰ و در ناحیه فروش‌زدگی است." : "در محدوده میانی دامنه قیمت است."}`;
@@ -286,7 +286,10 @@
     }
     if (/^adx/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first >= 25 ? "بالاتر از ۲۵ و نشان‌دهنده روند قدرتمندتر است." : "زیر ۲۵ و نشان‌دهنده روند کم‌قدرت است."} جهت را باید از سایر شاخص‌ها خواند.`;
     if (/^ao/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first > 0 ? "بالای صفر و به نفع شتاب صعودی است." : first < 0 ? "زیر صفر و به نفع شتاب نزولی است." : "روی صفر و خنثی است."}`;
-    if (/stochrsi/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 3)} است؛ ${first >= .8 ? "بالاتر از ۰٫۸۰ و در خریدزدگی است." : first <= .2 ? "زیر ۰٫۲۰ و در فروش‌زدگی است." : "در محدوده میانی است."}`;
+    if (/stochrsi/i.test(name) && Number.isFinite(first)) {
+      const normalized = first > 1 ? first / 100 : first;
+      return `عدد ${num(normalized, 3)} از ۱ است؛ ${normalized >= .8 ? "در ناحیه فروش است." : normalized <= .2 ? "در ناحیه خرید است." : "در محدوده خنثی است."}`;
+    }
     if (/^macd/i.test(name)) {
       const macd = value("macd"), line = value("signal");
       return `MACD=${num(macd, 2)} و خط سیگنال=${num(line, 2)} است؛ ${macd > line ? "MACD بالاتر از سیگنال و شتاب صعودی است." : macd < line ? "MACD پایین‌تر از سیگنال و شتاب نزولی است." : "دو خط تقریباً برابرند."}`;
@@ -332,7 +335,12 @@
       return { state: "neutral", label: "روند قوی" };
     }
     if (["ATR(14)", "HV(15)", "HV(30)", "HV(90)", "VRSI(14)"].includes(key)) return { state: "neutral", label: "معیار نوسان/حجم" };
-    if (["RSI(14)", "MFI(14)", "CCI(14)", "WR(14)", "SO(14)", "StochRSI(14)"].includes(key)) {
+    if (["RSI(14)", "StochRSI(14)"].includes(key)) {
+      if (signal === "buy") return { state: "positive", label: "ناحیه خرید" };
+      if (signal === "sell") return { state: "caution", label: "ناحیه فروش" };
+      return { state: "neutral", label: "محدوده خنثی" };
+    }
+    if (["MFI(14)", "CCI(14)", "WR(14)", "SO(14)"].includes(key)) {
       if (signal === "oversold") return { state: "caution", label: "فروش‌زدگی · بااحتیاط" };
       if (signal === "overbought") return { state: "caution", label: "خریدزدگی · بااحتیاط" };
       return { state: "neutral", label: "محدوده میانی" };
@@ -419,6 +427,10 @@
     if (value?.value == null) return "—";
     if (key === "Ichimoku(9,26,52,26)") return num(value.tenkan ?? value.value, 2);
     if (key === "BB(20)" || key === "KELTNER(16)") return num(value.middle ?? value.value, 2);
+    if (key === "StochRSI(14)") {
+      const raw = Number(value.value);
+      return num(raw > 1 ? raw / 100 : raw, 3);
+    }
     if (/^RV\(/.test(key)) return num(value.value, 2) + "\u00d7";
     if (/^HV\(/.test(key)) return num(value.value, 2) + "%";
     return num(value.value, 3);
@@ -428,7 +440,7 @@
     const key = String(name || "").toLowerCase().replace(/[^a-z]/g, "");
     if (key.startsWith("rv")) return "\u0646\u0633\u0628\u062a \u062d\u062c\u0645 \u0622\u062e\u0631\u06cc\u0646 \u06a9\u0646\u062f\u0644 \u0628\u0647 \u0645\u06cc\u0627\u0646\u06af\u06cc\u0646 \u062d\u062c\u0645 \u062f\u0648\u0631\u0647 \u0627\u0633\u062a\u061b \u062c\u0647\u062a \u0631\u0627 \u0628\u0627 \u0633\u0627\u06cc\u0631 \u0634\u0627\u062e\u0635\u200c\u0647\u0627 \u0628\u0633\u0646\u062c.";
     if (key.startsWith("hv")) return "\u0646\u0648\u0633\u0627\u0646 \u062a\u0627\u0631\u06cc\u062e\u06cc \u0633\u0627\u0644\u0627\u0646\u0647\u200c\u0634\u062f\u0647 \u0642\u06cc\u0645\u062a \u0631\u0627 \u0645\u06cc\u200c\u0633\u0646\u062c\u062f\u061b \u0645\u0642\u062f\u0627\u0631 \u0628\u0627\u0644\u0627\u062a\u0631 \u06cc\u0639\u0646\u06cc \u0631\u06cc\u0633\u06a9 \u0646\u0648\u0633\u0627\u0646 \u0628\u06cc\u0634\u062a\u0631.";
-    if (key.startsWith("stochrsi")) return "سرعت حرکت RSI را می‌سنجد و نشان می‌دهد مومنتوم کوتاه‌مدت به ناحیهٔ افراط رسیده یا نه.";
+    if (key.startsWith("stochrsi")) return "نسبت جایگاه RSI در دامنه ۱۴ دوره به‌صورت ۰ تا ۱؛ زیر ۰٫۲۰ خرید، بالای ۰٫۸۰ فروش و بین آن‌ها خنثی.";
     if (key.startsWith("rsi")) return "قدرت و سرعت حرکت قیمت را خلاصه می‌کند؛ برای دیدن شتاب و داغ‌شدن حرکت به کار می‌رود.";
     if (key.startsWith("mfi")) return "فشار خرید و فروش را با ترکیب تغییر قیمت و حجم معاملات نشان می‌دهد.";
     if (key.startsWith("cci")) return "نشان می‌دهد قیمت چقدر از میانگین معمولش فاصله گرفته و حرکت چقدر قوی شده است.";
@@ -555,7 +567,7 @@
       <div class="fund-model-score-head">
         <div><span class="recommendation-kicker">مدل ${horizonName} AliVest · محاسبه بر پایه داده‌های ره‌آورد</span>
           <h3>امتیاز تکنیکال ${a.dashboard_asset ? "دارایی" : "صندوق"}: <strong>${validScore ? `${num(score, 0)} از ۱۰۰` : "داده کافی نیست"}</strong></h3>
-          <p>${scoreWeightText}. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · RSI در ۵۰–۶۰ امتیاز اندیکاتوری بیشتری می‌گیرد؛ خرید یا افزایش حجم فقط با RSI بین ۴۵–۶۵ و امتیاز میانگین و کل حداقل ۶۰ بررسی می‌شود. RSI بالای ۷۰ خریدزدگی است؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p>
+          <p>${scoreWeightText}. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · RSI زیر ۳۰ ناحیه خرید، بین ۳۰ تا ۷۰ خنثی با امتیاز کاهشی نزدیک ۷۰، و بالای ۷۰ ناحیه فروش است. ورود همچنان با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p>
         </div>
         <div class="fund-model-meta">
           <span>پوشش کل داده‌ها <b>${Number.isFinite(coverage) ? `${num(coverage, 0)}٪` : "—"}</b></span>
@@ -633,7 +645,7 @@
     return "<section class=\"fund-recommendation " + scoreTone + " fund-model-recommendation dashboard-model-recommendation\">" +
       "<div class=\"fund-model-score-head\"><div><span class=\"recommendation-kicker\">مدل " + horizonName + " · امتیاز اختصاصی AliVest بر پایهٔ داده‌های ره‌آورد</span>" +
       "<h3>امتیاز تکنیکال: <strong>" + (scoreValue == null ? "داده کافی نیست" : num(scoreValue, 0) + " از ۱۰۰") + "</strong> · " + (bandLabels[a.score_band] || "نامشخص") + "</h3>" +
-      "<p>" + scoreWeightText + " · RSI در محدوده ۵۰–۶۰ امتیاز اندیکاتوری بیشتری می‌گیرد؛ خرید یا افزایش حجم فقط با RSI بین ۴۵–۶۵ و امتیاز میانگین و کل حداقل ۶۰ بررسی می‌شود. RSI بالای ۷۰ خریدزدگی است؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p></div>" +
+      "<p>" + scoreWeightText + " · RSI زیر ۳۰ ناحیه خرید، بین ۳۰ تا ۷۰ خنثی با امتیاز کاهشی نزدیک ۷۰، و بالای ۷۰ ناحیه فروش است. ورود با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p></div>" +
       "<div class=\"fund-model-meta\"><span>قیمت فعلی <b>" + price + "</b></span><span>تغییر روزانه <b>" + daily + "</b></span>" +
       "<span>جهت " + horizonName + " <b>" + trend + "</b></span><span>قدرت روند <b>" + strength + "</b></span>" +
       "<span>ریسک نوسان <b>" + risk + (finite(a.risk_score) ? " · " + num(a.risk_score, 0) : "") + "</b></span>" +
@@ -710,7 +722,7 @@
     const scoreOf = (key, fallback) => scores[key] != null && Number.isFinite(Number(scores[key])) ? Number(scores[key]) : fallback;
     const oscillatorScore = scoreOf("oscillators", groupScore("oscillators"));
     const rsiValue = scores.rsi == null || !Number.isFinite(Number(scores.rsi)) ? null : Number(scores.rsi);
-    const oscillatorDetail = rsiValue == null ? "مومنتوم و اشباع" : rsiValue >= 80 ? "RSI " + num(rsiValue, 1) + " · خریدزدگی بالا" : rsiValue >= 70 ? "RSI " + num(rsiValue, 1) + " · خریدزدگی" : "مومنتوم و اشباع";
+    const oscillatorDetail = rsiValue == null ? "مومنتوم و اشباع" : rsiValue > 70 ? "RSI " + num(rsiValue, 1) + " · ناحیه فروش" : rsiValue < 30 ? "RSI " + num(rsiValue, 1) + " · ناحیه خرید" : "مومنتوم و اشباع";
     const movingAverageScore = scoreOf("moving_averages", groupScore("moving_averages"));
     const volumeScore = scoreOf("volume", groupScore("volumes"));
     const price = Number(a.price);
@@ -1049,7 +1061,7 @@
     const maLabel = maState === "positive" ? "بالای هر سه میانگین" : maState === "caution" ? "زیر هر سه میانگین" : "ترکیبی / ناقص";
     const summary = (label, value, state, meaning) => `<div class="readout-card"><span>${label}</span><strong>${value}</strong><em class="indicator-status ${state}">${meaning}</em></div>`;
     const summaryCards = [
-      summary("RSI · قدرت حرکت", rsi?.value == null ? "—" : num(rsi.value, 1), rsi ? indicatorAssessment("RSI(14)", rsi).state : "unknown", rsi ? `${indicatorAssessment("RSI(14)", rsi).label} · بالای ۷۰ خریدزدگی، زیر ۳۰ فروش‌زدگی` : "داده ناکافی"),
+      summary("RSI · قدرت حرکت", rsi?.value == null ? "—" : num(rsi.value, 1), rsi ? indicatorAssessment("RSI(14)", rsi).state : "unknown", rsi ? `${indicatorAssessment("RSI(14)", rsi).label} · زیر ۳۰ خرید، ۳۰ تا ۷۰ خنثی، بالای ۷۰ فروش` : "داده ناکافی"),
       summary("MACD · شتاب روند", macd?.value == null ? "—" : `خط ${num(macd.value, 2)} / هیستوگرام ${num(macd.histogram, 2)}`, macd ? indicatorAssessment("MACD(12,26,9)", macd).state : "unknown", macd ? (Number(macd.histogram) > 0 ? "خط MACD بالای سیگنال؛ شتاب بهتر شده" : Number(macd.histogram) < 0 ? "خط MACD زیر سیگنال؛ شتاب ضعیف‌تر است" : "خط و سیگنال نزدیک هم") : "داده ناکافی"),
       summary("ADX · قدرت و جهت روند", adx?.value == null ? "—" : num(adx.value, 1), adx ? indicatorAssessment("ADX(14)", adx).state : "unknown", adx ? `${indicatorAssessment("ADX(14)", adx).label} · ADX جهت را به‌تنهایی نمی‌گوید` : "داده ناکافی"),
       summary("میانگین‌های EMA", maAlignment.length ? `${maAlignment.filter(Boolean).length} از ${maAlignment.length}` : "—", maState, `${maLabel} · نسبت قیمت به EMA20/50/200`)

@@ -11,7 +11,8 @@ import re
 from typing import Any
 
 from .scoring_profiles import FUND_SCORING_PROFILES, normalize_horizon, horizon_label
-from .scoring_rules import adx_directional_score, band_position_score, rsi_entry_score
+from .scoring_rules import (adx_directional_score, band_position_score,
+                            rsi_entry_score, stoch_rsi_entry_score)
 
 FAMILY_WEIGHTS = FUND_SCORING_PROFILES["long"]["family_weights"]
 
@@ -275,9 +276,7 @@ def _momentum_indicator_score(key: str, item: dict[str, Any] | None,
     elif key == "stochrsi14":
         value = _value(values, "stochrsi", "value")
         if value is not None:
-            if 0.0 <= value <= 1.0:
-                value *= 100.0
-            return _bounded_oscillator_score(value, 80.0, 20.0)
+            return stoch_rsi_entry_score(value)
     elif key == "mtm6":
         value = _value(values, "mtm", "value")
         if value is not None and price:
@@ -333,7 +332,7 @@ def _momentum_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | 
         values = _item_values(item)
         if detail["key"] == "rsi14":
             detail["value"] = _value(values, "rsi", "value")
-            detail["note"] = "بالاترین امتیاز RSI در محدوده ۵۰ تا ۶۰ است؛ بالای ۷۰ به‌دلیل خریدزدگی امتیاز افت می‌کند و فروش‌زدگی به‌تنهایی برگشت را تأیید نمی‌کند."
+            detail["note"] = "زیر ۳۰ ناحیه خرید، ۳۰ تا ۷۰ خنثی با امتیاز کمتر نزدیک ۷۰، و بالای ۷۰ ناحیه فروش است؛ فروش‌زدگی به‌تنهایی برگشت را تأیید نمی‌کند."
         elif detail["key"] == "adx14":
             adx = _value(values, "adx", "value")
             plus_di, minus_di = _value(values, "plus_di", "pdi"), _value(values, "minus_di", "mdi")

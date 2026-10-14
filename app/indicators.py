@@ -147,8 +147,8 @@ def compute_indicators(bars: list[dict[str, Any]]) -> dict[str, Any]:
     rsi = _rsi(close, 14)
     rsi_now, rsi_prev = _value(rsi), _value(rsi, -2)
     ind["RSI(14)"] = _indicator(rsi_now, rsi_prev,
-        signal="oversold" if rsi_now is not None and rsi_now < 30 else ("overbought" if rsi_now is not None and rsi_now > 70 else "neutral"),
-        interpretation=("اشباع فروش" if rsi_now is not None and rsi_now < 30 else "اشباع خرید" if rsi_now is not None and rsi_now > 70 else "محدوده میانی" if rsi_now is not None else "داده کافی نیست"),
+        signal="buy" if rsi_now is not None and rsi_now < 30 else ("sell" if rsi_now is not None and rsi_now > 70 else "neutral"),
+        interpretation=("ناحیه خرید؛ RSI زیر ۳۰" if rsi_now is not None and rsi_now < 30 else "ناحیه فروش؛ RSI بالای ۷۰" if rsi_now is not None and rsi_now > 70 else "محدوده خنثی ۳۰ تا ۷۰" if rsi_now is not None else "داده کافی نیست"),
         formula="100 - 100 / (1 + میانگین هموارشده رشد / میانگین هموارشده افت)", parameters={"period": 14, "smoothing": "Wilder"})
 
     typical = [(high[i] + low[i] + close[i]) / 3 for i in range(n)]
@@ -283,12 +283,12 @@ def compute_indicators(bars: list[dict[str, Any]]) -> dict[str, Any]:
         w = [v for v in rsi[i - 13:i + 1] if v is not None]
         if len(w) == 14:
             lo, hi = min(w), max(w)
-            stoch_rsi[i] = 100 * (float(rsi[i]) - lo) / (hi - lo) if hi != lo else 50.0
+            stoch_rsi[i] = (float(rsi[i]) - lo) / (hi - lo) if hi != lo else 0.5
     srsi_now = _value(stoch_rsi)
     ind["StochRSI(14)"] = _indicator(srsi_now, _value(stoch_rsi, -2),
-        signal="oversold" if srsi_now is not None and srsi_now < 20 else "overbought" if srsi_now is not None and srsi_now > 80 else "neutral",
-        interpretation="اشباع فروش" if srsi_now is not None and srsi_now < 20 else "اشباع خرید" if srsi_now is not None and srsi_now > 80 else "محدوده میانی" if srsi_now is not None else "داده کافی نیست",
-        formula="100 × (RSI14 - min(RSI14,14)) / (max(RSI14,14) - min(RSI14,14))", parameters={"rsi_period": 14, "stochastic_period": 14})
+        signal="buy" if srsi_now is not None and srsi_now <= 0.2 else "sell" if srsi_now is not None and srsi_now >= 0.8 else "neutral",
+        interpretation="ناحیه خرید؛ StochRSI بین ۰ و ۰٫۲۰" if srsi_now is not None and srsi_now <= 0.2 else "ناحیه فروش؛ StochRSI بین ۰٫۸۰ و ۱" if srsi_now is not None and srsi_now >= 0.8 else "محدوده خنثی ۰٫۲۰ تا ۰٫۸۰" if srsi_now is not None else "داده کافی نیست",
+        formula="(RSI14 - min(RSI14,14)) / (max(RSI14,14) - min(RSI14,14)); range 0–1", parameters={"rsi_period": 14, "stochastic_period": 14})
 
     momentum: list[float | None] = [None] * n
     for i in range(6, n): momentum[i] = close[i] - close[i - 6]
@@ -383,8 +383,8 @@ def compute_indicators(bars: list[dict[str, Any]]) -> dict[str, Any]:
         ind[f"RV({p})"] = _indicator(rv, rv_previous, signal="neutral",
             interpretation="نوسان تاریخی سالانه‌شده بازده لگاریتمی (%)" if rv is not None else "داده کافی نیست",
             formula="population SD of log returns over window × √252 × 100", parameters={"period": p, "annualization": 252})
-    ind["SM(15)"] = _indicator(None, None, signal="unavailable", interpretation="تعریف دقیق SM در مشخصات تعیین نشده؛ محاسبه نشده است.",
-        formula="تعریف درخواستی نیازمند تعیین مرجع است", parameters={"period": 15})
+    ind["SM(15)"] = _indicator(None, None, signal="unavailable", interpretation="از کندل‌های قیمت و حجم، تعریف و ورودی‌های لازم SM(15) قابل تشخیص نیست؛ عدد حدسی محاسبه نمی‌شود.",
+        formula="فرمول مرجع یا داده‌های اختصاصی شاخص در دسترس نیست", parameters={"period": 15})
 
     # The requested ARRON spelling is preserved in its label; the standard indicator is Aroon.
     ind["ARRON(25)"] = ind["Aroon(25)"]
@@ -424,6 +424,8 @@ def compute_indicators(bars: list[dict[str, Any]]) -> dict[str, Any]:
         "close": chart_values(close),
         "ema20": chart_values(ema_by_period[20]),
         "ema50": chart_values(ema_by_period[50]),
+        "ema200": chart_values(ema_by_period[200]),
+        "sma200": chart_values(sma_by_period[200]),
         "bb_upper": chart_values(bb_upper),
         "bb_lower": chart_values(bb_lower),
         "rsi": chart_values(rsi),
@@ -488,7 +490,7 @@ def fund_chart_indicator_groups(bars: list[dict[str, Any]], *, source: str = "Ra
     oscillators.insert(5, item("Trend", {"value": trend_value}, trend_signal))
 
     moving_averages = []
-    for period in (5, 10, 20, 30, 50, 100):
+    for period in (5, 10, 20, 30, 50, 100, 200):
         moving_averages.append(measured(f"EMA({period})", f"EMA({period})"))
         moving_averages.append(measured(f"SMA({period})", f"SMA({period})"))
     cloud = raw.get("Ichimoku(9,26,52,26)") or {}

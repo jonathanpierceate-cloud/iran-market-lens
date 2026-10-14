@@ -342,8 +342,8 @@ def evaluate_alerts() -> list[dict[str, Any]]:
             indicators = result["indicators"]["indicators"]
             rsi = indicators.get("RSI(14)", {}).get("value")
             spike = result["indicators"].get("volume_analysis", {}).get("volume_spike")
-            if condition == "rsi_overbought": hit = rsi is not None and rsi >= 70; reason = f"RSI(14) به {rsi:.1f} رسید" if hit else ""
-            elif condition == "rsi_oversold": hit = rsi is not None and rsi <= 30; reason = f"RSI(14) به {rsi:.1f} رسید" if hit else ""
+            if condition == "rsi_overbought": hit = rsi is not None and rsi > 70; reason = f"RSI(14) به {rsi:.1f} رسید" if hit else ""
+            elif condition == "rsi_oversold": hit = rsi is not None and rsi < 30; reason = f"RSI(14) به {rsi:.1f} رسید" if hit else ""
             elif condition == "volume_spike": hit = bool(spike); reason = "جهش حجم نسبت به میانگین ۲۰ دوره ثبت شد" if hit else ""
         if hit:
             db.mark_alert_triggered(alert["id"], reason)

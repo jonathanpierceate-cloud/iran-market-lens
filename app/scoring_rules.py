@@ -9,19 +9,40 @@ def _clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
 
 
 def rsi_entry_score(value: float) -> float:
-    """Score RSI for entry quality: balanced momentum is favored over extremes."""
+    """Score RSI by the requested buy (<30), neutral (30–70), and sell (>70) zones."""
     value = _clamp(value)
-    if value <= 30:
-        return 40.0 + value / 3.0
-    if value <= 50:
-        return 50.0 + (value - 30.0)
-    if value <= 60:
-        return 70.0 + (value - 50.0) * 2.0
-    if value <= 70:
-        return 90.0 - (value - 60.0) * 2.5
-    if value <= 80:
-        return 65.0 - (value - 70.0) * 3.0
-    return max(15.0, 35.0 - (value - 80.0))
+    if value < 30.0:
+        return _clamp(60.0 + (30.0 - value) * 2.0)
+    if value <= 70.0:
+        return 60.0 - (value - 30.0) * 0.5
+    return _clamp(40.0 - (value - 70.0) * 2.0)
+
+
+def normalize_stoch_rsi(value: float | None) -> float | None:
+    """Accept normalized 0–1 values and legacy 0–100 values, returning 0–1."""
+    try:
+        value = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not math.isfinite(value):
+        return None
+    if 1.0 < value <= 100.0:
+        value /= 100.0
+    if not 0.0 <= value <= 1.0:
+        return None
+    return value
+
+
+def stoch_rsi_entry_score(value: float | None) -> float | None:
+    """Score StochRSI with low readings favoring buy and high readings sell."""
+    value = normalize_stoch_rsi(value)
+    if value is None:
+        return None
+    if value <= 0.2:
+        return _clamp(60.0 + (0.2 - value) * 200.0)
+    if value < 0.8:
+        return 60.0 - (value - 0.2) * (20.0 / 0.6)
+    return _clamp(40.0 - (value - 0.8) * 200.0)
 
 
 def band_position_score(price: float | None, lower: float | None,
@@ -68,15 +89,12 @@ def entry_recommendation(rsi: float | None, moving_average_score: float | None,
     if above_exit_average is False:
         return {"status": "confirmation", "label": "صبر · زیر میانگین خروج",
                 "reason": "قیمت زیر میانگین خروج افق انتخاب‌شده است؛ تا تثبیت کندل روزانه بالای آن خرید یا حجم اضافه نکن."}
-    if rsi >= 70:
-        return {"status": "confirmation", "label": "صبر · RSI در خریدزدگی",
-                "reason": f"RSI روی {rsi:.1f} و بالای ۷۰ است؛ با وجود روند قوی، برای خرید تازه یا افزایش حجم تا خنک‌شدن RSI و حفظ میانگین‌ها صبر کن."}
-    if rsi >= 65:
-        return {"status": "confirmation", "label": "صبر · RSI داغ",
-                "reason": f"RSI روی {rsi:.1f} و نزدیک ناحیه خریدزدگی است؛ برای ورود بهتر تا اصلاح ملایم یا تثبیت بالای میانگین‌ها صبر کن."}
-    if rsi <= 30:
-        return {"status": "confirmation", "label": "صبر · فروش‌زدگی RSI",
-                "reason": f"RSI روی {rsi:.1f} و زیر ۳۰ است؛ فروش‌زدگی به‌تنهایی برگشت را تأیید نمی‌کند، پس برای نشانه برگشت و حفظ میانگین‌ها صبر کن."}
+    if rsi > 70:
+        return {"status": "confirmation", "label": "صبر · RSI در ناحیه فروش",
+                "reason": f"RSI روی {rsi:.1f} و بالای ۷۰، در ناحیه فروش است؛ برای خرید تازه یا افزایش حجم تا خنک‌شدن RSI و حفظ میانگین‌ها صبر کن."}
+    if rsi < 30:
+        return {"status": "confirmation", "label": "صبر · RSI در ناحیه خرید",
+                "reason": f"RSI روی {rsi:.1f} و زیر ۳۰، در ناحیه خرید است؛ فروش‌زدگی به‌تنهایی برگشت را تأیید نمی‌کند، پس برای نشانه برگشت و حفظ میانگین‌ها صبر کن."}
     if rsi < 45:
         return {"status": "confirmation", "label": "صبر · مومنتوم ضعیف",
                 "reason": f"RSI روی {rsi:.1f} است؛ تا برگشت مومنتوم و بهبود جایگاه قیمت نسبت به میانگین‌ها ورود را عقب بینداز."}

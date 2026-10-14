@@ -8,6 +8,7 @@ from typing import Any
 from .fund_scoring import score_fund_model
 from .dashboard_scoring import DASHBOARD_SCORE_WEIGHTS, analyze_dashboard_asset
 from .scoring_profiles import normalize_horizon
+from .scoring_rules import normalize_stoch_rsi
 
 
 LONG_TERM_SCORE_WEIGHTS = DASHBOARD_SCORE_WEIGHTS
@@ -34,6 +35,32 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     is_tsetmc = source_name.casefold() == "tsetmc"
     groups = {key: data.get(key) if isinstance(data.get(key), list) else []
               for key in ("oscillators", "moving_averages", "pivots", "bands", "volumes")}
+    for item in groups["oscillators"]:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("short_name_en") or item.get("name_en") or "").casefold()
+        if not (name.startswith("stochrsi") or name == "rsi(14)"):
+            continue
+        scalar = None
+        for part in item.get("value") or []:
+            if not isinstance(part, dict):
+                continue
+            field = str(part.get("name") or "").casefold()
+            if name.startswith("stochrsi") and field in {"value", "stochrsi"}:
+                normalized = normalize_stoch_rsi(part.get("value"))
+                if normalized is not None:
+                    part["value"] = normalized
+                    scalar = normalized
+            elif name == "rsi(14)" and field in {"value", "rsi"}:
+                try:
+                    scalar = float(part.get("value"))
+                except (TypeError, ValueError):
+                    continue
+        if scalar is not None:
+            if name.startswith("stochrsi"):
+                item["signal"] = "buy" if scalar <= 0.2 else "sell" if scalar >= 0.8 else "neutral"
+            else:
+                item["signal"] = "buy" if scalar < 30 else "sell" if scalar > 70 else "neutral"
     fund_model = score_fund_model(groups, current_price, model_context, horizon=horizon,
                                   dashboard_model=dashboard_model)
     def indicator_values(items: list[dict[str, Any]]) -> dict[str, dict[str, float]]:
@@ -79,7 +106,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         signal = "buy" if net_signal > 0 else "sell" if net_signal < 0 else "hold"
 
     meaning_by_prefix = (
-        ("RSI", "شتاب قیمت را می‌سنجد؛ بالای ۷۰ معمولاً خریدزدگی و زیر ۳۰ فروش‌زدگی است."),
+        ("RSI", "زیر ۳۰ ناحیه خرید، ۳۰ تا ۷۰ خنثی و بالای ۷۰ ناحیه فروش است؛ در بازه خنثی امتیاز نزدیک ۷۰ کمتر می‌شود."),
         ("MFI", "جریان پول را با درنظرگرفتن حجم معاملات می‌سنجد."),
         ("CCI", "فاصله قیمت از میانگین اخیر را نشان می‌دهد؛ افراط آن می‌تواند هشدار باشد."),
         ("WR", "جایگاه قیمت را در دامنه اخیر نشان می‌دهد؛ مقادیر افراطی را با روند بسنج."),
@@ -87,7 +114,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         ("ARRON", "تازگی سقف و کف اخیر و استمرار روند را می‌سنجد."),
         ("ADX", "قدرت روند را می‌سنجد؛ جهت حرکت را به‌تنهایی مشخص نمی‌کند."),
         ("AO", "شتاب بازار را از اختلاف میانگین‌های کوتاه و بلند می‌سنجد."),
-        ("StochRSI", "جایگاه RSI را در دامنه اخیرش می‌سنجد؛ افراط به‌تنهایی سیگنال برگشت قطعی نیست."),
+        ("StochRSI", "مقیاس ۰ تا ۱؛ ۰ تا ۰٫۲۰ ناحیه خرید، ۰٫۲۰ تا ۰٫۸۰ خنثی و ۰٫۸۰ تا ۱ ناحیه فروش است."),
         ("MACD", "خط MACD را با خط سیگنال مقایسه می‌کند تا تغییر شتاب را نشان دهد."),
         ("MTM", "تغییر مومنتوم قیمت در دوره تعیین‌شده را نشان می‌دهد."),
         ("Trend", "برچسب روند منتشرشده در ره‌آورد است."),
@@ -97,7 +124,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         ("EMA", "میانگین نمایی قیمت است؛ فاصله مثبت/منفی نسبت قیمت به میانگین را نشان می‌دهد."),
         ("SMA", "میانگین ساده قیمت است؛ فاصله مثبت/منفی نسبت قیمت به میانگین را نشان می‌دهد."),
         ("RV", "حجم فعلی را با حجم مرجع مقایسه می‌کند؛ بالای ۱ یعنی بالاتر از مرجع."),
-        ("SM", "شاخص حجم/جریان پول ره‌آورد است؛ جهت قیمت را به‌تنهایی تأیید نمی‌کند."),
+        ("SM", "فرمول و ورودی‌های لازم برای SM(15) از داده‌های فعلی مشخص نیست؛ مقدار حدسی محاسبه نمی‌شود."),
         ("VRSI", "مومنتوم حجم را می‌سنجد؛ همراه روند قیمت خوانده شود."),
         ("VMACD", "شتاب جریان حجم را با خط سیگنال مقایسه می‌کند."),
         ("OBV", "حجم را با جهت حرکت قیمت انباشته می‌کند تا تأیید یا واگرایی حجم دیده شود."),
@@ -237,7 +264,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     adx = adx_values.get("adx", adx_values.get("value"))
     ao = find_values("AO").get("awesome")
     stoch_values = find_values("StochRSI")
-    stoch_rsi = stoch_values.get("stochrsi", stoch_values.get("value"))
+    stoch_rsi = normalize_stoch_rsi(stoch_values.get("stochrsi", stoch_values.get("value")))
     macd_values = find_values("MACD")
     macd_line = macd_values.get("macd")
     macd_signal = macd_values.get("signal")
@@ -269,10 +296,10 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     elif trend == "bearish":
         bearish_reasons.append(f"شاخص Trend محاسبه‌شده از {trend_source_label} نزولی است")
     if rsi is not None:
-        if rsi >= 70:
-            bearish_reasons.append(f"RSI(14) روی {fmt(rsi)} است؛ بالای ۷۰ خریدزدگی و ریسک اصلاح را نشان می‌دهد")
-        elif rsi <= 30:
-            bullish_reasons.append(f"RSI(14) روی {fmt(rsi)} است؛ زیر ۳۰ فروش‌زدگی و امکان برگشت را نشان می‌دهد")
+        if rsi > 70:
+            bearish_reasons.append(f"RSI(14) روی {fmt(rsi)} است؛ بالای ۷۰ در ناحیه فروش و در معرض اصلاح قرار دارد")
+        elif rsi < 30:
+            bullish_reasons.append(f"RSI(14) روی {fmt(rsi)} است؛ زیر ۳۰ در ناحیه خرید و فروش‌زده است")
     if mfi is not None and mfi >= 80:
         bearish_reasons.append(f"MFI روی {fmt(mfi)} و بالای ۸۰ است؛ فشار خرید به ناحیه خریدزدگی رسیده است")
     elif mfi is not None and mfi <= 20:
@@ -289,14 +316,12 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         bearish_reasons.append(f"نوسان‌گر تصادفی K={fmt(so['k'])} و D={fmt(so['d'])} را نشان می‌دهد؛ هر دو بالای ۸۰ و در خریدزدگی‌اند")
     if ao is not None:
         (bullish_reasons if ao > 0 else bearish_reasons).append(f"AO با عدد {fmt(ao)} {'مثبت' if ao > 0 else 'منفی'} است")
-    stoch_oversold_level = 20.0 if is_tsetmc else 0.2
-    stoch_overbought_level = 80.0 if is_tsetmc else 0.8
-    if stoch_rsi is not None and stoch_rsi <= stoch_oversold_level:
-        threshold = "۲۰" if is_tsetmc else "۰٫۲۰"
-        bullish_reasons.append(f"StochRSI روی {fmt(stoch_rsi)} و زیر {threshold} است؛ فروش‌زدگی دیده می‌شود")
-    elif stoch_rsi is not None and stoch_rsi >= stoch_overbought_level:
-        threshold = "۸۰" if is_tsetmc else "۰٫۸۰"
-        bearish_reasons.append(f"StochRSI روی {fmt(stoch_rsi)} و بالای {threshold} است؛ خریدزدگی دیده می‌شود")
+    if stoch_rsi is not None and stoch_rsi <= 0.2:
+        threshold = "۰٫۲۰"
+        bullish_reasons.append(f"StochRSI روی {fmt(stoch_rsi)} و برابر یا کمتر از {threshold} است؛ ناحیه خرید دیده می‌شود")
+    elif stoch_rsi is not None and stoch_rsi >= 0.8:
+        threshold = "۰٫۸۰"
+        bearish_reasons.append(f"StochRSI روی {fmt(stoch_rsi)} و برابر یا بیشتر از {threshold} است؛ ناحیه فروش دیده می‌شود")
     if nearest_support is not None:
         bearish_reasons.append(f"حمایت محاسباتی نزدیک {fmt(nearest_support)} است؛ از دست‌رفتن آن سناریوی نزولی را فعال می‌کند")
     if nearest_resistance is not None:
