@@ -35,11 +35,11 @@ class IndicatorTests(unittest.TestCase):
                      "MACD(12,26,9)", "MTM(6)", "Ichimoku(9,26,52,26)",
                      "KELTNER(16)", "BB(20)", "EMA(200)", "SMA(200)",
                      "RV(90)", "RV(30)", "RV(15)", "VRSI(14)",
-                     "VMACD(12,26)", "OBV(20)", "SM(15)"]:
+                     "VMACD(12,26)", "OBV(20)"]:
             self.assertIn(name, indicators)
             self.assertIn("formula", indicators[name])
             self.assertIn("parameters", indicators[name])
-        self.assertEqual(indicators["SM(15)"]["value"], None)
+        self.assertNotIn("SM(15)", indicators)
         self.assertEqual(indicators["CCI(14)"]["parameters"]["period"], 14)
         self.assertIsNotNone(indicators["RSI(14)"]["value"])
         self.assertIsNotNone(indicators["EMA(200)"]["value"])

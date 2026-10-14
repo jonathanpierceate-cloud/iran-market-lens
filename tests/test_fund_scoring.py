@@ -59,7 +59,7 @@ class FundScoringTests(unittest.TestCase):
         volume = result["family_scores"]["volume_confirmation"]
         self.assertNotIn("trend", [item["key"] for item in momentum["indicators"]])
         self.assertIn("trend", momentum["missing_indicators"])
-        self.assertEqual(volume["unverified_indicators"], ["sm15", "vmacd26", "vrsi14"])
+        self.assertEqual(volume["unverified_indicators"], ["vmacd26", "vrsi14"])
         self.assertFalse({"sm15", "vmacd26", "vrsi14"} & {item["key"] for item in volume["indicators"]})
         self.assertTrue(any(row["status"] == "formula_unverified" for row in result["missing_data"]))
 

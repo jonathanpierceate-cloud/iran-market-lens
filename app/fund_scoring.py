@@ -403,8 +403,6 @@ def _volume_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | No
             line = _value(values, "vmacd", "macd", "value")
             if line is not None and average_volume and average_volume > 0:
                 score = _direction_score(line / average_volume, 0.20)
-        elif key == "sm15":
-            score = _signal_score(item)
         if score is None:
             item_signal = _norm(item.get("signal"))
             if item_signal not in {"highvolume", "lowvolume"}:
@@ -414,7 +412,6 @@ def _volume_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | No
     result = _weighted(rows_scored, sum(weights.values()))
     available = {name for name, _, _ in rows_scored}
     result["missing_indicators"] = [key for key in weights if key not in available]
-    result["unverified_indicators"] = ["sm15"] if "sm15" not in available and _find(rows, "sm15", ("volumes",)) else []
     return result
 
 

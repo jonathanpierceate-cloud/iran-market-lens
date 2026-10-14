@@ -383,9 +383,6 @@ def compute_indicators(bars: list[dict[str, Any]]) -> dict[str, Any]:
         ind[f"RV({p})"] = _indicator(rv, rv_previous, signal="neutral",
             interpretation="نوسان تاریخی سالانه‌شده بازده لگاریتمی (%)" if rv is not None else "داده کافی نیست",
             formula="population SD of log returns over window × √252 × 100", parameters={"period": p, "annualization": 252})
-    ind["SM(15)"] = _indicator(None, None, signal="unavailable", interpretation="از کندل‌های قیمت و حجم، تعریف و ورودی‌های لازم SM(15) قابل تشخیص نیست؛ عدد حدسی محاسبه نمی‌شود.",
-        formula="فرمول مرجع یا داده‌های اختصاصی شاخص در دسترس نیست", parameters={"period": 15})
-
     # The requested ARRON spelling is preserved in its label; the standard indicator is Aroon.
     ind["ARRON(25)"] = ind["Aroon(25)"]
     if n >= 2:
@@ -550,8 +547,6 @@ def fund_chart_indicator_groups(bars: list[dict[str, Any]], *, source: str = "Ra
     volumes.append(item("VMACD(26)", {"vmacd": volume_macd.get("value"),
                                         "macd": volume_macd.get("value"),
                                         "value": volume_macd.get("value")}, volume_macd.get("signal")))
-    volumes.append(item("SM(15)", {}, "unavailable"))
-
     return {"data": {"oscillators": oscillators,
                      "moving_averages": moving_averages,
                      "pivots": pivots, "bands": bands, "volumes": volumes},

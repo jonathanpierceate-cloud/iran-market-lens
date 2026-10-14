@@ -226,7 +226,7 @@
     target.innerHTML = labels.map(([key, label, value]) => `<div class="metric-cell"><span>${label}</span><b>${key === "Daily" || key === "1M" || key === "1Y" ? pct(value) : value == null ? "—" : money(value)}</b></div>`).join("");
   }
 
-  const indicatorFa = { "RSI(14)": "شاخص قدرت نسبی", "MFI(14)": "شاخص جریان پول", "CCI(14)": "شاخص کانال کالا", "WR(14)": "Williams %R", "SO(14)": "نوسان‌گر تصادفی", "Aroon(25)": "آرون", "ARRON(25)": "آرون", "ADX(14)": "قدرت روند", "AO(5,34)": "شتاب Awesome", "StochRSI(14)": "استوکاستیک RSI", "MACD(12,26,9)": "مکدی", "MTM(6)": "شتاب قیمت", "Ichimoku(9,26,52,26)": "ایچیموکو", "ATR(14)": "دامنه واقعی میانگین", "KELTNER(16)": "کانال کلتنر", "BB(20)": "باند بولینگر", "VRSI(14)": "RSI حجم", "VMACD(12,26)": "مکدی حجم", "OBV(20)": "حجم تعادلی", "RV(15)": "\u0646\u0633\u0628\u062a \u062d\u062c\u0645 \u06f1\u06f5\u0631\u0648\u0632\u0647", "RV(30)": "\u0646\u0633\u0628\u062a \u062d\u062c\u0645 \u06f3\u06f0\u0631\u0648\u0632\u0647", "RV(90)": "\u0646\u0633\u0628\u062a \u062d\u062c\u0645 \u06f9\u06f0\u0631\u0648\u0632\u0647", "HV(15)": "\u0646\u0648\u0633\u0627\u0646 \u062a\u0627\u0631\u06cc\u062e\u06cc \u06f1\u06f5\u0631\u0648\u0632\u0647", "HV(30)": "\u0646\u0648\u0633\u0627\u0646 \u062a\u0627\u0631\u06cc\u062e\u06cc \u06f3\u06f0\u0631\u0648\u0632\u0647", "HV(90)": "\u0646\u0648\u0633\u0627\u0646 \u062a\u0627\u0631\u06cc\u062e\u06cc \u06f9\u06f0\u0631\u0648\u0632\u0647", "SM(15)": "شاخص SM (تعریف نشده)" };
+  const indicatorFa = { "RSI(14)": "شاخص قدرت نسبی", "MFI(14)": "شاخص جریان پول", "CCI(14)": "شاخص کانال کالا", "WR(14)": "Williams %R", "SO(14)": "نوسان‌گر تصادفی", "Aroon(25)": "آرون", "ARRON(25)": "آرون", "ADX(14)": "قدرت روند", "AO(5,34)": "شتاب Awesome", "StochRSI(14)": "استوکاستیک RSI", "MACD(12,26,9)": "مکدی", "MTM(6)": "شتاب قیمت", "Ichimoku(9,26,52,26)": "ایچیموکو", "ATR(14)": "دامنه واقعی میانگین", "KELTNER(16)": "کانال کلتنر", "BB(20)": "باند بولینگر", "VRSI(14)": "RSI حجم", "VMACD(12,26)": "مکدی حجم", "OBV(20)": "حجم تعادلی", "RV(15)": "\u0646\u0633\u0628\u062a \u062d\u062c\u0645 \u06f1\u06f5\u0631\u0648\u0632\u0647", "RV(30)": "\u0646\u0633\u0628\u062a \u062d\u062c\u0645 \u06f3\u06f0\u0631\u0648\u0632\u0647", "RV(90)": "\u0646\u0633\u0628\u062a \u062d\u062c\u0645 \u06f9\u06f0\u0631\u0648\u0632\u0647", "HV(15)": "\u0646\u0648\u0633\u0627\u0646 \u062a\u0627\u0631\u06cc\u062e\u06cc \u06f1\u06f5\u0631\u0648\u0632\u0647", "HV(30)": "\u0646\u0648\u0633\u0627\u0646 \u062a\u0627\u0631\u06cc\u062e\u06cc \u06f3\u06f0\u0631\u0648\u0632\u0647", "HV(90)": "\u0646\u0648\u0633\u0627\u0646 \u062a\u0627\u0631\u06cc\u062e\u06cc \u06f9\u06f0\u0631\u0648\u0632\u0647" };
   const factorFa = { trend: "روند", momentum: "شتاب", moving_averages: "میانگین‌ها", volume: "حجم", volatility: "نوسان", oscillators: "نوسان‌گرها", support_resistance: "حمایت و مقاومت" };
   const signalFa = { strong_buy: "بررسی خرید · قوی", buy: "بررسی خرید", hold: "انتظار / نگهداری", sell: "احتیاط", strong_sell: "ریسک بالا", unavailable: "داده ناکافی" };
 
@@ -255,7 +255,6 @@
       "RV(15)": "نوسان تاریخی سالانه‌شده بر پایه بازده ۱۵روزه؛ مقدار بیشتر یعنی ریسک نوسان بیشتر، نه جهت خاص.",
       "RV(30)": "نوسان تاریخی سالانه‌شده بر پایه بازده ۳۰روزه؛ مقدار بیشتر یعنی ریسک نوسان بیشتر، نه جهت خاص.",
       "RV(90)": "نوسان تاریخی سالانه‌شده بر پایه بازده ۹۰روزه؛ مقدار بیشتر یعنی ریسک نوسان بیشتر، نه جهت خاص.",
-      "SM(15)": "فرمول و ورودی‌های لازم این شاخص از تاریخچه کندل قیمت و حجم مشخص نیست؛ برای جلوگیری از عدد حدسی محاسبه نشده است."
     };
     return meanings[key] || value?.interpretation || "برای این شاخص تفسیر کافی ثبت نشده است.";
   }
@@ -270,7 +269,7 @@
       : signal === "sell" || signal === "bearish" || signal === "strongsell" ? "منفی"
         : signal === "overbought" ? "خریدزدگی" : signal === "oversold" ? "فروش‌زدگی"
           : signal === "lowvolume" ? "حجم پایین" : signal === "highvolume" ? "حجم بالا" : "خنثی";
-    const first = value("value", "rsi", "mfi", "cci", "wr", "awesome", "mtm", "rv", "sm", "vrsi", "obv");
+    const first = value("value", "rsi", "mfi", "cci", "wr", "awesome", "mtm", "rv", "vrsi", "obv");
     if (/^hv/i.test(name) && Number.isFinite(first)) return "\u0646\u0648\u0633\u0627\u0646 \u062a\u0627\u0631\u06cc\u062e\u06cc \u0633\u0627\u0644\u0627\u0646\u0647\u200c\u0634\u062f\u0647 \u0628\u0631\u0627\u0628\u0631 " + num(first, 2) + "% \u0627\u0633\u062a\u061b \u0645\u0642\u062f\u0627\u0631 \u0628\u0627\u0644\u0627\u062a\u0631 \u0628\u0647\u200c\u0645\u0639\u0646\u06cc \u0631\u06cc\u0633\u06a9 \u0646\u0648\u0633\u0627\u0646 \u0628\u06cc\u0634\u062a\u0631 \u0627\u0633\u062a.";
     if (/^rsi/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first > 70 ? "بالاتر از ۷۰ و در ناحیه فروش است." : first < 30 ? "زیر ۳۰ و در ناحیه خرید است." : `در محدوده خنثی ۳۰ تا ۷۰ است${first > 50 ? "؛ نزدیک‌شدن به ۷۰ امتیاز را کمتر می‌کند." : "."}`}`;
     if (/^mfi/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first >= 80 ? "بالاتر از ۸۰ و نشان‌دهنده خریدزدگی جریان پول است." : first <= 20 ? "زیر ۲۰ و نشان‌دهنده فروش‌زدگی جریان پول است." : "در محدوده میانی جریان پول قرار دارد."}`;
@@ -460,7 +459,6 @@
     if (key.startsWith("pivotpoint") || key.startsWith("pivot")) return "سطوح محاسباتی حمایت و مقاومت احتمالی را برای مقایسه با قیمت نشان می‌دهد.";
     if (key.startsWith("atr")) return "اندازهٔ نوسان قیمت را نشان می‌دهد، نه جهت صعود یا نزول را.";
     if (key.startsWith("rv")) return "حجم امروز را با حجم معمول مقایسه می‌کند تا میزان مشارکت معامله‌گران مشخص شود.";
-    if (key.startsWith("sm")) return "نمایی از وضعیت حجم و جریان معاملات است؛ برای برداشت جهت، آن را همراه قیمت بخوان.";
     if (key.startsWith("vrsi")) return "قدرت و شتاب تغییرات حجم معاملات را به شکل یک نوسان‌گر نشان می‌دهد.";
     if (key.startsWith("obv")) return "حجم را با جهت حرکت قیمت جمع می‌کند تا همراهی یا واگرایی حجم با روند دیده شود.";
     return "بخشی از روند، مومنتوم، حجم یا نوسان را می‌سنجد؛ آن را همراه قیمت و بقیهٔ شاخص‌ها بخوان.";
@@ -481,7 +479,7 @@
       macd26: "MACD(26)", rsi14: "RSI(14)", mfi14: "MFI(14)", adx14: "ADX(14)",
       stochrsi14: "StochRSI(14)", trend: "Trend", ao534: "AO(5,34)", so14: "SO(14)",
       aroon25: "AROON(25)", cci14: "CCI(14)", mtm6: "MTM(6)", wr14: "WR(14)",
-      obv20: "OBV(20)", sm15: "SM(15)", rv30: "RV(30)", rv90: "RV(90)",
+      obv20: "OBV(20)", rv30: "RV(30)", rv90: "RV(90)",
       vmacd26: "VMACD(26)", vrsi14: "VRSI(14)", rv15: "RV(15)",
       fibonacci: "PivotPointFibonacci(30)", classic: "PivotPointClassic(30)",
       camarilla: "PivotPointCamarilla(30)", woodie: "PivotPointWoodie(30)",
@@ -982,7 +980,7 @@
       senkou_span_b_formula: "ابر B", upper: "سقف باند", middle: "خط میانی", lower: "کف باند", distance: "فاصله از باند بالا",
       dl: "فاصله قیمت تا کف (%)", distance: "فاصله قیمت تا سقف (%)", pivot: "نقطه پیوت", r1: "مقاومت ۱", r2: "مقاومت ۲", r3: "مقاومت ۳",
       r4: "مقاومت ۴", s1: "حمایت ۱", s2: "حمایت ۲", s3: "حمایت ۳", s4: "حمایت ۴",
-      rv: "حجم نسبی", sm: "جریان پول هوشمند", vrsi: "VRSI", vmacd: "VMACD", obv: "OBV"
+      rv: "حجم نسبی", vrsi: "VRSI", vmacd: "VMACD", obv: "OBV"
     };
     const cards = Object.entries(groups).flatMap(([group, items]) => group === "pivots" ? [] : (items || []).map((item) => {
       const name = item.short_name_en || item.name_en || "شاخص ره‌آورد";
@@ -999,9 +997,7 @@
         const rendered = percentValue ? pct(val * 100) : num(val, priceIndicator ? 0 : 2);
         return `<div class="rahavard-indicator-value"><span>${esc(valueNames[key] || part.long_name_en || key)}</span><b>${rendered}</b></div>`;
       }).join("");
-      const noValueNote = computedFromChart
-        ? name === "SM(15)" ? "فرمول این شاخص مشخص نیست و از امتیاز حذف شده است." : "دادهٔ کافی برای محاسبهٔ این شاخص موجود نیست."
-        : "مقداری در پاسخ ره‌آورد نبود.";
+      const noValueNote = computedFromChart ? "دادهٔ کافی برای محاسبهٔ این شاخص موجود نیست." : "مقداری در پاسخ ره‌آورد نبود.";
       const numericSummary = indicatorNumericSummary(name, item);
       return `<article class="indicator-card rahavard-indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(groupNames[group] || group)}</small></div><span class="indicator-status ${state}">${esc(signalLabel)}</span></div><div class="rahavard-indicator-values">${values || `<span class="factor-foot">${esc(noValueNote)}</span>`}</div><p>${esc(numericSummary)}</p><div class="indicator-range-guide"><b>این شاخص چه می‌گوید؟</b><span>${esc(note.meaning || indicatorPlainMeaning(name))}</span></div></article>`;
     }));

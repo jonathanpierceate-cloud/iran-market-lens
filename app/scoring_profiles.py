@@ -20,8 +20,8 @@ _SHORT_SUPPORT = {
     "fibonacci": .15, "demark": .05,
 }
 _SHORT_VOLUME = {
-    "vrsi14": .25, "rv15": .22, "rv30": .18, "vmacd26": .15,
-    "sm15": .10, "obv20": .10, "rv90": 0,
+    "vrsi14": .2777777778, "rv15": .2444444444, "rv30": .20,
+    "vmacd26": .1666666667, "obv20": .1111111111, "rv90": 0,
 }
 
 _LONG_MA = {
@@ -36,8 +36,8 @@ _LONG_OSCILLATORS = {
     "stochrsi14": .02, "so14": .01, "wr14": .005, "mtm6": .005,
 }
 _LONG_VOLUME = {
-    "obv20": .32, "rv90": .26, "sm15": .20, "rv30": .10,
-    "vmacd26": .06, "vrsi14": .04, "rv15": .02,
+    "obv20": .40, "rv90": .325, "rv30": .125,
+    "vmacd26": .075, "vrsi14": .05, "rv15": .025,
 }
 _LONG_SUPPORT = {
     "fibonacci": .35, "classic": .25, "woodie": .20,
@@ -46,7 +46,7 @@ _LONG_SUPPORT = {
 
 FUND_SCORING_PROFILES = {
     "short": {
-        "profile": "rahavard_four_group_short_term_v2",
+        "profile": "rahavard_four_group_short_term_v3",
         "family_weights": {
             "oscillators": .50, "moving_averages": .20,
             "support_resistance": .20, "volume": .10,
@@ -59,7 +59,7 @@ FUND_SCORING_PROFILES = {
         },
     },
     "long": {
-        "profile": "rahavard_four_group_long_term_v1",
+        "profile": "rahavard_four_group_long_term_v2",
         "family_weights": {
             "moving_averages": .40, "oscillators": .40,
             "volume": .10, "support_resistance": .10,

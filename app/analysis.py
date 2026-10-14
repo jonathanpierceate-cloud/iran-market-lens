@@ -35,6 +35,13 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     is_tsetmc = source_name.casefold() == "tsetmc"
     groups = {key: data.get(key) if isinstance(data.get(key), list) else []
               for key in ("oscillators", "moving_averages", "pivots", "bands", "volumes")}
+    for group_name, items in groups.items():
+        groups[group_name] = [
+            item for item in items
+            if not isinstance(item, dict) or re.sub(
+                r"[^a-z0-9]", "", str(item.get("short_name_en") or item.get("name_en") or "").casefold()
+            ) != "sm15"
+        ]
     for item in groups["oscillators"]:
         if not isinstance(item, dict):
             continue
@@ -124,7 +131,6 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         ("EMA", "میانگین نمایی قیمت است؛ فاصله مثبت/منفی نسبت قیمت به میانگین را نشان می‌دهد."),
         ("SMA", "میانگین ساده قیمت است؛ فاصله مثبت/منفی نسبت قیمت به میانگین را نشان می‌دهد."),
         ("RV", "حجم فعلی را با حجم مرجع مقایسه می‌کند؛ بالای ۱ یعنی بالاتر از مرجع."),
-        ("SM", "فرمول و ورودی‌های لازم برای SM(15) از داده‌های فعلی مشخص نیست؛ مقدار حدسی محاسبه نمی‌شود."),
         ("VRSI", "مومنتوم حجم را می‌سنجد؛ همراه روند قیمت خوانده شود."),
         ("VMACD", "شتاب جریان حجم را با خط سیگنال مقایسه می‌کند."),
         ("OBV", "حجم را با جهت حرکت قیمت انباشته می‌کند تا تأیید یا واگرایی حجم دیده شود."),
@@ -155,15 +161,13 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
                     break
             if is_tsetmc and normalized.startswith("trend"):
                 meaning = "جهت حرکت قیمت از شیب ۲۰ کندل روزانهٔ اخیر محاسبه می‌شود."
-            elif is_tsetmc and normalized.startswith("sm"):
-                meaning = "فرمول قابل اتکایی برای این شاخص مشخص نشده؛ در این آزمایش محاسبه و وارد امتیاز نمی‌شود."
             raw_signal = str(item.get("signal") or "Neutral")
             key = re.sub(r"[^a-z]", "", raw_signal.casefold())
             interpretation = signal_fa.get(key, raw_signal or "نامشخص")
             notes.append({"name": name, "group": group_name, "signal": raw_signal,
                           "signal_fa": interpretation, "meaning": meaning})
 
-    requested = ["SM(15)"] if is_tsetmc else ["EMA(200)", "SMA(200)"]
+    requested = ["EMA(200)", "SMA(200)"]
     missing = [name for name in requested if name.casefold() not in available]
     for name in missing:
         notes.append({"name": name, "group": "moving_averages", "signal": None,
