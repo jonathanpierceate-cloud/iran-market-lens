@@ -245,16 +245,11 @@ def _market_quote(symbol: str, horizon: str = "long") -> dict[str, Any]:
         "stale": bool(price_stale), "status": status,
     }
     output["price_is_cached"] = _timestamp_is_cached(observed_timestamp)
-    chart_indicator_source = (
-        "TabdealChart" if is_usd_quote else
-        "Rahavard365Chart" if output.get("source") == "Rahavard365" else None)
-    if chart_indicator_source:
-        output["analysis"] = _analyze_chart_candles(
-            symbol, analysis_bars, horizon=horizon,
-            indicator_source=chart_indicator_source,
-            source_url=(TABDEAL_USDT_CHART_PAGE_URL if is_usd_quote else None))
-    else:
-        output["analysis"] = analyze(symbol, analysis_bars, horizon=horizon)
+    chart_indicator_source = "TabdealChart" if is_usd_quote else "Rahavard365Chart"
+    output["analysis"] = _analyze_chart_candles(
+        symbol, analysis_bars, horizon=horizon,
+        indicator_source=chart_indicator_source,
+        source_url=(TABDEAL_USDT_CHART_PAGE_URL if is_usd_quote else None))
     output["analysis"]["source"] = "Tabdeal" if is_usd_quote else output.get("source")
     output["analysis"]["data_timestamp"] = analysis_timestamp
     output["analysis"]["status"] = (chart_analysis_status if is_usd_quote
