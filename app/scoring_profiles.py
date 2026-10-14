@@ -1,108 +1,95 @@
-"""Selectable short- and long-term technical scoring profiles."""
+"""Workbook-defined short- and medium-term technical scoring profiles."""
 from __future__ import annotations
 
 HORIZON_LABELS = {"short": "کوتاه‌مدت", "long": "میان‌مدت"}
 DEFAULT_HORIZON = "long"
 
-_SHORT_MA = {
-    "ema5": .20, "ema10": .18, "ema20": .15, "sma5": .10,
-    "sma10": .08, "bb20": .08, "sma20": .06, "ema30": .05,
-    "keltner16": .04, "sma30": .03, "ema50": .02, "sma50": .01,
-    "ema100": 0, "sma100": 0, "ichimoku": 0,
-}
-_SHORT_OSCILLATORS = {
-    "rsi14": .30, "macd26": .20, "stochrsi14": .10, "so14": .05,
-    "mfi14": .05, "cci14": .05, "adx14": .05, "ao534": .05,
-    "aroon25": .05, "mtm6": .05, "wr14": .05, "trend": 0,
-}
-_SHORT_SUPPORT = {
-    "camarilla": .35, "woodie": .25, "classic": .20,
-    "fibonacci": .15, "demark": .05,
-}
-_SHORT_VOLUME = {
-    "vrsi14": .2777777778, "rv15": .2444444444, "rv30": .20,
-    "vmacd26": .1666666667, "obv20": .1111111111, "rv90": 0,
-}
 
-_LONG_MA = {
-    "ichimoku": .26, "ema100": .20, "sma100": .14, "ema50": .12,
-    "sma50": .10, "bb20": .06, "ema30": .04, "sma30": .03,
-    "keltner16": .02, "ema20": .01, "sma20": .01, "ema10": .005,
-    "sma10": .005, "ema5": 0, "sma5": 0,
-}
-_LONG_OSCILLATORS = {
-    "macd26": .24, "mfi14": .20, "adx14": .20, "rsi14": .19,
-    "trend": .01, "ao534": .06, "aroon25": .04, "cci14": .02,
-    "stochrsi14": .02, "so14": .01, "wr14": .005, "mtm6": .005,
-}
-_LONG_VOLUME = {
-    "obv20": .40, "rv90": .325, "rv30": .125,
-    "vmacd26": .075, "vrsi14": .05, "rv15": .025,
-}
-_LONG_SUPPORT = {
-    "fibonacci": .35, "classic": .25, "woodie": .20,
-    "camarilla": .12, "demark": .08,
-}
+def _within_group(raw_weights: dict[str, float]) -> dict[str, float]:
+    """Normalize the workbook's indicator weights within their named group."""
+    total = sum(raw_weights.values())
+    return {name: weight / total for name, weight in raw_weights.items()} if total else {}
 
-FUND_SCORING_PROFILES = {
-    "short": {
-        "profile": "rahavard_four_group_short_term_v3",
-        "family_weights": {
-            "oscillators": .50, "moving_averages": .20,
-            "support_resistance": .20, "volume": .10,
-        },
-        "indicator_weights": {
-            "oscillators": _SHORT_OSCILLATORS,
-            "moving_averages": _SHORT_MA,
-            "support_resistance": _SHORT_SUPPORT,
-            "volume": _SHORT_VOLUME,
-        },
+
+# In the short-term Excel columns the indicator percentages add up to their
+# group's weight (15%, 25%, 25%, 35%); normalize those rows within each group.
+# Medium-term percentages already add up to 100% inside each group.
+_SHORT_FAMILIES = {
+    "moving_averages": {
+        "Ichimoku Cloud(9,26,52,26)": .009, "EMA(50)": .003, "SMA(50)": .003,
+        "EMA(100)": .0015, "SMA(100)": .0015, "BB(20)": .027,
+        "KELTNER(16)": .012, "EMA(20)": .015, "SMA(20)": .0105,
+        "EMA(30)": .0045, "SMA(30)": .0045, "EMA(10)": .0165,
+        "SMA(10)": .012, "EMA(5)": .018, "SMA(5)": .012,
     },
-    "long": {
-        "profile": "rahavard_four_group_long_term_v2",
-        "family_weights": {
-            "moving_averages": .40, "oscillators": .40,
-            "volume": .10, "support_resistance": .10,
-        },
-        "indicator_weights": {
-            "moving_averages": _LONG_MA,
-            "oscillators": _LONG_OSCILLATORS,
-            "volume": _LONG_VOLUME,
-            "support_resistance": _LONG_SUPPORT,
-        },
+    "trend_momentum": {
+        "MACD(26)": .075, "ADX(14)": .05, "AROON(25)": .05, "AO(5,34)": .075,
+    },
+    "support_resistance": {
+        "PivotPoint Fibonacci(30)": .0375, "PivotPoint Classic(30)": .0625,
+        "PivotPoint Camarilla(30)": .075, "PivotPoint Woodie(30)": .05,
+        "PivotPoint DeMark(30)": .025,
+    },
+    "oscillators": {
+        "RSI(14)": .077, "MFI(14)": .0525, "CCI(14)": .035,
+        "SO(14)": .07, "StochRSI(14)": .063, "WR(14)": .028,
+        "MTM(6)": .0245,
     },
 }
 
-DASHBOARD_SCORING_PROFILES = {
-    "short": {
-        "profile": "dashboard_three_group_short_term_v3_volume_reallocated",
-        "family_weights": {
-            "oscillators": .60, "moving_averages": .20,
-            "support_resistance": .20,
-        },
-        "indicator_weights": {
-            "oscillators": _SHORT_OSCILLATORS,
-            "moving_averages": _SHORT_MA,
-            "support_resistance": _SHORT_SUPPORT,
-        },
+_MEDIUM_FAMILIES = {
+    "moving_averages": {
+        "Ichimoku Cloud(9,26,52,26)": .18, "EMA(50)": .10, "SMA(50)": .09,
+        "EMA(100)": .10, "SMA(100)": .08, "BB(20)": .08,
+        "KELTNER(16)": .07, "EMA(20)": .07, "SMA(20)": .06,
+        "EMA(30)": .06, "SMA(30)": .05, "EMA(10)": .02,
+        "SMA(10)": .015, "EMA(5)": .015, "SMA(5)": .01,
     },
-    "long": {
-        "profile": "dashboard_three_group_medium_term_v2_volume_reallocated",
-        "family_weights": {
-            "moving_averages": .50, "oscillators": .40,
-            "support_resistance": .10,
-        },
-        "indicator_weights": {
-            "moving_averages": _LONG_MA,
-            "oscillators": _LONG_OSCILLATORS,
-            "support_resistance": _LONG_SUPPORT,
-        },
+    "trend_momentum": {
+        "MACD(26)": .35, "ADX(14)": .30, "AROON(25)": .20, "AO(5,34)": .15,
+    },
+    "support_resistance": {
+        "PivotPoint Fibonacci(30)": .30, "PivotPoint Classic(30)": .25,
+        "PivotPoint Camarilla(30)": .20, "PivotPoint Woodie(30)": .15,
+        "PivotPoint DeMark(30)": .10,
+    },
+    "oscillators": {
+        "RSI(14)": .28, "MFI(14)": .22, "CCI(14)": .15,
+        "SO(14)": .12, "StochRSI(14)": .10, "WR(14)": .08,
+        "MTM(6)": .05,
     },
 }
+
+
+def _profile(family_weights: dict[str, float], raw_indicators: dict[str, dict[str, float]],
+             name: str) -> dict[str, object]:
+    return {
+        "profile": name,
+        "family_weights": family_weights,
+        "indicator_weights": {
+            family: _within_group(weights) for family, weights in raw_indicators.items()
+        },
+    }
+
+
+_SHORT_PROFILE = _profile(
+    {"moving_averages": .15, "trend_momentum": .25,
+     "support_resistance": .25, "oscillators": .35},
+    _SHORT_FAMILIES, "excel_comprehensive_short_term",
+)
+_MEDIUM_PROFILE = _profile(
+    {"moving_averages": .35, "trend_momentum": .30,
+     "support_resistance": .20, "oscillators": .15},
+    _MEDIUM_FAMILIES, "excel_comprehensive_medium_term",
+)
+
+# Both screens use the same workbook-defined scoring model.
+FUND_SCORING_PROFILES = {"short": _SHORT_PROFILE, "long": _MEDIUM_PROFILE}
+DASHBOARD_SCORING_PROFILES = FUND_SCORING_PROFILES
 
 
 def normalize_horizon(value: str | None) -> str:
-    """Map the public query parameter to a supported investment horizon."""
+    """Map the public selector value to a supported investment horizon."""
     value = str(value or "").strip().casefold()
     if value == "medium":
         return "long"

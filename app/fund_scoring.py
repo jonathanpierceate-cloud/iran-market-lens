@@ -1,4 +1,4 @@
-"""Four-family technical scores for short- and long-term Rahavard ETF data.
+"""Four-family technical scores for short- and medium-term Rahavard ETF data.
 
 Weights are configurable proposals from the product specification. They have
 not been optimized or backtested. Unknown vendor formulas are deliberately
@@ -14,10 +14,8 @@ from .scoring_profiles import normalize_horizon, horizon_label
 from .scoring_rules import (adx_directional_score, band_position_score,
                             ichimoku_cloud_score, inverted_linear_score,
                             macd_histogram_score, moving_average_score,
-                            obv_average_score, percent_change_score,
-                            pivot_level_score, relative_volume_score,
-                            rsi_entry_score, stoch_rsi_entry_score,
-                            volume_macd_histogram_score)
+                            percent_change_score, pivot_level_score,
+                            rsi_entry_score, stoch_rsi_entry_score)
 from .tse_scoring import GROUP_WEIGHTS, SUBCLUSTERS, score_tse_bars
 
 FAMILY_WEIGHTS = GROUP_WEIGHTS
@@ -323,50 +321,6 @@ def _momentum_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | 
     return result
 
 
-def _volume_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | None,
-                  context: dict[str, Any], weights: dict[str, float]) -> dict[str, Any]:
-    rows_scored = []
-    history = context.get("fund_history")
-    history = history if isinstance(history, list) else []
-    derived_vmacd: tuple[float | None, float | None] | None = None
-    for key, weight in weights.items():
-        lookup = key
-        item = _find(rows, lookup, ("volumes",))
-        if not item:
-            continue
-        values = _item_values(item)
-        score = None
-        if key == "obv20":
-            obv = _value(values, "obv")
-            average = _value(values, "obv_sma20", "sma20", "average")
-            score = obv_average_score(obv, average)
-        elif key.startswith("rv"):
-            period = int(key[2:])
-            ratio = _value(values, "relative_volume", "ratio", "rv", "value")
-            if ratio is not None and ratio > 10:
-                ratio /= 100.0
-            period_return_pct = _history_return(context.get("fund_history"), period)
-            score = relative_volume_score(ratio, period_return_pct)
-        elif key == "vrsi14":
-            vrsi = _value(values, "vrsi", "rsi", "value")
-            if vrsi is not None:
-                score = inverted_linear_score(vrsi, 30.0, 70.0)
-        elif key == "vmacd26":
-            histogram = _value(values, "histogram", "vmacd_histogram", "hist")
-            maximum = _value(values, "max_abs_histogram_26", "max_abs_histogram")
-            if histogram is None or maximum is None:
-                derived_vmacd = derived_vmacd or _volume_macd_stats(history)
-                histogram = histogram if histogram is not None else derived_vmacd[0]
-                maximum = maximum if maximum is not None else derived_vmacd[1]
-            score = volume_macd_histogram_score(histogram, maximum)
-        if score is not None:
-            rows_scored.append((key, score, weight))
-    result = _weighted(rows_scored, sum(weights.values()))
-    available = {name for name, _, _ in rows_scored}
-    result["missing_indicators"] = [key for key in weights if key not in available]
-    return result
-
-
 def _cluster_levels(values: list[float], price: float | None) -> list[float]:
     valid = sorted(value for value in values if math.isfinite(value) and value > 0)
     if not valid:
@@ -448,38 +402,6 @@ def _history_return(bars: Any, lookback: int) -> float | None:
 def _history_trend_score(bars: Any, lookback: int = 30) -> float | None:
     change_pct = _history_return(bars, lookback)
     return percent_change_score(change_pct, 5.0) if change_pct is not None else None
-
-
-def _ema_series(values: list[float], period: int) -> list[float | None]:
-    output: list[float | None] = [None] * len(values)
-    if len(values) < period:
-        return output
-    current = sum(values[:period]) / period
-    output[period - 1] = current
-    alpha = 2.0 / (period + 1.0)
-    for index in range(period, len(values)):
-        current = alpha * values[index] + (1.0 - alpha) * current
-        output[index] = current
-    return output
-
-
-def _volume_macd_stats(bars: Any) -> tuple[float | None, float | None]:
-    if not isinstance(bars, list) or not bars:
-        return None, None
-    volumes = [_number(bar.get("volume")) if isinstance(bar, dict) else None for bar in bars]
-    if any(value is None or value < 0 for value in volumes):
-        return None, None
-    volume_values = [float(value) for value in volumes]
-    fast, slow = _ema_series(volume_values, 12), _ema_series(volume_values, 26)
-    line = [f - s if f is not None and s is not None else None for f, s in zip(fast, slow)]
-    valid_line = [value for value in line if value is not None]
-    signal_values = _ema_series(valid_line, 9)
-    signal_line = [None] * (len(line) - len(signal_values)) + signal_values
-    histogram = [value - signal if value is not None and signal is not None else None
-                 for value, signal in zip(line, signal_line)]
-    recent = [abs(value) for value in histogram[-26:] if value is not None]
-    latest = histogram[-1] if histogram else None
-    return latest, max(recent) if recent else None
 
 
 def _realized_volatility_pct(bars: Any, lookback: int = 20) -> float | None:
@@ -621,13 +543,14 @@ def _date_distance_days(left: Any, right: Any) -> int | None:
 def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | None,
                      context: dict[str, Any] | None = None,
                      horizon: str = "long", dashboard_model: bool = False) -> dict[str, Any]:
-    """Score a fund's OHLCV chart with the hierarchical TSE v1 scoring spec."""
+    """Score a fund's OHLCV chart with the workbook-defined scoring model."""
     context = context or {}
     horizon = normalize_horizon(horizon)
     kind = _type(context)
     rows = _group_items(groups)
     engine = score_tse_bars(
         context.get("fund_history"),
+        horizon=horizon,
         trend_value=context.get("trend_value"),
         trend_schema_type=context.get("trend_schema_type"),
     )
@@ -635,7 +558,7 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     family_weights = {key: float(value) / 100.0
                       for key, value in engine["score_weights"].items()}
     indicator_weights = engine["indicator_weights"]
-    model_profile = f"{horizon}_tse_technical_scoring_engine_v1"
+    model_profile = f"{horizon}_excel_comprehensive_indicators"
     entry_quality = _entry_quality_score(rows, price, context)
     nav_assessment = _nav_score(price, context)
 
@@ -666,9 +589,9 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     top_negative = min(scored_families, key=lambda row: row[1]) if scored_families else None
     return {
         "technical_score": round(final_score, 1) if final_score is not None else None,
-        "score_method": (f"dashboard_rahavard_four_group_weighted_{horizon}_tse_spec_v1"
+        "score_method": (f"dashboard_rahavard_excel_weighted_{horizon}"
                           if dashboard_model else
-                          f"fund_rahavard_four_group_weighted_{horizon}_tse_spec_v1"),
+                          f"fund_rahavard_excel_weighted_{horizon}"),
         "score_weights": {key: round(weight * 100) for key, weight in family_weights.items()},
         "indicator_weights": {
             family_key: {key: round(float(weight), 1) for key, weight in weights.items()}
@@ -684,7 +607,7 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
         "data_coverage_pct": round(coverage, 1),
         "available_family_weight_pct": round(available_family_weight * 100, 1),
         "score_band": band,
-        "score_validation": "tse_spec_v1_unbacktested",
+        "score_validation": "excel_comprehensive_indicators_unbacktested",
         "confidence": engine["confidence"],
         "inter_group_dispersion": engine["inter_group_dispersion"],
         "damping_factor": engine["damping_factor"],
@@ -698,9 +621,9 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
         "entry_quality": entry_quality,
         "top_factors": {
             "positive": ({"family": top_positive[0], "score": round(top_positive[1], 1)}
-                          if top_positive and top_positive[1] >= 50 else None),
+                          if top_positive and top_positive[1] > 70 else None),
             "negative": ({"family": top_negative[0], "score": round(top_negative[1], 1)}
-                          if top_negative and top_negative[1] < 50 else None),
+                          if top_negative and top_negative[1] < 30 else None),
         },
         "missing_data": diagnostics,
         "valid_groups": engine["valid_groups"],

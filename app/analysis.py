@@ -34,7 +34,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     source_name = str(indicator_source or payload.get("source") or "Rahavard365")
     is_tsetmc = source_name.casefold() == "tsetmc"
     groups = {key: data.get(key) if isinstance(data.get(key), list) else []
-              for key in ("oscillators", "moving_averages", "pivots", "bands", "volumes")}
+              for key in ("oscillators", "moving_averages", "pivots", "bands")}
     for item in groups["oscillators"]:
         if not isinstance(item, dict):
             continue
@@ -220,7 +220,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     family_scores = fund_model.get("family_scores") if isinstance(fund_model.get("family_scores"), dict) else {}
     moving_average_score = (family_scores.get("moving_averages") or {}).get("score")
     oscillator_score = (family_scores.get("oscillators") or {}).get("score")
-    volume_score = (family_scores.get("volume") or {}).get("score")
+    trend_momentum_score = (family_scores.get("trend_momentum") or {}).get("score")
     resistance_score = (family_scores.get("support_resistance") or {}).get("score")
     front_resistances = [value for value in resistances if price is not None and value > price]
     near_resistances = [value for value in front_resistances if (value - price) / price <= 0.10] if price else []
@@ -332,7 +332,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
          "risk": "اگر مقاومت حفظ نشود یا RSI/MFI در ناحیه افراطی بمانند، احتمال اصلاح بیشتر می‌شود."},
         {"name": "نزولی", "direction": "bearish", "probability": bearish_probability,
          "reason": "؛ ".join(bearish_reasons),
-         "condition": "شکست حمایت نزدیک با تأیید MACD، مومنتوم یا حجم",
+         "condition": "شکست حمایت نزدیک با تأیید MACD یا مومنتوم",
          "risk": "اگر حمایت حفظ شود و MACD بالای خط سیگنال بماند، این سناریو اعتبار کمتری دارد."},
     ]
     score_method = fund_model["score_method"]
@@ -381,7 +381,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
         "score_change_20d": fund_model["score_change_20d"],
         "score_breakdown": {
             "moving_averages": moving_average_score,
-            "volume": volume_score,
+            "trend_momentum": trend_momentum_score,
             "oscillators": oscillator_score,
             "rsi": rsi,
             "resistance": resistance_score,

@@ -16,28 +16,6 @@ from .tse_scoring import GROUP_WEIGHTS, score_tse_bars
 
 DASHBOARD_SCORE_WEIGHTS = GROUP_WEIGHTS
 
-DASHBOARD_INDICATOR_NAMES = {
-    "moving_averages": {
-        "ema5": "EMA(5)", "ema10": "EMA(10)", "ema20": "EMA(20)",
-        "ema30": "EMA(30)", "ema50": "EMA(50)", "ema100": "EMA(100)",
-        "sma5": "SMA(5)", "sma10": "SMA(10)", "sma20": "SMA(20)",
-        "sma30": "SMA(30)", "sma50": "SMA(50)", "sma100": "SMA(100)",
-        "ichimoku": "Ichimoku(9,26,52,26)", "bb20": "BB(20)",
-        "keltner16": "KELTNER(16)",
-    },
-    "oscillators": {
-        "macd26": "MACD(26)", "rsi14": "RSI(14)", "mfi14": "MFI(14)",
-        "adx14": "ADX(14)", "stochrsi14": "StochRSI(14)", "trend": "Trend",
-        "ao534": "AO(5,34)", "so14": "SO(14)", "aroon25": "AROON(25)",
-        "cci14": "CCI(14)", "mtm6": "MTM(6)", "wr14": "WR(14)",
-    },
-    "support_resistance": {
-        "fibonacci": "PivotPointFibonacci(30)", "classic": "PivotPointClassic(30)",
-        "camarilla": "PivotPointCamarilla(30)", "woodie": "PivotPointWoodie(30)",
-        "demark": "PivotPointDeMark(30)",
-    },
-}
-
 
 def _number(value: Any) -> float | None:
     try:
@@ -118,21 +96,27 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
     horizon = normalize_horizon(horizon)
     model = DASHBOARD_SCORING_PROFILES[horizon]
     family_weights = model["family_weights"]
-    weights = {
-        family: {DASHBOARD_INDICATOR_NAMES[family][key]: weight
-                 for key, weight in entries.items()}
-        for family, entries in model["indicator_weights"].items()
-    }
+    weights = {family: dict(entries) for family, entries in model["indicator_weights"].items()}
+    # These keys are needed only by the legacy readout below; engine results replace it.
+    weights.setdefault("oscillators", {}).update({
+        "MACD(26)": 0.0, "ADX(14)": 0.0, "AROON(25)": 0.0,
+        "AO(5,34)": 0.0, "Trend": 0.0,
+    })
+    weights.setdefault("support_resistance", {}).update({
+        "PivotPointFibonacci(30)": 0.0, "PivotPointClassic(30)": 0.0,
+        "PivotPointCamarilla(30)": 0.0, "PivotPointWoodie(30)": 0.0,
+        "PivotPointDeMark(30)": 0.0,
+    })
     bars = bars or []
     tech = compute_indicators(bars)
-    engine = score_tse_bars(bars)
+    engine = score_tse_bars(bars, horizon=horizon)
     indicators = tech.get("indicators", {})
     current = _number(tech.get("latest"))
     closes = [_number(row.get("close")) for row in bars]
     closes = [value for value in closes if value is not None and value > 0]
-    volumes = [max(0.0, _number(row.get("volume")) or 0.0) for row in bars]
-    names = {"moving_averages": "میانگین متحرک", "oscillators": "نوسان‌گر",
-             "volume": "حجم و جریان پول", "support_resistance": "حمایت و مقاومت"}
+    names = {"moving_averages": "\u0645\u06cc\u0627\u0646\u06af\u06cc\u0646\u200c\u0647\u0627\u06cc \u0645\u062a\u062d\u0631\u06a9", "trend_momentum": "\u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628",
+             "oscillators": "\u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627", "support_resistance": "\u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a"}
+
 
     def ind(key: str) -> dict[str, Any]:
         found = indicators.get(key)
@@ -209,16 +193,6 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
     for key, (score, raw, note) in osc_data.items():
         rows[family].append(row(family, key, score, raw, note))
 
-    # Keep raw relative-volume readouts visible alongside the weighted engine.
-    relative_volumes = {}
-    for period in (30, 90, 15):
-        ratio = None
-        if len(volumes) > period and volumes[-1] > 0:
-            mean = sum(volumes[-period-1:-1])/period
-            if mean > 0 and len(closes) > period:
-                ratio = volumes[-1]/mean
-        relative_volumes[period] = {"ratio": ratio}
-
     # Support/resistance: pivot calculations use the previous 30 completed bars.
     family = "support_resistance"
     schemes = {
@@ -247,6 +221,8 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         rows[family].append(row(family, key, score, raw, "فرمول خطی پیوت؛ برای کاماریلا از H3 و L3 استفاده می‌شود."))
 
     family_scores = engine["family_scores"]
+    rsi_score = next((item.get("score") for item in family_scores.get("oscillators", {}).get("indicators", [])
+                      if item.get("key") == "RSI(14)"), None)
     family_weights = {key: float(value) / 100.0
                       for key, value in engine["score_weights"].items()}
     weights = {family: {key: float(value) / 100.0 for key, value in entries.items()}
@@ -294,10 +270,10 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
 
     positive = [{"family": key, "name": names[key], "score": family_scores[key]["score"]}
                 for key in sorted(family_scores, key=lambda k: family_scores[k]["score"] or -1, reverse=True)
-                if family_scores[key]["score"] is not None and family_scores[key]["score"] >= 60][:2]
+                if family_scores[key]["score"] is not None and family_scores[key]["score"] > 70][:2]
     negative = [{"family": key, "name": names[key], "score": family_scores[key]["score"]}
                 for key in sorted(family_scores, key=lambda k: family_scores[k]["score"] or 101)
-                if family_scores[key]["score"] is not None and family_scores[key]["score"] <= 40][:2]
+                if family_scores[key]["score"] is not None and family_scores[key]["score"] < 30][:2]
     factors = [{"name": key, "score": family_scores[key]["score"], "weight": family_weights[key],
                 "evidence": ", ".join((item.get("name") or item.get("key") or "")
                                        for item in rows[key] if item["score"] is not None)}
@@ -305,9 +281,9 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
     missing = [f"{names[family]}: {key}" for family in weights for key in family_scores[family]["missing_indicators"]]
     limitations = [
         "این امتیاز محاسبهٔ اختصاصی AliVest است، نه امتیاز رسمی ره‌آورد یا احتمال آماری موفقیت.",
-        "وزن شاخص‌های بدون داده در همان گروه متناسب می‌شود؛ در نبود کامل یک گروه، وزن گروه‌های دیگر متناسب می‌شود و پوشش نمایش داده می‌شود.",
+        "وزن اندیکاتورهای بدون داده در همان گروه متناسب می‌شود؛ امتیاز کل فقط وقتی ساخته می‌شود که هر چهار گروه امتیاز معتبر داشته باشند.",
         f"RSI یکی از شاخص‌های نوسان‌گر و {family_weights['oscillators'] * weights['oscillators']['RSI(14)'] * 100:.1f}٪ از وزن پایهٔ کل است؛ خرید بر پایهٔ برآیند چهار گروه ارزیابی می‌شود.",
-        "حجم و جریان پول سهم ۲۵٪ در امتیاز دارند؛ اگر دادهٔ حجم موجود نباشد، پوشش آن گروه کاهش می‌یابد.",
+        "\u0627\u0646\u062f\u06cc\u06a9\u0627\u062a\u0648\u0631\u0647\u0627\u06cc \u0645\u0633\u062a\u0642\u0644 \u062d\u062c\u0645 \u0627\u0632 \u0627\u0645\u062a\u06cc\u0627\u0632\u062f\u0647\u06cc \u062d\u0630\u0641 \u0634\u062f\u0647\u200c\u0627\u0646\u062f\u061b MFI \u0637\u0628\u0642 \u0641\u0627\u06cc\u0644 \u0627\u06a9\u0633\u0644 \u062f\u0631 \u06af\u0631\u0648\u0647 \u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627 \u0628\u0627\u0642\u06cc \u0645\u0627\u0646\u062f\u0647 \u0627\u0633\u062a.",
     ]
     if missing:
         limitations.append("شاخص‌های فاقد داده یا فرمول قابل اتکا حذف شدند: "+"، ".join(missing))
@@ -323,18 +299,12 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "near_resistance_count": sum(1 for item in resistances if current and (item["midpoint"]-current)/current <= .10),
     })
     dashboard_indicators = dict(indicators)
-    for period, data in relative_volumes.items():
+    for key in ("OBV(20)", "VRSI(14)", "VMACD(12,26)"):
+        dashboard_indicators.pop(key, None)
+    for period in (15, 30, 90):
         historical = dashboard_indicators.pop(f"RV({period})", None)
         if historical is not None:
             dashboard_indicators[f"HV({period})"] = historical
-        ratio = data["ratio"]
-        dashboard_indicators[f"RV({period})"] = {
-            "value": ratio, "previous_value": None,
-            "signal": "HighVolume" if ratio is not None and ratio >= 1 else "LowVolume" if ratio is not None else "unavailable",
-            "interpretation": "Relative volume versus preceding lookback average",
-            "formula": "current volume / average volume over preceding period",
-            "parameters": {"period": period},
-        }
     dashboard_tech = dict(tech)
     dashboard_tech["indicators"] = dashboard_indicators
     return {
@@ -350,13 +320,13 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "long_term_trend": "unavailable" if current is None or ema100 is None else "bullish" if current > ema100 else "bearish" if current < ema100 else "neutral",
         "trend_direction_score": round(total, 1) if total is not None else None,
         "trend_strength": strength, "technical_score": round(total, 1) if total is not None else None,
-        "score_method": f"dashboard_rahavard_four_group_weighted_{horizon}_tse_spec_v1",
-        "score_origin": "AliVest", "score_profile": f"{horizon}_tse_technical_scoring_engine_v1",
+        "score_method": f"dashboard_rahavard_excel_weighted_{horizon}",
+        "score_origin": "AliVest", "score_profile": f"{horizon}_excel_comprehensive_indicators",
         "investment_horizon": horizon, "investment_horizon_label": horizon_label(horizon),
         "score_weights": {key: round(value*100) for key, value in family_weights.items()},
         "indicator_weights": engine["indicator_weights"],
         "effective_score_weights": effective, "family_scores": family_scores, "score_band": band,
-        "score_validation": "tse_spec_v1_unbacktested", "score_breakdown": breakdown,
+        "score_validation": "excel_comprehensive_indicators_unbacktested", "score_breakdown": breakdown,
         "data_coverage_pct": round(coverage, 1), "available_family_weight_pct": round(available_weight*100, 1),
         "confidence": engine["confidence"], "confidence_score": engine["confidence"],
         "inter_group_dispersion": engine["inter_group_dispersion"],
@@ -364,8 +334,8 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "confidence_level": "high" if (engine["confidence"] or 0) >= 75 else "medium" if (engine["confidence"] or 0) >= 50 else "low",
         "confidence_label": "بالا" if (engine["confidence"] or 0) >= 75 else "متوسط" if (engine["confidence"] or 0) >= 50 else "پایین",
         "confidence_basis": "پوشش دادهٔ قابل محاسبه؛ این عدد احتمال موفقیت معامله نیست.",
-        "breakout_confidence": "volume_in_model",
-        "breakout_confidence_label": "حجم و جریان پول در امتیاز لحاظ می‌شوند",
+        "breakout_confidence": "independent_volume_indicators_removed",
+        "breakout_confidence_label": "\u0627\u0646\u062f\u06cc\u06a9\u0627\u062a\u0648\u0631\u0647\u0627\u06cc \u062d\u062c\u0645 \u0627\u0632 \u0627\u0645\u062a\u06cc\u0627\u0632\u062f\u0647\u06cc \u062d\u0630\u0641 \u0634\u062f\u0647\u200c\u0627\u0646\u062f",
         "risk": risk, "risk_score": round(risk_value, 1) if risk_value is not None else None,
         "risk_label": {"low":"کم","medium":"متوسط","high":"بالا","unavailable":"نامشخص"}[risk],
         "risk_basis": "نوسان تاریخی RV(30)، و در نبود آن تخمین از ATR(14).",
@@ -383,5 +353,5 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "support_resistance": levels, "support_levels": supports, "resistance_levels": resistances,
         "nearest_support": near_support, "nearest_resistance": near_resistance,
         "structural_invalidation_level": near_support.get("midpoint") if near_support else None,
-        "decision_support": "امتیاز برآیند چهار گروه حمایت و مقاومت، میانگین متحرک، حجم و نوسان‌گر است؛ توصیه قطعی خرید یا فروش نیست.",
+        "decision_support": "\u0627\u0645\u062a\u06cc\u0627\u0632 \u0628\u0631\u0622\u06cc\u0646\u062f \u0686\u0647\u0627\u0631 \u06af\u0631\u0648\u0647 \u0645\u06cc\u0627\u0646\u06af\u06cc\u0646\u200c\u0647\u0627\u06cc \u0645\u062a\u062d\u0631\u06a9\u060c \u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628\u060c \u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a \u0648 \u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627 \u0627\u0633\u062a.",
     }
