@@ -8,14 +8,20 @@ def _clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
     return min(high, max(low, value))
 
 
+def inverted_linear_score(value: float, buy_at: float, sell_at: float) -> float:
+    """Map a low oscillator reading to 100 and a high reading to 0, linearly."""
+    if sell_at == buy_at:
+        return 50.0
+    return _clamp((sell_at - value) / (sell_at - buy_at) * 100.0)
+
+
+def percent_change_score(change_pct: float, points_per_pct: float) -> float:
+    return _clamp(50.0 + points_per_pct * change_pct)
+
+
 def rsi_entry_score(value: float) -> float:
-    """Score RSI by the requested buy (<30), neutral (30–70), and sell (>70) zones."""
-    value = _clamp(value)
-    if value < 30.0:
-        return _clamp(60.0 + (30.0 - value) * 2.0)
-    if value <= 70.0:
-        return 60.0 - (value - 30.0) * 0.5
-    return _clamp(40.0 - (value - 70.0) * 2.0)
+    """Spreadsheet rule: score = clamp((70 - RSI) * 2.5)."""
+    return _clamp((70.0 - value) * 2.5)
 
 
 def normalize_stoch_rsi(value: float | None) -> float | None:
@@ -34,48 +40,117 @@ def normalize_stoch_rsi(value: float | None) -> float | None:
 
 
 def stoch_rsi_entry_score(value: float | None) -> float | None:
-    """Score StochRSI with low readings favoring buy and high readings sell."""
+    """Spreadsheet rule: score = clamp((0.8 - StochRSI) / 0.6 * 100)."""
     value = normalize_stoch_rsi(value)
     if value is None:
         return None
-    if value <= 0.2:
-        return _clamp(60.0 + (0.2 - value) * 200.0)
-    if value < 0.8:
-        return 60.0 - (value - 0.2) * (20.0 / 0.6)
-    return _clamp(40.0 - (value - 0.8) * 200.0)
+    return inverted_linear_score(value, 0.2, 0.8)
 
 
 def band_position_score(price: float | None, lower: float | None,
                         upper: float | None) -> float | None:
-    """Keep in-band prices neutral; penalize the upper edge and favor lower-band breaks."""
+    """Spreadsheet rule: clamp((1 - band position) * 100)."""
     values = (price, lower, upper)
     if any(value is None or not math.isfinite(value) for value in values):
         return None
     if price <= 0 or upper <= lower:
         return None
-    width = upper - lower
-    if price < lower:
-        return _clamp(55.0 + 25.0 * min((lower - price) / width, 1.0))
-    if price > upper:
-        return _clamp(45.0 - 25.0 * min((price - upper) / width, 1.0))
-    position = (price - lower) / width
-    return _clamp(55.0 - 10.0 * position)
+    position = (price - lower) / (upper - lower)
+    return _clamp((1.0 - position) * 100.0)
+
+
+def moving_average_score(price: float | None, average: float | None,
+                         period: int) -> float | None:
+    """Linear price-vs-average score with the period bands from the workbook."""
+    if (price is None or average is None or not math.isfinite(price)
+            or not math.isfinite(average) or price <= 0 or average <= 0):
+        return None
+    limit_pct = 3.0 if period <= 20 else 5.0 if period <= 50 else 10.0
+    distance_pct = (price / average - 1.0) * 100.0
+    return _clamp(50.0 + 50.0 * distance_pct / limit_pct)
+
+
+def ichimoku_cloud_score(price: float | None, span_a: float | None,
+                         span_b: float | None) -> float | None:
+    """Score position above, inside, or below the cloud using the workbook formula."""
+    values = (price, span_a, span_b)
+    if any(value is None or not math.isfinite(value) for value in values):
+        return None
+    if price <= 0 or span_a <= 0 or span_b <= 0:
+        return None
+    cloud_bottom, cloud_top = min(span_a, span_b), max(span_a, span_b)
+    if price > cloud_top:
+        distance_pct = (price / cloud_top - 1.0) * 100.0
+        return _clamp(70.0 + 6.0 * distance_pct)
+    if price < cloud_bottom:
+        distance_pct = (cloud_bottom - price) / cloud_bottom * 100.0
+        return _clamp(30.0 - 6.0 * distance_pct)
+    if cloud_top == cloud_bottom:
+        return 50.0
+    return _clamp(30.0 + 40.0 * (price - cloud_bottom) / (cloud_top - cloud_bottom))
+
+
+def macd_histogram_score(histogram: float | None, price: float | None) -> float | None:
+    """Score price MACD histogram in percent of price as specified by the workbook."""
+    if histogram is None or price is None or not math.isfinite(histogram) or price <= 0:
+        return None
+    histogram_pct = histogram / price * 100.0
+    return percent_change_score(histogram_pct, 100.0)
+
+
+def pivot_level_score(price: float | None, pivot: float | None,
+                      resistance: float | None, support: float | None) -> float | None:
+    """Linear pivot score from PP to R1/S1 (or H3/L3 for Camarilla)."""
+    values = (price, pivot, resistance, support)
+    if any(value is None or not math.isfinite(value) for value in values):
+        return None
+    if price <= 0 or pivot <= 0:
+        return None
+    if price >= pivot:
+        if resistance <= pivot:
+            return None
+        return _clamp(50.0 + 50.0 * (price - pivot) / (resistance - pivot))
+    if pivot <= support:
+        return None
+    return _clamp(50.0 - 50.0 * (pivot - price) / (pivot - support))
+
+
+def obv_average_score(obv: float | None, average: float | None) -> float | None:
+    if obv is None or average is None or not math.isfinite(obv) or not math.isfinite(average) or average == 0:
+        return None
+    deviation_pct = (obv - average) / abs(average) * 100.0
+    return _clamp(50.0 + 10.0 * deviation_pct)
+
+
+def relative_volume_score(ratio: float | None, price_change_pct: float | None) -> float | None:
+    """Score relative volume only above its baseline, in the direction of price."""
+    if (ratio is None or price_change_pct is None
+            or not math.isfinite(ratio) or not math.isfinite(price_change_pct)):
+        return None
+    if ratio <= 1.0:
+        return 50.0
+    direction = 1.0 if price_change_pct > 0 else -1.0 if price_change_pct < 0 else 0.0
+    return _clamp(50.0 + direction * 50.0 * (ratio - 1.0))
+
+
+def volume_macd_histogram_score(histogram: float | None,
+                                max_abs_histogram: float | None) -> float | None:
+    if (histogram is None or max_abs_histogram is None
+            or not math.isfinite(histogram) or not math.isfinite(max_abs_histogram)
+            or max_abs_histogram <= 0):
+        return None
+    return _clamp(50.0 + 50.0 * histogram / max_abs_histogram)
 
 
 def adx_directional_score(adx: float | None, plus_di: float | None,
-                          minus_di: float | None,
-                          trend_score: float | None) -> float | None:
-    """Use ADX as strength and DI/price trend as direction, never as direction alone."""
-    if adx is None or not math.isfinite(adx):
+                          minus_di: float | None) -> float | None:
+    """Workbook rule: neutral at ADX <= 20; then 50 + 1.25*(+DI - -DI)."""
+    if (adx is None or plus_di is None or minus_di is None
+            or not all(math.isfinite(value) for value in (adx, plus_di, minus_di))):
         return None
-    if plus_di is not None and minus_di is not None:
-        direction = _clamp(2.0 * (plus_di - minus_di) / max(plus_di + minus_di, 1.0), -1.0, 1.0)
-    elif trend_score is not None and math.isfinite(trend_score):
-        direction = _clamp((trend_score - 50.0) / 25.0, -1.0, 1.0)
-    else:
+    if adx <= 20.0:
         return 50.0
-    strength = _clamp((adx - 15.0) / 25.0, 0.0, 1.0)
-    return _clamp(50.0 + direction * 45.0 * strength)
+    return _clamp(50.0 + 1.25 * (plus_di - minus_di))
 
 
 def entry_recommendation(rsi: float | None, moving_average_score: float | None,

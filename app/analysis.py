@@ -160,7 +160,7 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
                     meaning = description
                     break
             if is_tsetmc and normalized.startswith("trend"):
-                meaning = "جهت حرکت قیمت از شیب ۲۰ کندل روزانهٔ اخیر محاسبه می‌شود."
+                meaning = "تغییر درصدی قیمت در ۳۰ دورهٔ اخیر؛ هر ۱٪ تغییر ۵ امتیاز جابه‌جا می‌کند."
             raw_signal = str(item.get("signal") or "Neutral")
             key = re.sub(r"[^a-z]", "", raw_signal.casefold())
             interpretation = signal_fa.get(key, raw_signal or "نامشخص")

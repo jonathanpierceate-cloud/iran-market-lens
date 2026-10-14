@@ -6,7 +6,10 @@ from typing import Any
 from .indicators import compute_indicators, pivot_points
 from .scoring_profiles import DASHBOARD_SCORING_PROFILES, normalize_horizon, horizon_label
 from .scoring_rules import (adx_directional_score, band_position_score,
-                            entry_recommendation, rsi_entry_score,
+                            ichimoku_cloud_score, inverted_linear_score,
+                            macd_histogram_score, moving_average_score,
+                            entry_recommendation, percent_change_score,
+                            pivot_level_score, rsi_entry_score,
                             stoch_rsi_entry_score)
 
 
@@ -45,10 +48,6 @@ def _number(value: Any) -> float | None:
 
 def _clamp(value: float, low: float = 0.0, high: float = 100.0) -> float:
     return min(high, max(low, value))
-
-
-def _signed_score(value: float, scale: float) -> float:
-    return _clamp(50.0 + 50.0 * math.tanh(value / scale)) if scale > 0 else 50.0
 
 
 def _weighted(rows: list[tuple[float | None, float]]) -> float | None:
@@ -152,21 +151,13 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         score, raw, note = None, None, ""
         if key.startswith(("EMA(", "SMA(")):
             raw = val(key)
-            if current and raw and current > 0:
-                score = _signed_score((current-raw)/current, .025)
+            period = int(key.split("(", 1)[1].split(")", 1)[0])
+            score = moving_average_score(current, raw, period)
         elif key == "Ichimoku(9,26,52,26)":
             item = ind(key)
             ca, cb = _number(item.get("senkou_a_at_current")), _number(item.get("senkou_b_at_current"))
-            tenkan, kijun = _number(item.get("tenkan")), _number(item.get("kijun"))
-            cloud_score = None
-            if current and ca is not None and cb is not None:
-                lo, hi = min(ca, cb), max(ca, cb)
-                cloud_score = (_signed_score((current-hi)/current, .04) if current > hi else
-                               _signed_score((current-lo)/current, .04) if current < lo else
-                               45+10*(current-lo)/max(hi-lo, current*1e-9))
-            cross = _signed_score((tenkan-kijun)/current, .02) if current and tenkan is not None and kijun is not None else None
-            score = _weighted([(cloud_score, .70), (cross, .30)])
-            raw, note = {"cloud": item.get("price_vs_cloud"), "tenkan": tenkan, "kijun": kijun}, "موقعیت نسبت به ابر و تنکان/کیجون"
+            score = ichimoku_cloud_score(current, ca, cb)
+            raw, note = {"span_a": ca, "span_b": cb}, "امتیاز با فاصله از ابر یا جایگاه داخل ابر محاسبه می‌شود."
         elif key in ("BB(20)", "KELTNER(16)"):
             item = ind(key)
             middle = _number(item.get("middle", item.get("value")))
@@ -178,61 +169,40 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
 
     # Oscillators: RSI is one bounded vote, never the sole buy criterion.
     family = "oscillators"
-    moving_average_direction = _weighted([
-        (item["score"], weights["moving_averages"][item["name"]])
-        for item in rows["moving_averages"] if item["score"] is not None
-    ])
     rsi, mfi, stoch = val("RSI(14)"), val("MFI(14)"), val("StochRSI(14)")
-    so, cci, wr = val("SO(14)"), val("CCI(14)"), val("WR(14)")
+    so, cci, wr = val("SO(14)", "k"), val("CCI(14)"), val("WR(14)")
+    if so is None:
+        so = val("SO(14)")
     macd, hist = val("MACD(12,26,9)"), val("MACD(12,26,9)", "histogram")
     macd_signal = val("MACD(12,26,9)", "signal_line")
-    macd_diff = macd-macd_signal if macd is not None and macd_signal is not None else hist
-    macd_score = None
-    if current and current > 0 and macd is not None:
-        pieces = [(_signed_score(macd/current, .01), .50)]
-        if macd_diff is not None:
-            pieces.append((_signed_score(macd_diff/current, .003), .50))
-        macd_score = _weighted(pieces)
+    if hist is None and macd is not None and macd_signal is not None:
+        hist = macd - macd_signal
+    macd_score = macd_histogram_score(hist, current)
     adx, pdi, mdi = val("ADX(14)"), val("ADX(14)", "plus_di"), val("ADX(14)", "minus_di")
-    adx_score = adx_directional_score(adx, pdi, mdi, moving_average_direction)
+    adx_score = adx_directional_score(adx, pdi, mdi)
     up, down = val("Aroon(25)", "up"), val("Aroon(25)", "down")
-    aroon_score = _clamp(50+(up-down)*.45) if up is not None and down is not None else None
-    sample = closes[-20:]
-    trend_score = None
-    if len(sample) >= 10:
-        logs = [math.log(price) for price in sample]
-        xm, ym = (len(logs)-1)/2, sum(logs)/len(logs)
-        denom = sum((i-xm)**2 for i in range(len(logs)))
-        slope = sum((i-xm)*(v-ym) for i, v in enumerate(logs))/denom
-        trend_score = _signed_score(slope, .004)
-    return20 = closes[-1]/closes[-21]-1 if len(closes) >= 21 else None
-    def osc(value: float | None, high: float, low: float) -> float | None:
-        if value is None:
-            return None
-        score = _clamp(50+(value-50)*.70)
-        if value > high:
-            score -= min(20, (value-high)*.80)
-        if value < low:
-            score += min(8, (low-value)*.30)
-        return _clamp(score)
+    aroon_score = _clamp(50+(up-down)/2) if up is not None and down is not None else None
+    return30_pct = (closes[-1]/closes[-31]-1)*100 if len(closes) >= 31 else None
+    trend_score = percent_change_score(return30_pct, 5.0) if return30_pct is not None else None
+    return6_pct = (closes[-1]/closes[-7]-1)*100 if len(closes) >= 7 else None
 
     rsi_score = rsi_entry_score(rsi) if rsi is not None else None
 
     osc_data = {
-        "MACD(26)": (macd_score, macd, "MACD ۱۲/۲۶ و خط سیگنال"),
+        "MACD(26)": (macd_score, hist, "هیستوگرام MACD به درصد قیمت تبدیل و خطی به امتیاز نگاشت می‌شود."),
         "RSI(14)": (rsi_score, rsi, "زیر ۳۰ ناحیه خرید، ۳۰ تا ۷۰ خنثی با امتیاز کمتر نزدیک ۷۰، و بالای ۷۰ ناحیه فروش است"),
-        "MFI(14)": (osc(mfi, 80, 20), mfi, "مومنتوم قیمت و جریان حجم"),
-        "ADX(14)": (adx_score, {"ADX": adx, "+DI": pdi, "-DI": mdi}, "ADX قدرت روند را می‌سنجد؛ جهت امتیاز از DI یا از هم‌سویی میانگین‌های متحرک گرفته می‌شود"),
+        "MFI(14)": (inverted_linear_score(mfi, 20, 80) if mfi is not None else None, mfi, "امتیاز خطی از ۱۰۰ در ۲۰ تا صفر در ۸۰."),
+        "ADX(14)": (adx_score, {"ADX": adx, "+DI": pdi, "-DI": mdi}, "اگر ADX حداکثر ۲۰ باشد امتیاز ۵۰ است؛ بالاتر از آن، جهت و امتیاز بر پایه اختلاف +DI و −DI محاسبه می‌شود."),
         "StochRSI(14)": (stoch_rsi_entry_score(stoch), stoch, "مقیاس ۰ تا ۱؛ ۰ تا ۰٫۲۰ ناحیه خرید، ۰٫۲۰ تا ۰٫۸۰ خنثی، و ۰٫۸۰ تا ۱ ناحیه فروش"),
-        "Trend": (trend_score, return20, "شیب قیمت در حدود ۲۰ کندل اخیر"),
-        "AO(5,34)": (_signed_score(val("AO(5,34)")/current, .003) if val("AO(5,34)") is not None and current else None,
+        "Trend": (trend_score, return30_pct, "تغییر قیمت طی ۳۰ دوره؛ هر ۱٪ تغییر ۵ امتیاز جابه‌جا می‌کند."),
+        "AO(5,34)": (percent_change_score(val("AO(5,34)")/current*100, 25.0) if val("AO(5,34)") is not None and current else None,
                      val("AO(5,34)"), "شتاب میانگین‌های ۵ و ۳۴ دوره"),
-        "SO(14)": (osc(so, 80, 20), so, "موقعیت قیمت در دامنه ۱۴ دوره"),
+        "SO(14)": (inverted_linear_score(so, 20, 80) if so is not None else None, so, "امتیاز بر پایهٔ خط %K: ۲۰ برابر ۱۰۰ و ۸۰ برابر صفر."),
         "AROON(25)": (aroon_score, {"up": up, "down": down}, "تازگی سقف و کف ۲۵ دوره"),
-        "CCI(14)": (_signed_score(cci, 180) if cci is not None else None, cci, "فاصله از میانگین؛ اثر افراط محدود است"),
-        "MTM(6)": (_signed_score(val("MTM(6)")/current, .025) if val("MTM(6)") is not None and current else None,
-                   val("MTM(6)"), "تغییر قیمت در ۶ دوره"),
-        "WR(14)": (osc(wr+50, 80, 20) if wr is not None else None, wr, "جایگاه بسته‌شدن در دامنه ۱۴ دوره"),
+        "CCI(14)": (_clamp(50-cci/2) if cci is not None else None, cci, "امتیاز خطی از فرمول ۵۰ منهای نصف CCI."),
+        "MTM(6)": (percent_change_score(return6_pct, 10.0) if return6_pct is not None else None,
+                   return6_pct, "درصد تغییر قیمت طی ۶ دوره؛ هر ۱٪ تغییر ۱۰ امتیاز جابه‌جا می‌کند."),
+        "WR(14)": (inverted_linear_score(wr, -80, -20) if wr is not None else None, wr, "امتیاز خطی از ۱۰۰ در منفی ۸۰ تا صفر در منفی ۲۰."),
     }
     for key, (score, raw, note) in osc_data.items():
         rows[family].append(row(family, key, score, raw, note))
@@ -264,21 +234,16 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         prior_open = _number(window[-1].get("open", prior_close))
         if all(value is not None for value in highs+lows) and prior_close is not None and prior_open is not None:
             pivot_sets = pivot_points(max(highs), min(lows), prior_close, prior_open)
-    atr = val("ATR(14)")
-    scale = atr if atr is not None and atr > 0 else (current*.03 if current else 1)
     for key, scheme in schemes.items():
         levels = pivot_sets.get(scheme, {})
         pivot = _number(levels.get("pivot")) if levels else None
         score, raw = None, None
         if current is not None and pivot is not None and pivot > 0:
-            position = _signed_score((current-pivot)/max(scale, current*.01), 1)
-            r1, s1 = _number(levels.get("R1")), _number(levels.get("S1"))
-            headroom = (65+20*math.tanh((current-r1)/scale) if current >= r1 else
-                        50+25*math.tanh((r1-current)/(2*scale))) if r1 is not None else 50
-            support = _clamp(78-max(0, (current-s1)/scale-.5)*10, 38, 78) if s1 is not None and current >= s1 else 50
-            score = _clamp(.55*position+.25*headroom+.20*support)
-            raw = {"pivot": pivot, "S1": s1, "R1": r1}
-        rows[family].append(row(family, key, score, raw, "پیوت ۳۰ کندل کامل‌شده؛ موقعیت قیمت نسبت به سطوح"))
+            upper_name, lower_name = ("H3", "L3") if scheme == "Camarilla" else ("R1", "S1")
+            upper, lower = _number(levels.get(upper_name)), _number(levels.get(lower_name))
+            score = pivot_level_score(current, pivot, upper, lower)
+            raw = {"pivot": pivot, upper_name: upper, lower_name: lower}
+        rows[family].append(row(family, key, score, raw, "فرمول خطی پیوت؛ برای کاماریلا از H3 و L3 استفاده می‌شود."))
 
     family_scores = {}
     for family, indicator_family_weights in weights.items():
@@ -391,7 +356,7 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "long_term_trend": "unavailable" if current is None or ema100 is None else "bullish" if current > ema100 else "bearish" if current < ema100 else "neutral",
         "trend_direction_score": round(total, 1) if total is not None else None,
         "trend_strength": strength, "technical_score": round(total, 1) if total is not None else None,
-        "score_method": "dashboard_rahavard_three_group_weighted_v3_entry_aware",
+        "score_method": "dashboard_rahavard_three_group_weighted_v4_indicator_table",
         "score_origin": "AliVest", "score_profile": model["profile"],
         "investment_horizon": horizon, "investment_horizon_label": horizon_label(horizon),
         "score_weights": {key: round(value*100) for key, value in family_weights.items()},

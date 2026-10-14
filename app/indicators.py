@@ -116,7 +116,8 @@ def pivot_points(high: float, low: float, close: float, open_: float) -> dict[st
     x = (high + 2 * low + close) if close < open_ else ((2 * high + low + close) if close > open_ else (high + low + 2 * close))
     demark = {"pivot": x / 4, "R1": x / 2 - low, "R2": None, "R3": None,
               "S1": x / 2 - high, "S2": None, "S3": None}
-    camarilla = {"pivot": classic, "R1": close + span * 1.1 / 12,
+    camarilla = {"pivot": classic, "H3": close + span * 1.1 / 4,
+                 "L3": close - span * 1.1 / 4, "R1": close + span * 1.1 / 12,
                  "R2": close + span * 1.1 / 6, "R3": close + span * 1.1 / 4,
                  "S1": close - span * 1.1 / 12, "S2": close - span * 1.1 / 6,
                  "S3": close - span * 1.1 / 4}
@@ -360,9 +361,20 @@ def compute_indicators(bars: list[dict[str, Any]]) -> dict[str, Any]:
     vmacd = [(vfast[i] - vslow[i] if vfast[i] is not None and vslow[i] is not None else None) for i in range(n)]
     if not has_volume: vmacd = [None] * n
     vm_now = _value(vmacd)
+    valid_vmacd = [value for value in vmacd if value is not None]
+    valid_vmacd_signal = _ema([float(value) for value in valid_vmacd], 9)
+    vmacd_signal = [None] * (n - len(valid_vmacd_signal)) + valid_vmacd_signal
+    vmacd_histogram = [line - signal if line is not None and signal is not None else None
+                       for line, signal in zip(vmacd, vmacd_signal)]
+    vmacd_histogram_now = _value(vmacd_histogram)
+    recent_vmacd_histograms = [abs(value) for value in vmacd_histogram[-26:] if value is not None]
+    vmacd_histogram_max = max(recent_vmacd_histograms) if recent_vmacd_histograms else None
     ind["VMACD(12,26)"] = _indicator(vm_now, _value(vmacd, -2), signal="bullish" if vm_now is not None and vm_now > 0 else "bearish" if vm_now is not None else "neutral",
         interpretation="شتاب حجم مثبت" if vm_now is not None and vm_now > 0 else "شتاب حجم منفی" if vm_now is not None else "داده کافی نیست",
-        formula="EMA12(volume) - EMA26(volume)", parameters={"fast": 12, "slow": 26})
+        formula="EMA12(volume) - EMA26(volume); histogram = line - EMA9(line)",
+        parameters={"fast": 12, "slow": 26, "signal": 9},
+        extras={"signal_line": _value(vmacd_signal), "histogram": vmacd_histogram_now,
+                "max_abs_histogram_26": vmacd_histogram_max})
 
     obv = [0.0] * n
     for i in range(1, n): obv[i] = obv[i-1] + (volume[i] if close[i] > close[i-1] else -volume[i] if close[i] < close[i-1] else 0)
@@ -475,15 +487,10 @@ def fund_chart_indicator_groups(bars: list[dict[str, Any]], *, source: str = "Ra
     closes = [float(bar["close"]) for bar in bars if bar.get("close") is not None]
     trend_signal = "unavailable"
     trend_value = None
-    if len(closes) >= 20 and all(value > 0 for value in closes[-20:]):
-        log_values = [math.log(value) for value in closes[-20:]]
-        x_mean = 9.5
-        y_mean = sum(log_values) / len(log_values)
-        denominator = sum((index - x_mean) ** 2 for index in range(20))
-        slope = sum((index - x_mean) * (value - y_mean)
-                    for index, value in enumerate(log_values)) / denominator
-        trend_value = 50 + 50 * math.tanh(slope / 0.004)
-        trend_signal = "bullish" if trend_value >= 55 else "bearish" if trend_value <= 45 else "neutral"
+    if len(closes) > 30 and all(value > 0 for value in closes[-31:]):
+        trend_value = (closes[-1] / closes[-31] - 1.0) * 100.0
+        trend_score = min(100.0, max(0.0, 50.0 + 5.0 * trend_value))
+        trend_signal = "bullish" if trend_score >= 70 else "bearish" if trend_score <= 30 else "neutral"
     oscillators.insert(5, item("Trend", {"value": trend_value}, trend_signal))
 
     moving_averages = []
@@ -530,7 +537,7 @@ def fund_chart_indicator_groups(bars: list[dict[str, Any]], *, source: str = "Ra
     volume_values = [float(bar.get("volume") or 0) for bar in usable_bars]
     volume_available = bool(computed.get("volume_analysis", {}).get("available"))
     for period in (15, 30, 90):
-        if not volume_available:
+        if not volume_available or len(volume_values) <= period:
             volumes.append(item(f"RV({period})", {}, "unavailable"))
             continue
         current_volume = volume_values[-1] if volume_values else 0
@@ -546,7 +553,10 @@ def fund_chart_indicator_groups(bars: list[dict[str, Any]], *, source: str = "Ra
     volume_macd = raw.get("VMACD(12,26)") or {}
     volumes.append(item("VMACD(26)", {"vmacd": volume_macd.get("value"),
                                         "macd": volume_macd.get("value"),
-                                        "value": volume_macd.get("value")}, volume_macd.get("signal")))
+                                        "value": volume_macd.get("value"),
+                                        "histogram": volume_macd.get("histogram"),
+                                        "max_abs_histogram_26": volume_macd.get("max_abs_histogram_26")},
+                       volume_macd.get("signal")))
     return {"data": {"oscillators": oscillators,
                      "moving_averages": moving_averages,
                      "pivots": pivots, "bands": bands, "volumes": volumes},

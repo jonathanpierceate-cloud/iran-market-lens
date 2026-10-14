@@ -12,7 +12,12 @@ from typing import Any
 
 from .scoring_profiles import FUND_SCORING_PROFILES, normalize_horizon, horizon_label
 from .scoring_rules import (adx_directional_score, band_position_score,
-                            rsi_entry_score, stoch_rsi_entry_score)
+                            ichimoku_cloud_score, inverted_linear_score,
+                            macd_histogram_score, moving_average_score,
+                            obv_average_score, percent_change_score,
+                            pivot_level_score, relative_volume_score,
+                            rsi_entry_score, stoch_rsi_entry_score,
+                            volume_macd_histogram_score)
 
 FAMILY_WEIGHTS = FUND_SCORING_PROFILES["long"]["family_weights"]
 
@@ -172,16 +177,18 @@ def _find(rows: list[tuple[str, str, dict[str, Any]]], name: str,
 
 
 def _price_distance_score(item: dict[str, Any] | None, price: float | None,
-                          scale: float = 0.05) -> float | None:
+                          period: int) -> float | None:
     values = _item_values(item)
-    distance = _value(values, "distance", "distance_pct", "distancepercent")
-    if distance is not None:
-        # Rahavard publishes MA distance as a signed price-relative ratio.
-        return _direction_score(distance, scale)
     level = _value(values, "value", "ma", "average")
     if level is not None and price is not None and level > 0:
-        return _direction_score(price / level - 1.0, scale)
-    return _signal_score(item)
+        return moving_average_score(price, level, period)
+    distance = _value(values, "distance", "distance_pct", "distancepercent")
+    if distance is None:
+        return None
+    # Rahavard distance values are ratios; explicit percentage fields are already in points.
+    distance_pct = distance if _value(values, "distance_pct", "distancepercent") is not None else distance * 100.0
+    limit_pct = 3.0 if period <= 20 else 5.0 if period <= 50 else 10.0
+    return _clamp(50.0 + 50.0 * distance_pct / limit_pct)
 
 
 def _band_position_score(item: dict[str, Any] | None, price: float | None) -> float | None:
@@ -205,30 +212,14 @@ def _trend_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | Non
         score = None
         if key == "ichimoku" and item:
             values = _item_values(item)
-            tenkan = _value(values, "tenkan_sen_formula", "tenken_sen_formula", "tenkan")
-            kijun = _value(values, "kijun_sen_formula", "kijun")
             span_a = _value(values, "senkou_span_a_formula", "senkou_span_a", "span_a")
             span_b = _value(values, "senkou_span_b_formula", "senkou_span_b", "span_b")
-            parts = []
-            if price is not None and span_a is not None and span_b is not None:
-                cloud_top = max(span_a, span_b)
-                cloud_bottom = min(span_a, span_b)
-                cloud_edge = cloud_top if price > cloud_top else cloud_bottom
-                cloud_score = (_direction_score((price - cloud_edge) / price, 0.04)
-                               if price > cloud_top or price < cloud_bottom
-                               else 45.0 + 10.0 * (price - cloud_bottom) / max(cloud_top - cloud_bottom, price * 1e-9))
-                parts.append((cloud_score, 0.70))
-            if price and tenkan is not None and kijun is not None:
-                parts.append((_direction_score((tenkan - kijun) / price, 0.02), 0.30))
-            valid_parts = [(value, part_weight) for value, part_weight in parts if value is not None]
-            if valid_parts:
-                score = sum(value * part_weight for value, part_weight in valid_parts) / sum(w for _, w in valid_parts)
-            else:
-                score = _signal_score(item)
+            score = ichimoku_cloud_score(price, span_a, span_b)
         elif item and key in {"bb20", "keltner16"}:
             score = _band_position_score(item, price)
         elif item:
-            score = _price_distance_score(item, price, scale=0.025)
+            period = int("".join(character for character in key if character.isdigit()) or 0)
+            score = _price_distance_score(item, price, period)
         if score is not None:
             rows_scored.append((key, score, weight))
     result = _weighted(rows_scored, sum(weights.values()))
@@ -238,79 +229,64 @@ def _trend_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | Non
 
 def _momentum_indicator_score(key: str, item: dict[str, Any] | None,
                               price: float | None,
-                              trend_score: float | None = None) -> float | None:
+                              history: Any = None) -> float | None:
     if not item:
         return None
     values = _item_values(item)
-    signal_fallback = _signal_score(item)
     if key == "macd26":
-        line, signal = _value(values, "macd"), _value(values, "signal")
         histogram = _value(values, "histogram", "macd_histogram", "hist")
-        difference = line - signal if line is not None and signal is not None else histogram
-        if line is not None and price:
-            pieces = [(_direction_score(line / price, 0.01), 0.50)]
-            if difference is not None:
-                pieces.append((_direction_score(difference / price, 0.003), 0.50))
-            return sum(value * weight for value, weight in pieces) / sum(weight for _, weight in pieces)
+        line = _value(values, "macd")
+        signal = _value(values, "signal", "signal_line")
+        if histogram is None and line is not None and signal is not None:
+            histogram = line - signal
+        return macd_histogram_score(histogram, price)
     elif key == "adx14":
         adx = _value(values, "adx", "value")
         plus_di, minus_di = _value(values, "plus_di", "pdi"), _value(values, "minus_di", "mdi")
-        return adx_directional_score(adx, plus_di, minus_di, trend_score)
+        return adx_directional_score(adx, plus_di, minus_di)
     elif key in {"rsi14", "mfi14"}:
         field = "rsi" if key == "rsi14" else "mfi"
         value = _value(values, field, "value")
         if value is not None:
-            return rsi_entry_score(value) if key == "rsi14" else _bounded_oscillator_score(value, 80.0, 20.0)
+            return rsi_entry_score(value) if key == "rsi14" else inverted_linear_score(value, 20.0, 80.0)
     elif key == "cci14":
         value = _value(values, "cci", "value")
         if value is not None:
-            return _direction_score(value, 180.0)
+            return _clamp(50.0 - value / 2.0)
     elif key == "aroon25":
         up, down = _value(values, "up"), _value(values, "down")
         if up is not None and down is not None:
-            return _clamp(50.0 + (up - down) * 0.45)
+            return _clamp(50.0 + (up - down) / 2.0)
     elif key == "ao534":
         value = _value(values, "awesome", "ao", "value")
         if value is not None and price:
-            return _direction_score(value / price, 0.003)
+            return percent_change_score(value / price * 100.0, 25.0)
     elif key == "stochrsi14":
         value = _value(values, "stochrsi", "value")
         if value is not None:
             return stoch_rsi_entry_score(value)
     elif key == "mtm6":
-        value = _value(values, "mtm", "value")
-        if value is not None and price:
-            return _direction_score(value / price, 0.025)
+        change_pct = _history_return(history, 6)
+        if change_pct is None:
+            value = _value(values, "mtm", "value")
+            previous_price = price - value if price is not None and value is not None else None
+            if previous_price is not None and previous_price > 0:
+                change_pct = value / previous_price * 100.0
+        if change_pct is not None:
+            return percent_change_score(change_pct, 10.0)
     elif key == "so14":
-        k, d = _value(values, "k"), _value(values, "d")
-        if k is not None and d is not None:
-            value = (k + d) / 2.0
-            return _bounded_oscillator_score(value, 80.0, 20.0)
-        value = _value(values, "value")
+        value = _value(values, "k", "value")
         if value is not None:
-            return _bounded_oscillator_score(value, 80.0, 20.0)
+            return inverted_linear_score(value, 20.0, 80.0)
     elif key == "wr14":
         value = _value(values, "wr", "value")
         if value is not None:
-            normalized = value + 100.0 if -100.0 <= value <= 0.0 else value
-            return _bounded_oscillator_score(normalized, 80.0, 20.0)
-    return signal_fallback
-
-
-def _bounded_oscillator_score(value: float, high: float = 70.0, low: float = 30.0) -> float:
-    """Score bounded oscillators as one vote, with a limited extreme-reading penalty."""
-    value = _clamp(value)
-    score = 50.0 + (value - 50.0) * 0.70
-    if value > high:
-        score -= min(20.0, (value - high) * 0.80)
-    if value < low:
-        score += min(8.0, (low - value) * 0.30)
-    return _clamp(score)
+            return inverted_linear_score(value, -80.0, -20.0)
+    return None
 
 
 def _momentum_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | None,
-                    context: dict[str, Any], weights: dict[str, float],
-                    direction_score: float | None = None) -> dict[str, Any]:
+                    context: dict[str, Any], weights: dict[str, float]) -> dict[str, Any]:
     rows_scored = []
     indicator_items: dict[str, dict[str, Any]] = {}
     for key, weight in weights.items():
@@ -319,11 +295,10 @@ def _momentum_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | 
         if item:
             indicator_items[key] = item
         if key == "trend":
-            score = _signal_score(item) if item else None
-            if score is None:
-                score = _history_trend_score(context.get("fund_history"))
+            score = _history_trend_score(context.get("fund_history"))
         else:
-            score = _momentum_indicator_score(key, item, price, direction_score)
+            score = _momentum_indicator_score(key, item, price,
+                                              context.get("fund_history"))
         if score is not None:
             rows_scored.append((key, score, weight))
     result = _weighted(rows_scored, sum(weights.values()))
@@ -337,7 +312,7 @@ def _momentum_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | 
             adx = _value(values, "adx", "value")
             plus_di, minus_di = _value(values, "plus_di", "pdi"), _value(values, "minus_di", "mdi")
             detail["value"] = {"ADX": adx, "+DI": plus_di, "−DI": minus_di}
-            detail["note"] = "ADX قدرت روند را می‌سنجد؛ جهت امتیاز از DI یا از هم‌سویی میانگین‌های متحرک گرفته می‌شود."
+            detail["note"] = "اگر ADX حداکثر ۲۰ باشد امتیاز ۵۰ است؛ بالاتر از آن، جهت و امتیاز بر پایه اختلاف +DI و −DI محاسبه می‌شود."
     available = {name for name, _, _ in rows_scored}
     result["missing_indicators"] = [key for key in weights if key not in available]
     return result
@@ -348,14 +323,7 @@ def _volume_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | No
     rows_scored = []
     history = context.get("fund_history")
     history = history if isinstance(history, list) else []
-    historical_volumes = [_number(bar.get("volume")) for bar in history
-                          if isinstance(bar, dict) and _number(bar.get("volume")) is not None]
-    average_volume = (sum(historical_volumes[-21:-1]) / len(historical_volumes[-21:-1])
-                      if len(historical_volumes) > 1 and historical_volumes[-21:-1] else None)
-    daily_return_pct = _number(context.get("daily_return_pct"))
-    if daily_return_pct is None:
-        daily_return_ratio = _history_return(context.get("fund_history"), 1)
-        daily_return_pct = daily_return_ratio
+    derived_vmacd: tuple[float | None, float | None] | None = None
     for key, weight in weights.items():
         lookup = key
         item = _find(rows, lookup, ("volumes",))
@@ -366,47 +334,26 @@ def _volume_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | No
         if key == "obv20":
             obv = _value(values, "obv")
             average = _value(values, "obv_sma20", "sma20", "average")
-            previous = _value(values, "previous_value", "previous")
-            if obv is not None and average is not None and average_volume and average_volume > 0:
-                score = _direction_score((obv - average) / average_volume, 1.5)
-            elif obv is not None and average is not None:
-                score = 75.0 if obv > average else 25.0 if obv < average else 50.0
-            elif obv is not None and previous is not None:
-                score = 75.0 if obv > previous else 25.0 if obv < previous else 50.0
-            else:
-                # An absolute cumulative OBV value does not encode direction.
-                item_signal = _norm(item.get("signal"))
-                score = _signal_score(item) if item_signal not in {"highvolume", "lowvolume"} else None
+            score = obv_average_score(obv, average)
         elif key.startswith("rv"):
-            item_signal = _norm(item.get("signal"))
             period = int(key[2:])
             ratio = _value(values, "relative_volume", "ratio", "rv", "value")
             if ratio is not None and ratio > 10:
                 ratio /= 100.0
             period_return_pct = _history_return(context.get("fund_history"), period)
-            if period_return_pct is None:
-                period_return_pct = daily_return_pct
-            if ratio is not None and period_return_pct is not None:
-                ratio = min(2.0, max(0.5, ratio))
-                score = _clamp(50.0 + 40.0 * math.tanh((period_return_pct / 100.0) / 0.05) * ratio)
-            elif item_signal == "lowvolume":
-                score = 50.0
-            elif item_signal == "highvolume" and daily_return_pct is not None:
-                score = _clamp(50.0 + 30.0 * math.tanh(daily_return_pct / 1.5))
+            score = relative_volume_score(ratio, period_return_pct)
         elif key == "vrsi14":
             vrsi = _value(values, "vrsi", "rsi", "value")
             if vrsi is not None:
-                price_return = _history_return(context.get("fund_history"), 20)
-                direction = 1.0 if price_return is None or price_return >= 0 else -1.0
-                score = _clamp(50.0 + (vrsi - 50.0) * 0.45 * direction)
+                score = inverted_linear_score(vrsi, 30.0, 70.0)
         elif key == "vmacd26":
-            line = _value(values, "vmacd", "macd", "value")
-            if line is not None and average_volume and average_volume > 0:
-                score = _direction_score(line / average_volume, 0.20)
-        if score is None:
-            item_signal = _norm(item.get("signal"))
-            if item_signal not in {"highvolume", "lowvolume"}:
-                score = _signal_score(item)
+            histogram = _value(values, "histogram", "vmacd_histogram", "hist")
+            maximum = _value(values, "max_abs_histogram_26", "max_abs_histogram")
+            if histogram is None or maximum is None:
+                derived_vmacd = derived_vmacd or _volume_macd_stats(history)
+                histogram = histogram if histogram is not None else derived_vmacd[0]
+                maximum = maximum if maximum is not None else derived_vmacd[1]
+            score = volume_macd_histogram_score(histogram, maximum)
         if score is not None:
             rows_scored.append((key, score, weight))
     result = _weighted(rows_scored, sum(weights.values()))
@@ -447,9 +394,9 @@ def _pivot_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | Non
         method_supports: list[float] = []
         method_resistances: list[float] = []
         for key, value in values.items():
-            if key.startswith("s") and value > 0:
+            if (key.startswith("s") or key.startswith("l")) and value > 0:
                 method_supports.append(value)
-            elif key.startswith("r") and value > 0:
+            elif (key.startswith("r") or key.startswith("h")) and value > 0:
                 method_resistances.append(value)
         raw_supports.extend(method_supports)
         raw_resistances.extend(method_resistances)
@@ -463,22 +410,14 @@ def _pivot_score(rows: list[tuple[str, str, dict[str, Any]]], price: float | Non
     above = [level for level in resistances if level > price]
     nearest_support = max(below) if below else None
     nearest_resistance = min(above) if above else None
-    atr_item = _find(rows, "atr14")
-    atr = _value(_item_values(atr_item), "atr", "value")
-    scale = max(atr if atr is not None and atr > 0 else price * 0.03, price * 0.01)
     rows_scored = []
     for method, item, values in method_rows:
         pivot = _value(values, "pivot", "p")
-        r1, s1 = _value(values, "r1"), _value(values, "s1")
-        if pivot is None or pivot <= 0:
-            continue
-        position = _direction_score((price - pivot) / scale, 1.0)
-        headroom = (65.0 + 20.0 * math.tanh((price - r1) / scale) if price >= r1 else
-                    50.0 + 25.0 * math.tanh((r1 - price) / (2.0 * scale))) if r1 is not None else 50.0
-        support = (_clamp(78.0 - max(0.0, (price - s1) / scale - 0.5) * 10.0, 38.0, 78.0)
-                   if s1 is not None and price >= s1 else 50.0)
-        score = _clamp(0.55 * position + 0.25 * headroom + 0.20 * support)
-        rows_scored.append((method, score, weights[method]))
+        upper_key, lower_key = ("h3", "l3") if method == "camarilla" else ("r1", "s1")
+        upper, lower = _value(values, upper_key), _value(values, lower_key)
+        score = pivot_level_score(price, pivot, upper, lower)
+        if score is not None:
+            rows_scored.append((method, score, weights[method]))
     result = _weighted(rows_scored, sum(weights.values()))
     available = {name for name, _, _ in rows_scored}
     result["missing_indicators"] = [key for key in weights if key not in available]
@@ -501,18 +440,41 @@ def _history_return(bars: Any, lookback: int) -> float | None:
     return (current / prior - 1.0) * 100.0
 
 
-def _history_trend_score(bars: Any, lookback: int = 20) -> float | None:
-    if not isinstance(bars, list) or len(bars) < lookback:
-        return None
-    closes = [_number(bar.get("close")) for bar in bars[-lookback:] if isinstance(bar, dict)]
-    if len(closes) != lookback or any(value is None or value <= 0 for value in closes):
-        return None
-    logs = [math.log(value) for value in closes]
-    x_mean = (lookback - 1) / 2.0
-    y_mean = sum(logs) / lookback
-    denominator = sum((index - x_mean) ** 2 for index in range(lookback))
-    slope = sum((index - x_mean) * (value - y_mean) for index, value in enumerate(logs)) / denominator
-    return _direction_score(slope, 0.004)
+def _history_trend_score(bars: Any, lookback: int = 30) -> float | None:
+    change_pct = _history_return(bars, lookback)
+    return percent_change_score(change_pct, 5.0) if change_pct is not None else None
+
+
+def _ema_series(values: list[float], period: int) -> list[float | None]:
+    output: list[float | None] = [None] * len(values)
+    if len(values) < period:
+        return output
+    current = sum(values[:period]) / period
+    output[period - 1] = current
+    alpha = 2.0 / (period + 1.0)
+    for index in range(period, len(values)):
+        current = alpha * values[index] + (1.0 - alpha) * current
+        output[index] = current
+    return output
+
+
+def _volume_macd_stats(bars: Any) -> tuple[float | None, float | None]:
+    if not isinstance(bars, list) or not bars:
+        return None, None
+    volumes = [_number(bar.get("volume")) if isinstance(bar, dict) else None for bar in bars]
+    if any(value is None or value < 0 for value in volumes):
+        return None, None
+    volume_values = [float(value) for value in volumes]
+    fast, slow = _ema_series(volume_values, 12), _ema_series(volume_values, 26)
+    line = [f - s if f is not None and s is not None else None for f, s in zip(fast, slow)]
+    valid_line = [value for value in line if value is not None]
+    signal_values = _ema_series(valid_line, 9)
+    signal_line = [None] * (len(line) - len(signal_values)) + signal_values
+    histogram = [value - signal if value is not None and signal is not None else None
+                 for value, signal in zip(line, signal_line)]
+    recent = [abs(value) for value in histogram[-26:] if value is not None]
+    latest = histogram[-1] if histogram else None
+    return latest, max(recent) if recent else None
 
 
 def _realized_volatility_pct(bars: Any, lookback: int = 20) -> float | None:
@@ -678,8 +640,7 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
         "moving_averages": _trend_score(rows, price, indicator_weights["moving_averages"]),
     }
     family["oscillators"] = _momentum_score(
-        rows, price, context, indicator_weights["oscillators"],
-        direction_score=family["moving_averages"].get("score"))
+        rows, price, context, indicator_weights["oscillators"])
     if not dashboard_model:
         family["volume"] = _volume_score(rows, price, context, indicator_weights["volume"])
     family["support_resistance"] = _pivot_score(rows, price, indicator_weights["support_resistance"])
@@ -732,9 +693,9 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     top_negative = min(scored_families, key=lambda row: row[1]) if scored_families else None
     return {
         "technical_score": round(final_score, 1) if final_score is not None else None,
-        "score_method": (f"dashboard_rahavard_three_group_weighted_{horizon}_v1"
-                         if dashboard_model else
-                         f"fund_rahavard_four_group_weighted_{horizon}_v3_entry_aware"),
+         "score_method": (f"dashboard_rahavard_three_group_weighted_{horizon}_v2_indicator_table"
+                          if dashboard_model else
+                          f"fund_rahavard_four_group_weighted_{horizon}_v4_indicator_table"),
         "score_weights": {key: round(weight * 100) for key, weight in family_weights.items()},
         "indicator_weights": {
             family_key: {key: round(weight * 100, 1) for key, weight in weights.items()}
