@@ -55,18 +55,21 @@ RAHAVARD_GOLD_PAGE_URL = os.getenv(
     "RAHAVARD_GOLD_PAGE_URL",
     "https://rahavard365.com/asset/2016/%D8%A7%D9%86%D8%B3-%D8%B7%D9%84%D8%A7-%D8%AF%D9%84%D8%A7%D8%B1-%D8%A7%D9%86%D8%B3",
 )
-RAHAVARD_GOLD_18K_PAGE_URL = os.getenv(
-    "RAHAVARD_GOLD_18K_PAGE_URL",
-    "https://rahavard365.com/asset/1560/%D8%B7%D9%84%D8%A7-%DA%AF%D8%B1%D9%85-18-%D8%B9%DB%8C%D8%A7%D8%B1",
+ISIGNAL_GOLD_18K_PAGE_URL = os.getenv(
+    "ISIGNAL_GOLD_18K_PAGE_URL",
+    "https://isignal.ir/gold-currency/geram18/advancedchart",
 )
-MILLI_GOLD_18K_PAGE_URL = os.getenv("MILLI_GOLD_18K_PAGE_URL", "https://milli.gold/landing/")
-MILLI_GOLD_18K_PRICE_URL = os.getenv(
-    "MILLI_GOLD_18K_PRICE_URL", "https://milli.gold/api/v1/public/milli-price/external")
-MILLI_GOLD_18K_HISTORY_URL = os.getenv(
-    "MILLI_GOLD_18K_HISTORY_URL", "https://milli.gold/api/v1/public/milli-price/widget/external")
+ISIGNAL_TEPIX_PAGE_URL = os.getenv(
+    "ISIGNAL_TEPIX_PAGE_URL",
+    "https://isignal.ir/stock/%d8%b4%d8%a7%d8%ae%d8%b5-%d8%a8%d9%88%d8%b1%d8%b3/",
+)
+ISIGNAL_CHART_HISTORY_URL = os.getenv(
+    "ISIGNAL_CHART_HISTORY_URL", "https://advancedchart.isignal.ir/tradingView@1/history"
+)
+ISIGNAL_GOLD_18K_SYMBOL_ID = os.getenv("ISIGNAL_GOLD_18K_SYMBOL_ID", "100011")
+ISIGNAL_TEPIX_SYMBOL_ID = os.getenv("ISIGNAL_TEPIX_SYMBOL_ID", "32097828799138957")
 RAHAVARD_USDT_PAGE_URL = "https://rahavard365.com/asset/44167/indicator"
 RAHAVARD_GOLD_ASSET_ID = os.getenv("RAHAVARD_GOLD_ASSET_ID", "2016")
-RAHAVARD_GOLD_18K_ASSET_ID = os.getenv("RAHAVARD_GOLD_18K_ASSET_ID", "1560")
 RAHAVARD_USDT_ASSET_ID = "44167"
 RAHAVARD_PUBLIC_BARS_URL = os.getenv(
     "RAHAVARD_PUBLIC_BARS_URL", f"{RAHAVARD_API_BASE_URL}/chart/public-bars"
@@ -76,14 +79,6 @@ RAHAVARD_ETF_FUNDS_URL = os.getenv(
 )
 RAHAVARD_LIGHT_BARS_URL = os.getenv(
     "RAHAVARD_LIGHT_BARS_URL", f"{RAHAVARD_API_BASE_URL}/chart/light-bars"
-)
-RAHAVARD_INDEX_BASE_URL = os.getenv(
-    "RAHAVARD_INDEX_BASE_URL", f"{RAHAVARD_API_BASE_URL}/market-data/indexes"
-)
-RAHAVARD_TEPIX_INDEX_ID = os.getenv("RAHAVARD_TEPIX_INDEX_ID", "1")
-RAHAVARD_TEPIX_PAGE_URL = os.getenv(
-    "RAHAVARD_TEPIX_PAGE_URL",
-    "https://rahavard365.com/index/1/%D8%B4%D8%A7%D8%AE%D8%B5-%DA%A9%D9%84-%D8%A8%D9%88%D8%B1%D8%B3",
 )
 TABDEAL_TRADES_URL = os.getenv(
     "TABDEAL_TRADES_URL", "https://api1.tabdeal.org/r/api/v1/trades"

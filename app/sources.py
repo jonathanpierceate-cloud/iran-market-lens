@@ -16,14 +16,13 @@ from typing import Any
 from .config import (HTTP_TIMEOUT_SECONDS, NEWS_RSS_URLS,
                      MAX_STALE_HOURS, RAHAVARD_API_BASE_URL,
                      RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_ASSET_ID,
-                     RAHAVARD_GOLD_18K_ASSET_ID, RAHAVARD_GOLD_18K_PAGE_URL,
                      RAHAVARD_GOLD_PAGE_URL, RAHAVARD_LIGHT_BARS_URL,
-                     RAHAVARD_PUBLIC_BARS_URL, RAHAVARD_INDEX_BASE_URL,
-                     RAHAVARD_TEPIX_INDEX_ID, RAHAVARD_TEPIX_PAGE_URL,
+                     RAHAVARD_PUBLIC_BARS_URL,
                      RAHAVARD_USDT_ASSET_ID,
                      RAHAVARD_USDT_PAGE_URL, TABDEAL_TRADES_URL,
-                     TABDEAL_USDT_PAGE_URL, MILLI_GOLD_18K_PAGE_URL,
-                     MILLI_GOLD_18K_PRICE_URL, MILLI_GOLD_18K_HISTORY_URL)
+                     TABDEAL_USDT_PAGE_URL, ISIGNAL_CHART_HISTORY_URL,
+                     ISIGNAL_GOLD_18K_PAGE_URL, ISIGNAL_GOLD_18K_SYMBOL_ID,
+                     ISIGNAL_TEPIX_PAGE_URL, ISIGNAL_TEPIX_SYMBOL_ID)
 from .db import db, utc_now
 
 YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
@@ -289,212 +288,62 @@ def tabdeal_usdt_history(limit: int = 2500) -> list[dict[str, Any]]:
     return bars[-max(2, min(5000, int(limit))):]
 
 
-def rahavard_gold_18k_history() -> list[dict[str, Any]]:
-    """Return recent daily 18-karat gold gram candles from Rahavard365."""
-    query = urllib.parse.urlencode({"symbol": f"exchange.asset:{RAHAVARD_GOLD_18K_ASSET_ID}:real_close"})
-    payload = _json(f"{RAHAVARD_LIGHT_BARS_URL}?{query}", referer=RAHAVARD_GOLD_18K_PAGE_URL)
-    rows = payload.get("data") if isinstance(payload, dict) else None
-    if not isinstance(rows, list) or not rows:
-        raise SourceError("ره‌آورد۳۶۵ برای طلای ۱۸ عیار کندلی برنگرداند")
-    grouped: dict[str, dict[str, Any]] = {}
-    for item in sorted(rows, key=lambda row: _num(row.get("time")) or 0):
+def isignal_chart_history(symbol_id: str, market: str, page_url: str) -> list[dict[str, Any]]:
+    """Load daily OHLCV candles from iSignal's public TradingView chart feed."""
+    now = int(datetime.now(timezone.utc).timestamp())
+    query = urllib.parse.urlencode({
+        "symbol": symbol_id,
+        "resolution": "D",
+        "from": now - 8 * 366 * 24 * 60 * 60,
+        "to": now,
+        "market": market,
+    })
+    payload = _json(f"{ISIGNAL_CHART_HISTORY_URL}?{query}", referer=page_url)
+    if not isinstance(payload, dict) or payload.get("s") != "ok":
+        raise SourceError("iSignal برای این نماد تاریخچهٔ نمودار برنگرداند")
+
+    timestamps = payload.get("t")
+    if not isinstance(timestamps, list) or not timestamps:
+        raise SourceError("iSignal تاریخچهٔ روزانهٔ خالی برگرداند")
+    fields = {key: payload.get(key) for key in ("o", "h", "l", "c", "v")}
+    closes = fields["c"]
+    if not isinstance(closes, list) or not closes:
+        raise SourceError("iSignal قیمت‌های بسته‌شدن کندل را برنگرداند")
+    bars: list[dict[str, Any]] = []
+    fetched_at = utc_now()
+    for index, raw_stamp in enumerate(timestamps):
+        stamp = _num(raw_stamp)
+        close = _num(closes[index]) if len(closes) > index else None
+        if stamp is None or close is None or close <= 0:
+            continue
         try:
-            raw_time = item.get("utc")
-            if raw_time:
-                candle_time = datetime.fromisoformat(str(raw_time).replace("Z", "+00:00"))
-            elif _num(item.get("time")) is not None:
-                candle_time = datetime.fromtimestamp(float(item["time"]) / 1000, timezone.utc)
-            else:
-                continue
-            if candle_time.tzinfo is None:
-                candle_time = candle_time.replace(tzinfo=timezone.utc)
-        except (TypeError, ValueError, OverflowError):
+            candle_time = datetime.fromtimestamp(stamp, timezone.utc)
+        except (ValueError, OverflowError, OSError):
             continue
-        day = candle_time.date().isoformat()
-        open_price, high, low, close = (_num(item.get(k)) for k in ("open", "high", "low", "close"))
-        if close is None or close <= 0:
-            continue
-        observed_at = candle_time.astimezone(timezone.utc).isoformat(timespec="seconds")
-        current = grouped.get(day)
-        if current is None:
-            grouped[day] = {
-                "timestamp": f"{day}T00:00:00+03:30",
-                "observed_at": observed_at,
-                "fetched_at": utc_now(),
-                "open": open_price if open_price is not None else close,
-                "high": high if high is not None else close,
-                "low": low if low is not None else close,
-                "close": close,
-                "volume": _num(item.get("volume")),
-            }
-            continue
-        current["high"] = max(current["high"], high if high is not None else close)
-        current["low"] = min(current["low"], low if low is not None else close)
-        current["close"] = close
-        current["observed_at"] = observed_at
-        volume = _num(item.get("volume"))
-        if volume is not None:
-            current["volume"] = volume
-    bars = [grouped[day] for day in sorted(grouped)]
-    if not bars:
-        raise SourceError("کندل‌های طلای ۱۸ عیار ره‌آورد۳۶۵ معتبر نیستند")
-    return bars
 
+        def value_at(key: str) -> float | None:
+            values = fields[key]
+            return _num(values[index]) if isinstance(values, list) and len(values) > index else None
 
-def milli_gold_18k_data() -> dict[str, Any]:
-    """Return Milli's current 18K quote and daily candles from its public chart API."""
-    price_payload = _json(MILLI_GOLD_18K_PRICE_URL, referer=MILLI_GOLD_18K_PAGE_URL)
-    price_data = price_payload.get("data") if isinstance(price_payload, dict) else None
-    price18 = _num(price_data.get("price18")) if isinstance(price_data, dict) else None
-    if price18 is None or price18 <= 0:
-        raise SourceError("Milli did not return a valid 18K gold price")
-    try:
-        observed = datetime.fromisoformat(str(price_data.get("date")).replace("Z", "+00:00"))
-        if observed.tzinfo is None:
-            observed = observed.replace(tzinfo=timezone(timedelta(hours=3, minutes=30)))
-        observed = observed.astimezone(timezone.utc)
-    except (TypeError, ValueError, OverflowError):
-        observed = datetime.now(timezone.utc)
-    current_price = price18 * 1000  # Milli API quotes thousands of rials per gram.
-
-    history_payload = _json(MILLI_GOLD_18K_HISTORY_URL, referer=MILLI_GOLD_18K_PAGE_URL)
-    history_data = history_payload.get("data") if isinstance(history_payload, dict) else None
-    price_groups = history_data.get("prices") if isinstance(history_data, dict) else None
-    if not isinstance(price_groups, dict):
-        raise SourceError("Milli did not return 18K chart history")
-    points: dict[int, float] = {}
-    for group in price_groups.values():
-        if not isinstance(group, list):
-            continue
-        for point in group:
-            if not isinstance(point, dict):
-                continue
-            stamp, value = _num(point.get("timestamp")), _num(point.get("value"))
-            if stamp is None or value is None or value <= 0:
-                continue
-            points[int(stamp)] = value * 1000
-    if not points:
-        raise SourceError("Milli returned no valid 18K chart points")
-
-    tehran = timezone(timedelta(hours=3, minutes=30))
-    grouped: dict[str, dict[str, Any]] = {}
-    for stamp_ms, value in sorted(points.items()):
-        point_time = datetime.fromtimestamp(stamp_ms / 1000, timezone.utc).astimezone(tehran)
-        day = point_time.date().isoformat()
-        candle = grouped.get(day)
-        if candle is None:
-            grouped[day] = {
-                "timestamp": f"{day}T00:00:00+03:30",
-                "observed_at": point_time.astimezone(timezone.utc).isoformat(timespec="seconds"),
-                "fetched_at": utc_now(), "open": value, "high": value,
-                "low": value, "close": value, "volume": None,
-            }
-        else:
-            candle["high"] = max(candle["high"], value)
-            candle["low"] = min(candle["low"], value)
-            candle["close"] = value
-            candle["observed_at"] = point_time.astimezone(timezone.utc).isoformat(timespec="seconds")
-
-    today = observed.astimezone(tehran).date().isoformat()
-    if today not in grouped:
-        grouped[today] = {
-            "timestamp": f"{today}T00:00:00+03:30", "observed_at": observed.isoformat(timespec="seconds"),
-            "fetched_at": utc_now(), "open": current_price, "high": current_price,
-            "low": current_price, "close": current_price, "volume": None,
-        }
-    else:
-        candle = grouped[today]
-        candle["high"] = max(candle["high"], current_price)
-        candle["low"] = min(candle["low"], current_price)
-        candle["close"] = current_price
-        candle["observed_at"] = observed.isoformat(timespec="seconds")
-        candle["fetched_at"] = utc_now()
-
-    bars = [grouped[day] for day in sorted(grouped)]
-    return {
-        "bars": bars,
-        "quote": {"timestamp": observed.isoformat(timespec="seconds"),
-                  "fetched_at": utc_now(), "open": None, "high": None,
-                  "low": None, "close": current_price, "volume": None},
-    }
-
-
-def rahavard_tepix_current() -> dict[str, Any]:
-    """Return the latest TEPIX (شاخص کل بورس) observation from Rahavard365."""
-    url = f"{RAHAVARD_INDEX_BASE_URL}/{RAHAVARD_TEPIX_INDEX_ID}/last-value"
-    payload = _json(url, referer="https://rahavard365.com/")
-    data = payload.get("data") if isinstance(payload, dict) else None
-    if not isinstance(data, dict):
-        raise SourceError("پاسخ شاخص کل بورس ره‌آورد۳۶۵ معتبر نیست")
-    close = _num(data.get("close_value"))
-    if close is None or close <= 0:
-        raise SourceError("مقدار شاخص کل بورس در ره‌آورد۳۶۵ یافت نشد")
-    timestamp = data.get("end_date_time") or data.get("start_date_time") or utc_now()
-    return {
-        "bar": {
-            "timestamp": str(timestamp),
-            "fetched_at": utc_now(),
-            "open": _num(data.get("open_value")),
-            "high": _num(data.get("high_value")),
-            "low": _num(data.get("low_value")),
+        open_price = value_at("o")
+        high = value_at("h")
+        low = value_at("l")
+        bars.append({
+            "timestamp": candle_time.isoformat(timespec="seconds"),
+            "observed_at": candle_time.isoformat(timespec="seconds"),
+            "fetched_at": fetched_at,
+            "open": open_price if open_price is not None else close,
+            "high": high if high is not None else close,
+            "low": low if low is not None else close,
             "close": close,
-            "volume": _num(data.get("volume")),
-        },
-        "raw": data,
-    }
+            "volume": value_at("v"),
+            "source": "iSignal",
+            "source_url": page_url,
+        })
 
-
-def rahavard_tepix_history() -> list[dict[str, Any]]:
-    """Return recent daily TEPIX candles from the official Rahavard index feed."""
-    query = urllib.parse.urlencode({"symbol": f"exchange.index:{RAHAVARD_TEPIX_INDEX_ID}:close"})
-    payload = _json(f"{RAHAVARD_LIGHT_BARS_URL}?{query}", referer=RAHAVARD_TEPIX_PAGE_URL)
-    rows = payload.get("data") if isinstance(payload, dict) else None
-    if not isinstance(rows, list) or not rows:
-        raise SourceError("ره‌آورد۳۶۵ برای شاخص کل بورس کندلی برنگرداند")
-
-    grouped: dict[str, dict[str, Any]] = {}
-    for item in sorted(rows, key=lambda row: _num(row.get("time")) or 0):
-        try:
-            raw_time = item.get("utc")
-            if raw_time:
-                candle_time = datetime.fromisoformat(str(raw_time).replace("Z", "+00:00"))
-            elif _num(item.get("time")) is not None:
-                candle_time = datetime.fromtimestamp(float(item["time"]) / 1000, timezone.utc)
-            else:
-                continue
-            if candle_time.tzinfo is None:
-                candle_time = candle_time.replace(tzinfo=timezone.utc)
-        except (TypeError, ValueError, OverflowError):
-            continue
-        day = candle_time.date().isoformat()
-        open_value, high, low, close = (_num(item.get(k)) for k in ("open", "high", "low", "close"))
-        if close is None or close <= 0:
-            continue
-        observed_at = candle_time.astimezone(timezone.utc).isoformat(timespec="seconds")
-        current = grouped.get(day)
-        if current is None:
-            grouped[day] = {
-                "timestamp": f"{day}T00:00:00+03:30",
-                "observed_at": observed_at,
-                "fetched_at": utc_now(),
-                "open": open_value if open_value is not None else close,
-                "high": high if high is not None else close,
-                "low": low if low is not None else close,
-                "close": close,
-                "volume": _num(item.get("volume")),
-            }
-            continue
-        current["high"] = max(current["high"], high if high is not None else close)
-        current["low"] = min(current["low"], low if low is not None else close)
-        current["close"] = close
-        current["observed_at"] = observed_at
-        volume = _num(item.get("volume"))
-        if volume is not None:
-            current["volume"] = volume
-
-    bars = [grouped[day] for day in sorted(grouped)]
-    if not bars:
-        raise SourceError("کندل‌های شاخص کل بورس ره‌آورد۳۶۵ معتبر نیستند")
+    bars.sort(key=lambda bar: bar["timestamp"])
+    if len(bars) < 2:
+        raise SourceError("iSignal تاریخچهٔ معتبر کافی برنگرداند")
     return bars
 
 
@@ -719,11 +568,10 @@ async def refresh_all() -> dict[str, Any]:
                      "Rahavard365", RAHAVARD_GOLD_PAGE_URL, bars)
         return len(bars), bars[-1].get("observed_at") or bars[-1]["timestamp"]
 
-    def apply_milli_gold_18k(result):
-        bars, quote = result["bars"], result["quote"]
+    def apply_isignal_gold_18k(bars):
         db.save_bars("GOLD_18K", "طلای ۱۸ عیار", "commodity", "IRR", "ریال/گرم",
-                     "Milli", MILLI_GOLD_18K_PAGE_URL, bars)
-        return len(bars), quote["timestamp"]
+                     "iSignal", ISIGNAL_GOLD_18K_PAGE_URL, bars)
+        return len(bars), bars[-1].get("observed_at") or bars[-1]["timestamp"]
 
     def apply_dxy(result):
         bars, meta = result
@@ -747,7 +595,7 @@ async def refresh_all() -> dict[str, Any]:
     def apply_tepix(result):
         bars = result
         db.save_bars("TEPIX", "شاخص کل بورس", "index", "POINT", "واحد",
-                     "Rahavard365", RAHAVARD_TEPIX_PAGE_URL, bars)
+                     "iSignal", ISIGNAL_TEPIX_PAGE_URL, bars)
         observed = bars[-1].get("observed_at") or bars[-1].get("timestamp")
         return len(bars), observed
 
@@ -773,16 +621,18 @@ async def refresh_all() -> dict[str, Any]:
     tasks = [
         run_source("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL,
                    rahavard_gold_history, apply_gold),
-        run_source("milli_gold_18k", "18K gold / Milli", MILLI_GOLD_18K_PAGE_URL,
-                   milli_gold_18k_data, apply_milli_gold_18k),
+        run_source("isignal_gold_18k", "طلای ۱۸ عیار / iSignal", ISIGNAL_GOLD_18K_PAGE_URL,
+                   lambda: isignal_chart_history(ISIGNAL_GOLD_18K_SYMBOL_ID, "gold", ISIGNAL_GOLD_18K_PAGE_URL),
+                   apply_isignal_gold_18k),
         run_source("yahoo_dxy", "شاخص دلار آمریکا", YAHOO_CHART.format(symbol="DX-Y.NYB"),
                    lambda: yahoo_history("DX-Y.NYB"), apply_dxy),
         run_source("rahavard_usdt", "تاریخچهٔ دلار / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL,
                    rahavard_usdt_history, apply_usd),
         run_source("tabdeal_usdt", "قیمت دلار / تتر · Tabdeal", TABDEAL_USDT_PAGE_URL,
                    tabdeal_usdt_quote, apply_tabdeal_usdt),
-        run_source("rahavard_tepix", "شاخص کل بورس / ره‌آورد۳۶۵",
-                   RAHAVARD_TEPIX_PAGE_URL, rahavard_tepix_history, apply_tepix),
+        run_source("isignal_tepix", "شاخص کل بورس / iSignal", ISIGNAL_TEPIX_PAGE_URL,
+                   lambda: isignal_chart_history(ISIGNAL_TEPIX_SYMBOL_ID, "stock", ISIGNAL_TEPIX_PAGE_URL),
+                   apply_tepix),
         funds_from_rahavard(),
     ]
     await asyncio.gather(*tasks, return_exceptions=True)
