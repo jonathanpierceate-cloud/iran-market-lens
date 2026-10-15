@@ -1497,6 +1497,7 @@ body.light-mode .admin-log-body p { color: #5d756d; }
 #view-watchlist .watch-cell-primary.positive { color: #16c79a; }
 #view-watchlist .watch-cell-secondary.negative,
 #view-watchlist .watch-cell-primary.negative { color: #ff7b89; }
+#view-watchlist .watch-cell-primary.warning { color: #f2b84b; }
 #view-watchlist .watch-score { color: #c5cfdb; font: 700 13px 'DM Mono', monospace; direction: ltr; unicode-bidi: isolate; }
 #view-watchlist .watch-score.positive { color: #16c79a; }
 #view-watchlist .watch-score.negative { color: #ff7b89; }
@@ -1511,6 +1512,9 @@ body.light-mode #view-watchlist .watchlist-table tbody tr:nth-child(even) { back
 body.light-mode #view-watchlist .watchlist-table tbody tr:hover { background: #eaf3f0; }
 body.light-mode #view-watchlist .watch-fund-open { color: #25384b; }
 body.light-mode #view-watchlist .watch-cell-primary { color: #26384b; }
+body.light-mode #view-watchlist .watch-cell-primary.positive { color: #168466; }
+body.light-mode #view-watchlist .watch-cell-primary.negative { color: #bd4d5d; }
+body.light-mode #view-watchlist .watch-cell-primary.warning { color: #a96900; }
 body.light-mode #view-watchlist .watch-cell-secondary { color: #6b7c8c; }
 body.light-mode #view-watchlist .watchlist-summary { border-color: #d3e1db; background: linear-gradient(140deg, #f6fbf8, #eef5f1); }
 body.light-mode #view-watchlist .watchlist-summary-heading h2 { color: #304a41; }

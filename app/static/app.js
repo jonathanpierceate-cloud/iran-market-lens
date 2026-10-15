@@ -1601,6 +1601,22 @@
       const marketValue = item.price != null && item.units != null && Number.isFinite(Number(item.price)) && Number.isFinite(Number(item.units))
         ? Number(item.price) * Number(item.units) : null;
       const exitAverage = item.active_exit_average || (item.active_exit_horizon === "کوتاه‌مدت" ? "EMA(10)" : "SMA(30)");
+      const currentPrice = Number(item.price);
+      const activeExitPrice = Number(item.active_exit_price);
+      const exitTone = !Number.isFinite(currentPrice) || currentPrice <= 0 || !Number.isFinite(activeExitPrice) || activeExitPrice <= 0
+        ? ""
+        : currentPrice <= activeExitPrice
+          ? "negative"
+          : (currentPrice - activeExitPrice) / activeExitPrice <= 0.05
+            ? "warning"
+            : "positive";
+      const exitState = exitTone === "negative"
+        ? "قیمت به زیر حد خروج رسیده"
+        : exitTone === "warning"
+          ? "قیمت تا ۵٪ بالاتر از حد خروج است"
+          : exitTone === "positive"
+            ? "قیمت بیش از ۵٪ بالاتر از حد خروج است"
+            : "قیمت یا حد خروج در دسترس نیست";
       const priceFresh = item.price != null && item.price_is_cached === false;
       const freshnessLabel = priceFresh ? "داده تازه" : "داده کهنه یا ناموجود";
       return `<tr>
@@ -1610,7 +1626,7 @@
         <td data-label="ارزش فعلی"><span class="watch-cell-primary">${money(marketValue)}</span></td>
         <td data-label="آخرین قیمت"><span class="watch-cell-primary">${money(item.price)}</span><small class="watch-cell-secondary ${priceTone}">${item.daily_return == null ? "—" : pct(item.daily_return)}</small></td>
         <td data-label="سود/زیان فعلی"><span class="watch-cell-primary ${profitTone}">${profit.total == null ? "—" : money(profit.total)}</span><small class="watch-cell-secondary ${profitTone}">${profit.pct == null ? "" : `(${pct(profit.pct)})`}</small></td>
-        <td data-label="حد خروج" title="حد خروج با بسته‌شدن کندل روزانه زیر ${esc(exitAverage)} فعال می‌شود"><span class="watch-cell-primary">${money(item.active_exit_price)}</span><small class="watch-cell-secondary">${esc(exitAverage)}</small></td>
+        <td data-label="حد خروج" title="${esc(exitState)}؛ حد خروج با بسته‌شدن کندل روزانه زیر ${esc(exitAverage)} تأیید می‌شود"><span class="watch-cell-primary ${exitTone}">${money(item.active_exit_price)}</span><small class="watch-cell-secondary">${esc(exitAverage)}</small></td>
         <td data-label="امتیاز نماد"><span class="watch-score ${scoreTone}" title="${esc(item.technical_error || "امتیاز بر پایهٔ محاسبهٔ اندیکاتورها از نمودار روزانهٔ ره‌آورد")}">${scoreValue == null || !Number.isFinite(scoreValue) ? "—" : `${num(scoreValue, 0)}٪`}</span></td>
       </tr>`;
     }).join("");
