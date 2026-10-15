@@ -180,7 +180,9 @@ def _aroon_score(spread: float | None) -> float | None:
         return _linear_anchors(spread, [(-100.0, 0.0), (-50.0, 30.0)])
     if spread <= 50.0:
         return _linear_anchors(spread, [(-50.0, 30.0), (50.0, 60.0)])
-    return _linear_anchors(spread, [(50.0, 60.0), (100.0, 100.0)])
+    # Crossing +50 is the workbook's buy threshold, so the score enters the
+    # bullish band there and rises toward 100 as the spread approaches +100.
+    return _linear_anchors(spread, [(50.0, 70.0), (100.0, 100.0)])
 
 
 def _ao_score(value: float | None, previous: float | None,
