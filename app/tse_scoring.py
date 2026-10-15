@@ -89,6 +89,17 @@ def _delta_score(current: float | None, previous: float | None) -> float | None:
     return _clip(50.0 + 4.0 * change) if change is not None else None
 
 
+def _linear_anchors(value: float, anchors: list[tuple[float, float]]) -> float:
+    """Linearly interpolate score anchors, clamping outside their range."""
+    if value <= anchors[0][0]:
+        return anchors[0][1]
+    for (left_x, left_y), (right_x, right_y) in zip(anchors, anchors[1:]):
+        if value <= right_x:
+            fraction = (value - left_x) / (right_x - left_x)
+            return left_y + fraction * (right_y - left_y)
+    return anchors[-1][1]
+
+
 def _ma_score(price: float, average: float | None) -> tuple[float | None, float | None]:
     if average is None or average <= 0:
         return None, None
@@ -119,8 +130,20 @@ def _rsi_score(value: float | None) -> float | None:
     if value < 30:
         return 100.0
     if value > 70:
-        return 10.0
-    return 60.0 - (value - 30.0) * .75
+        return 0.0
+    # Workbook anchors: RSI 40 -> 60, RSI 70 -> 30; <=30 is oversold.
+    return _linear_anchors(value, [(30.0, 100.0), (40.0, 60.0), (70.0, 30.0)])
+
+
+def _bounded_oscillator_score(value: float | None, lower: float, upper: float,
+                              anchors: list[tuple[float, float]]) -> float | None:
+    if value is None:
+        return None
+    if value <= lower:
+        return 100.0
+    if value >= upper:
+        return 0.0
+    return _linear_anchors(value, anchors)
 
 
 def _stochrsi_score(value: float | None) -> float | None:
@@ -128,24 +151,11 @@ def _stochrsi_score(value: float | None) -> float | None:
         return None
     value = _clip(value, 0.0, 1.0)
     if value <= .2:
-        return 100.0 - value * 200.0
-    if value <= .8:
-        return 70.0 - value * 50.0
-    return 150.0 - value * 150.0
-
-
-def _mfi_score(value: float | None, previous: float | None) -> float | None:
-    if value is None:
-        return None
-    change = _relative_change_pct(value, previous)
-    score = _clip(value)
-    if change is None:
-        return score
-    if value > 50 and change > 5:
-        return max(score, _clip(70.0 + change - 5.0))
-    if value < 50 and change < -5:
-        return min(score, _clip(30.0 + change + 5.0))
-    return score
+        return 100.0
+    if value >= .8:
+        return 0.0
+    # Inside the neutral zone: 0.2 -> 60 and 0.8 -> 30.
+    return _linear_anchors(value, [(.2, 60.0), (.8, 30.0)])
 
 
 def _adx_score(adx: float | None, plus_di: float | None,
@@ -155,10 +165,36 @@ def _adx_score(adx: float | None, plus_di: float | None,
     if abs(plus_di - minus_di) < EPS:
         return 50.0
     uptrend = plus_di > minus_di
-    if not 20.0 <= adx <= 65.0:
-        return 29.0 if uptrend else 71.0
-    rising_trend_score = 70.0 + 30.0 * (adx - 20.0) / 45.0
-    return rising_trend_score if uptrend else 100.0 - rising_trend_score
+    if adx < 25.0:
+        return 60.0 if uptrend else 30.0
+    strength = _clip((adx - 25.0) / 25.0, 0.0, 1.0)
+    return 70.0 + 30.0 * strength if uptrend else 30.0 - 30.0 * strength
+
+
+def _aroon_score(spread: float | None) -> float | None:
+    if spread is None:
+        return None
+    # The workbook places a weakly positive Aroon spread near 60, a weakly
+    # negative spread near 30, and rewards stronger spreads toward 100/0.
+    if spread <= -50.0:
+        return _linear_anchors(spread, [(-100.0, 0.0), (-50.0, 30.0)])
+    if spread <= 50.0:
+        return _linear_anchors(spread, [(-50.0, 30.0), (50.0, 60.0)])
+    return _linear_anchors(spread, [(50.0, 60.0), (100.0, 100.0)])
+
+
+def _ao_score(value: float | None, previous: float | None,
+              price: float) -> float | None:
+    if value is None or previous is None or price <= 0:
+        return None
+    if abs(value) < EPS:
+        return 50.0
+    rising = value > previous
+    # Normalize AO magnitude to price so this score works across price scales.
+    strength = _clip(abs(value) / price * 1000.0, 0.0, 100.0) / 100.0
+    if value > 0:
+        return _clip(70.0 + 30.0 * strength) if rising else 60.0
+    return _clip(30.0 - 30.0 * strength) if not rising else 40.0
 
 
 def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
@@ -197,21 +233,31 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
 
     tenkan_values, kijun_values = series.get("tenkan"), series.get("kijun")
     tenkan, kijun = _at(tenkan_values), _at(kijun_values)
-    tenkan_previous, kijun_previous = _at(tenkan_values, -2), _at(kijun_values, -2)
     span_a, span_b = _at(series.get("span_a_cloud")), _at(series.get("span_b_cloud"))
-    if all(value is not None for value in (tenkan, kijun, span_a, span_b)):
+    cloud_position_pct = None
+    if span_a is not None and span_b is not None:
         top, bottom = max(span_a, span_b), min(span_a, span_b)
-        cloud_part = 25.0 if price > top else -25.0 if price < bottom else 0.0
-        bullish_cross = tenkan > kijun and tenkan_previous is not None and kijun_previous is not None and tenkan_previous <= kijun_previous
-        bearish_cross = tenkan < kijun and tenkan_previous is not None and kijun_previous is not None and tenkan_previous >= kijun_previous
-        tk_part = 25.0 if bullish_cross else -25.0 if bearish_cross else 0.0
-        ichimoku_score = 50.0 + cloud_part + tk_part
+        cloud_width = max(top - bottom, price * .01, EPS)
+        tenkan_bullish = tenkan is not None and kijun is not None and tenkan > kijun
+        tenkan_bearish = tenkan is not None and kijun is not None and tenkan < kijun
+        if price > top:
+            cloud_position_pct = (price / top - 1.0) * 100.0 if top > 0 else None
+            distance_strength = _clip((price - top) / cloud_width, 0.0, 1.0)
+            ichimoku_score = 70.0 + 30.0 * distance_strength if tenkan_bullish else 60.0
+        elif price < bottom:
+            cloud_position_pct = (price / bottom - 1.0) * 100.0 if bottom > 0 else None
+            distance_strength = _clip((bottom - price) / cloud_width, 0.0, 1.0)
+            ichimoku_score = 30.0 - 30.0 * distance_strength if tenkan_bearish else 40.0
+        else:
+            cloud_position_pct = (price - bottom) / (top - bottom) if top > bottom else .5
+            ichimoku_score = 30.0 + 30.0 * _clip(cloud_position_pct, 0.0, 1.0)
     else:
         ichimoku_score = None
     put("moving_averages", "Ichimoku Cloud(9,26,52,26)", ichimoku_score,
         {"price": price, "span_a": span_a, "span_b": span_b,
-         "tenkan": tenkan, "kijun": kijun},
-        "امتیاز ایچیموکو از جایگاه قیمت نسبت به ابر و کراس تنکان‌سن/کیجون‌سن ساخته می‌شود.")
+         "tenkan": tenkan, "kijun": kijun,
+         "cloud_position_pct": cloud_position_pct},
+        "قیمت بیرون ابر با تأیید جهت تنکان‌سن/کیجون‌سن امتیاز خرید یا فروش می‌گیرد؛ داخل ابر بر اساس نزدیکی به سقف یا کف امتیاز می‌گیرد.")
 
     bb_upper, bb_lower = _at(series.get("bb_upper")), _at(series.get("bb_lower"))
     bb_score, bb_position = _band_score(price, bb_lower, bb_upper)
@@ -238,20 +284,21 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
                               _at(series.get("minus_di14")))
     put("trend_momentum", "ADX(14)", _adx_score(adx, plus_di, minus_di),
         {"adx": adx, "+DI": plus_di, "-DI": minus_di},
-        "ADX قدرت روند را می‌سنجد و جهت آن با مقایسهٔ +DI و -DI تعیین می‌شود.")
+        "ADX زیر ۲۵ روند ضعیف است؛ بالای ۲۵ قدرت روند را تا ۵۰ می‌سنجد و جهت را از مقایسهٔ +DI و -DI می‌گیرد.")
 
     aroon_up, aroon_down = _at(series.get("aroon_up25")), _at(series.get("aroon_down25"))
     spread = aroon_up - aroon_down if aroon_up is not None and aroon_down is not None else None
-    aroon_score = _clip(50.0 + .4 * spread) if spread is not None else None
+    aroon_score = _aroon_score(spread)
     put("trend_momentum", "AROON(25)", aroon_score,
         {"up": aroon_up, "down": aroon_down, "spread": spread},
-        "اختلاف Aroon Up و Aroon Down؛ برتری Aroon Up نشانهٔ روند صعودی است.")
+        "اختلاف Aroon Up و Down استفاده می‌شود؛ اختلاف مثبت قوی‌تر امتیاز بالاتر و اختلاف منفی قوی‌تر امتیاز پایین‌تر می‌گیرد.")
 
     ao, ao_previous = _at(series.get("ao534")), _at(series.get("ao534"), -2)
-    put("trend_momentum", "AO(5,34)", _delta_score(ao, ao_previous),
+    put("trend_momentum", "AO(5,34)", _ao_score(ao, ao_previous, price),
         {"value": ao, "previous": ao_previous,
-         "change_pct": _relative_change_pct(ao, ao_previous)},
-        "تغییر درصدی AO نسبت به مقدار قبلی؛ افزایش مثبت مومنتوم صعودی و افت آن مومنتوم نزولی را نشان می‌دهد.")
+         "change": ao - ao_previous if ao is not None and ao_previous is not None else None,
+         "normalized_strength": abs(ao) / price * 1000.0 if ao is not None and price > 0 else None},
+        "AO بالای صفر و رو به رشد امتیاز خرید می‌گیرد؛ زیر صفر و رو به افت امتیاز فروش. قدرت با اندازهٔ AO نسبت به قیمت نرمال می‌شود.")
 
     # The pivot calculation uses the preceding 30 completed bars, without any
     # relative-volume dependency.
@@ -285,33 +332,40 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
         {"value": rsi, "previous": rsi_previous},
         "زیر ۳۰ ناحیهٔ خرید، بالای ۷۰ ناحیهٔ فروش و بازهٔ ۳۰ تا ۷۰ خنثی با امتیاز کاهشی به سمت ۷۰ است.")
 
-    mfi, mfi_previous = _at(series.get("mfi14")), _at(series.get("mfi14"), -2)
-    put("oscillators", "MFI(14)", _mfi_score(mfi, mfi_previous),
-        {"value": mfi, "previous": mfi_previous,
-         "change_pct": _relative_change_pct(mfi, mfi_previous)},
-        "MFI با توجه به مقدار فعلی نسبت به ۵۰ و تغییرش نسبت به مقدار قبلی امتیاز می‌گیرد.")
+    mfi = _at(series.get("mfi14"))
+    mfi_score = _bounded_oscillator_score(
+        mfi, 20.0, 80.0, [(20.0, 100.0), (30.0, 60.0), (80.0, 30.0)])
+    put("oscillators", "MFI(14)", mfi_score, {"value": mfi},
+        "زیر ۲۰ خرید، بالای ۸۰ فروش؛ در محدودهٔ میانی با نزدیک‌شدن به ۸۰ امتیاز به ۳۰ و نزدیک‌شدن به ۳۰ امتیاز به ۶۰ می‌رسد.")
 
     cci = _at(series.get("cci14"))
-    put("oscillators", "CCI(14)", _clip((cci + 200.0) / 4.0) if cci is not None else None,
-        {"value": cci}, "امتیاز CCI از فرمول (CCI + 200) ÷ 4 و محدود به بازهٔ صفر تا ۱۰۰ است.")
+    cci_score = _bounded_oscillator_score(
+        cci, -100.0, 100.0, [(-100.0, 100.0), (-50.0, 60.0), (100.0, 30.0)])
+    put("oscillators", "CCI(14)", cci_score, {"value": cci},
+        "زیر ۱۰۰- خرید و بالای ۱۰۰ فروش؛ بین این دو، نزدیک ۱۰۰+ امتیاز ۳۰ و نزدیک ۵۰- امتیاز ۶۰ می‌گیرد.")
 
     so_k, so_d = _at(series.get("so_k")), _at(series.get("so_d"))
-    so_score = _clip(so_k + 2.0 * (so_k - so_d)) if so_k is not None and so_d is not None else None
+    so_score = _bounded_oscillator_score(
+        so_k, 20.0, 80.0, [(20.0, 100.0), (30.0, 60.0), (80.0, 30.0)])
     put("oscillators", "SO(14)", so_score, {"k": so_k, "d": so_d},
-        "امتیاز SO برابر K + 2 × (K − D) و محدود به بازهٔ صفر تا ۱۰۰ است.")
+        "امتیاز از خط %K محاسبه می‌شود: زیر ۲۰ خرید، بالای ۸۰ فروش و در محدودهٔ میانی نزدیک ۸۰ امتیاز ۳۰ و نزدیک ۳۰ امتیاز ۶۰.")
 
     stochrsi = _at(series.get("stochrsi14"))
     put("oscillators", "StochRSI(14)", _stochrsi_score(stochrsi),
         {"value": stochrsi, "scale": "0..1"},
-        "مقیاس StochRSI از صفر تا یک است؛ نزدیک صفر خرید و نزدیک یک فروش محسوب می‌شود.")
+        "مقیاس StochRSI از صفر تا یک است؛ ۰ تا ۰٫۲ خرید، ۰٫۸ تا ۱ فروش و بین آن‌ها خنثی است.")
 
     wr = _at(series.get("wr14"))
-    put("oscillators", "WR(14)", _clip(wr + 100.0) if wr is not None else None,
-        {"value": wr}, "امتیاز Williams %R برابر مقدار شاخص + 100 و محدود به بازهٔ صفر تا ۱۰۰ است.")
+    wr_score = _bounded_oscillator_score(
+        wr, -80.0, -20.0, [(-80.0, 100.0), (-70.0, 60.0), (-20.0, 30.0)])
+    put("oscillators", "WR(14)", wr_score, {"value": wr},
+        "زیر ۸۰- خرید و بالای ۲۰- فروش؛ نزدیک ۷۰- امتیاز ۶۰ و نزدیک ۲۰- امتیاز ۳۰ می‌گیرد.")
 
     mtm = _at(series.get("mtm6"))
-    mtm_score = _clip(50.0 + mtm / price * 1000.0) if mtm is not None and price > 0 else None
-    put("oscillators", "MTM(6)", mtm_score, {"value": mtm, "close": price},
+    mtm_change_pct = mtm / price * 100.0 if mtm is not None and price > 0 else None
+    mtm_score = _clip(50.0 + mtm / price * 1000.0) if mtm_change_pct is not None else None
+    put("oscillators", "MTM(6)", mtm_score,
+        {"value": mtm, "close": price, "change_pct": mtm_change_pct},
         "امتیاز MTM برابر 50 + (مومنتوم ÷ قیمت پایانی × 1000) و محدود به صفر تا ۱۰۰ است.")
     return results
 
