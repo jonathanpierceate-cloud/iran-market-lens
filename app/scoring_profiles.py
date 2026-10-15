@@ -1,95 +1,129 @@
-"""Workbook-defined short- and medium-term technical scoring profiles."""
+"""Short- and medium-term indicator weights from the Update 3 workbook."""
 from __future__ import annotations
 
-HORIZON_LABELS = {"short": "کوتاه‌مدت", "long": "میان‌مدت"}
+HORIZON_LABELS = {
+    "short": "\u06a9\u0648\u062a\u0627\u0647\u200c\u0645\u062f\u062a",
+    "long": "\u0645\u06cc\u0627\u0646\u200c\u0645\u062f\u062a",
+}
 DEFAULT_HORIZON = "long"
 
 
-def _within_group(raw_weights: dict[str, float]) -> dict[str, float]:
-    """Normalize the workbook's indicator weights within their named group."""
-    total = sum(raw_weights.values())
-    return {name: weight / total for name, weight in raw_weights.items()} if total else {}
+def _normalize(weights: dict[str, float]) -> dict[str, float]:
+    total = sum(weights.values())
+    return {key: value / total for key, value in weights.items()} if total else {}
 
 
-# In the short-term Excel columns the indicator percentages add up to their
-# group's weight (15%, 25%, 25%, 35%); normalize those rows within each group.
-# Medium-term percentages already add up to 100% inside each group.
-_SHORT_FAMILIES = {
+_FAMILIES = {
     "moving_averages": {
-        "Ichimoku Cloud(9,26,52,26)": .009, "EMA(50)": .003, "SMA(50)": .003,
-        "EMA(100)": .0015, "SMA(100)": .0015, "BB(20)": .027,
-        "KELTNER(16)": .012, "EMA(20)": .015, "SMA(20)": .0105,
-        "EMA(30)": .0045, "SMA(30)": .0045, "EMA(10)": .0165,
-        "SMA(10)": .012, "EMA(5)": .018, "SMA(5)": .012,
+        "medium": {
+            "Ichimoku Cloud(9,26,52,26)": .24,
+            "EMA/SMA(100)": .17,
+            "EMA/SMA(50)": .17,
+            "EMA/SMA(30)": .06,
+            "EMA/SMA(20)": .12,
+            "EMA/SMA(10)": .04,
+            "EMA/SMA(5)": .02,
+            "BB(20)": .10,
+            "KELTNER(16)": .08,
+        },
+        "short": {
+            "Ichimoku Cloud(9,26,52,26)": .12,
+            "EMA/SMA(100)": .04,
+            "EMA/SMA(50)": .08,
+            "EMA/SMA(30)": .06,
+            "EMA/SMA(20)": .14,
+            "EMA/SMA(10)": .14,
+            "EMA/SMA(5)": .14,
+            "BB(20)": .18,
+            "KELTNER(16)": .10,
+        },
     },
     "trend_momentum": {
-        "MACD(26)": .075, "ADX(14)": .05, "AROON(25)": .05, "AO(5,34)": .075,
+        "medium": {
+            "MACD(12,26,9)": .30,
+            "ADX(14)": .30,
+            "AROON(25)": .25,
+            "AO(5,34)": .15,
+        },
+        "short": {
+            "MACD(12,26,9)": .30,
+            "ADX(14)": .25,
+            "AROON(25)": .25,
+            "AO(5,34)": .20,
+        },
     },
     "support_resistance": {
-        "PivotPoint Fibonacci(30)": .0375, "PivotPoint Classic(30)": .0625,
-        "PivotPoint Camarilla(30)": .075, "PivotPoint Woodie(30)": .05,
-        "PivotPoint DeMark(30)": .025,
+        "medium": {
+            "PivotPoint Fibonacci(30)": .20,
+            "PivotPoint Classic(30)": .20,
+            "PivotPoint Camarilla(30)": .20,
+            "PivotPoint Woodie(30)": .20,
+            "PivotPoint DeMark(30)": .20,
+        },
+        "short": {
+            "PivotPoint Fibonacci(30)": .20,
+            "PivotPoint Classic(30)": .20,
+            "PivotPoint Camarilla(30)": .20,
+            "PivotPoint Woodie(30)": .20,
+            "PivotPoint DeMark(30)": .20,
+        },
     },
     "oscillators": {
-        "RSI(14)": .077, "MFI(14)": .0525, "CCI(14)": .035,
-        "SO(14)": .07, "StochRSI(14)": .063, "WR(14)": .028,
-        "MTM(6)": .0245,
+        "medium": {
+            "RSI(14)": .26,
+            "MFI(14)": .22,
+            "CCI(14)": .16,
+            "SO(14) %K": .20,
+            "StochRSI(14) %K": .08,
+            "MTM(6)": .08,
+        },
+        "short": {
+            "RSI(14)": .22,
+            "MFI(14)": .16,
+            "CCI(14)": .12,
+            "SO(14) %K": .28,
+            "StochRSI(14) %K": .12,
+            "MTM(6)": .10,
+        },
     },
 }
 
-_MEDIUM_FAMILIES = {
-    "moving_averages": {
-        "Ichimoku Cloud(9,26,52,26)": .18, "EMA(50)": .10, "SMA(50)": .09,
-        "EMA(100)": .10, "SMA(100)": .08, "BB(20)": .08,
-        "KELTNER(16)": .07, "EMA(20)": .07, "SMA(20)": .06,
-        "EMA(30)": .06, "SMA(30)": .05, "EMA(10)": .02,
-        "SMA(10)": .015, "EMA(5)": .015, "SMA(5)": .01,
-    },
-    "trend_momentum": {
-        "MACD(26)": .35, "ADX(14)": .30, "AROON(25)": .20, "AO(5,34)": .15,
-    },
-    "support_resistance": {
-        "PivotPoint Fibonacci(30)": .30, "PivotPoint Classic(30)": .25,
-        "PivotPoint Camarilla(30)": .20, "PivotPoint Woodie(30)": .15,
-        "PivotPoint DeMark(30)": .10,
-    },
-    "oscillators": {
-        "RSI(14)": .28, "MFI(14)": .22, "CCI(14)": .15,
-        "SO(14)": .12, "StochRSI(14)": .10, "WR(14)": .08,
-        "MTM(6)": .05,
-    },
+
+_MEDIUM_FAMILY_WEIGHTS = {
+    "moving_averages": .40,
+    "trend_momentum": .35,
+    "support_resistance": .10,
+    "oscillators": .15,
+}
+_SHORT_FAMILY_WEIGHTS = {
+    "moving_averages": .20,
+    "trend_momentum": .30,
+    "support_resistance": .15,
+    "oscillators": .35,
 }
 
 
-def _profile(family_weights: dict[str, float], raw_indicators: dict[str, dict[str, float]],
-             name: str) -> dict[str, object]:
+def _profile(horizon: str, family_weights: dict[str, float]) -> dict[str, object]:
     return {
-        "profile": name,
+        "profile": f"update_3_{horizon}_term",
         "family_weights": family_weights,
         "indicator_weights": {
-            family: _within_group(weights) for family, weights in raw_indicators.items()
+            family: _normalize(weights[horizon])
+            for family, weights in _FAMILIES.items()
         },
     }
 
 
-_SHORT_PROFILE = _profile(
-    {"moving_averages": .15, "trend_momentum": .25,
-     "support_resistance": .25, "oscillators": .35},
-    _SHORT_FAMILIES, "excel_comprehensive_short_term",
-)
-_MEDIUM_PROFILE = _profile(
-    {"moving_averages": .35, "trend_momentum": .30,
-     "support_resistance": .20, "oscillators": .15},
-    _MEDIUM_FAMILIES, "excel_comprehensive_medium_term",
-)
+_SHORT_PROFILE = _profile("short", _SHORT_FAMILY_WEIGHTS)
+_MEDIUM_PROFILE = _profile("medium", _MEDIUM_FAMILY_WEIGHTS)
 
-# Both screens use the same workbook-defined scoring model.
+# Both fund and dashboard cards share Update 3's formulas and weights.
 FUND_SCORING_PROFILES = {"short": _SHORT_PROFILE, "long": _MEDIUM_PROFILE}
 DASHBOARD_SCORING_PROFILES = FUND_SCORING_PROFILES
 
 
 def normalize_horizon(value: str | None) -> str:
-    """Map the public selector value to a supported investment horizon."""
+    """Map public selector values to the supported short/medium horizons."""
     value = str(value or "").strip().casefold()
     if value == "medium":
         return "long"

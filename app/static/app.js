@@ -584,6 +584,8 @@
           <span>پوشش کل داده‌ها <b>${Number.isFinite(coverage) ? `${num(coverage, 0)}٪` : "—"}</b></span>
           <span title="درصد وزن پایه‌ای که دادهٔ قابل‌محاسبه دارد؛ وزن مؤثر گروه‌های باقی‌مانده جداگانه نشان داده می‌شود">پوشش وزن پایهٔ گروه‌ها <b>${Number.isFinite(familyWeight) ? `${num(familyWeight, 0)}٪` : "—"}</b></span>
           <span title="بر پایهٔ پوشش داده و هم‌سویی گروه‌ها؛ احتمال سود نیست">اعتماد سیگنال <b>${Number.isFinite(confidence) ? `${num(confidence, 1)}٪` : "—"}</b></span>
+          <span title="تصمیم بر پایهٔ امتیاز نهایی، پوشش داده و هم‌جهتی اندیکاتورها">تصمیم مدل <b>${esc(a.decision_label || "نامشخص")}</b></span>
+          <span title="سهم وزنی اندیکاتورهای جهت‌دار که با امتیاز نهایی هم‌جهت هستند">هم‌جهتی <b>${Number.isFinite(Number(a.confluence_pct)) ? `${num(a.confluence_pct, 1)}٪` : "—"}</b></span>
           <span title="نمایش فاصلهٔ امتیاز گروه‌ها از یکدیگر">پراکندگی گروه‌ها <b>${Number.isFinite(a.inter_group_dispersion) ? num(a.inter_group_dispersion, 1) : "—"}</b></span>
           <span>ریسک نوسان (بالاتر = ریسک بیشتر) <b>${riskLabels[risk.level] || "نامشخص"}${Number.isFinite(riskScore) ? ` · ${num(riskScore, 0)}/100` : ""}</b></span>
         </div>
@@ -619,7 +621,7 @@
       { key: "moving_averages", label: "\u0645\u06cc\u0627\u0646\u06af\u06cc\u0646\u200c\u0647\u0627\u06cc \u0645\u062a\u062d\u0631\u06a9", description: "EMA\u060c SMA\u060c \u0627\u06cc\u0686\u06cc\u0645\u0648\u06a9\u0648 \u0648 \u0628\u0627\u0646\u062f\u0647\u0627" },
       { key: "trend_momentum", label: "\u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628", description: "MACD\u060c ADX\u060c AROON \u0648 AO" },
       { key: "support_resistance", label: "\u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a", description: "\u067e\u06cc\u0648\u062a\u200c\u0647\u0627\u06cc \u0641\u06cc\u0628\u0648\u0646\u0627\u0686\u06cc\u060c \u06a9\u0644\u0627\u0633\u06cc\u06a9\u060c \u06a9\u0627\u0645\u0627\u0631\u06cc\u0644\u0627\u060c \u0648\u0648\u062f\u06cc \u0648 \u062f\u06cc\u200c\u0645\u0627\u0631\u06a9" },
-      { key: "oscillators", label: "\u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627", description: "RSI\u060c MFI\u060c CCI\u060c SO\u060c StochRSI\u060c WR \u0648 MTM" },
+      { key: "oscillators", label: "\u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627", description: "RSI\u060c MFI\u060c CCI\u060c SO (%K\u061b WR \u0627\u062f\u063a\u0627\u0645 \u0634\u062f\u0647)\u060c StochRSI \u0648 MTM" },
     ];
     const familyCards = familyDefinitions.filter((factor) => finite(scores[factor.key]?.score)).map((factor) => {
       const family = scores[factor.key] || {};
