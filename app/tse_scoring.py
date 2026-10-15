@@ -43,14 +43,10 @@ def _score(z: float | None) -> float | None:
 def _signal(score: float | None) -> str:
     if score is None:
         return "Insufficient Data"
-    if score >= 70:
+    if score > 70:
         return "Buy"
-    if score >= 60:
-        return "Buy Lean"
     if score > 40:
         return "Neutral"
-    if score >= 30:
-        return "Sell Lean"
     return "Sell"
 
 
@@ -397,8 +393,8 @@ def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
         dispersion = math.sqrt(sum(effective[family] *
                                    (float(family_results[family]["score"]) - raw_score) ** 2
                                    for family in valid_groups))
-        final_signal = ("Bullish" if final_score >= 70 else
-                        "Bearish" if final_score < 30 else "Neutral")
+        final_signal = {"Buy": "Bullish", "Sell": "Bearish",
+                        "Neutral": "Neutral"}[_signal(final_score)]
         coverage = sum(family_weights[family] * coverage_by_family[family]
                        for family in family_weights)
         directional = [(family_weights[family] * weight, value)
@@ -415,16 +411,16 @@ def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
         decision = "Insufficient Data"
     elif agreement >= .75:
         confidence_level = "high"
-        decision = ("Buy Confirmed" if final_score >= 70 else "Sell Confirmed"
-                    if final_score < 30 else _signal(final_score))
+        decision = ("Buy Confirmed" if final_signal == "Bullish" else "Sell Confirmed"
+                    if final_signal == "Bearish" else "Neutral")
     elif agreement >= .60:
         confidence_level = "medium"
-        decision = ("Buy Confirmed" if final_score >= 70 else "Sell Confirmed"
-                    if final_score < 30 else _signal(final_score))
+        decision = ("Buy Confirmed" if final_signal == "Bullish" else "Sell Confirmed"
+                    if final_signal == "Bearish" else "Neutral")
     else:
         confidence_level = "low"
-        decision = ("Buy, Low Confidence" if final_score >= 70 else
-                    "Sell, Low Confidence" if final_score < 30 else _signal(final_score))
+        decision = ("Buy, Low Confidence" if final_signal == "Bullish" else
+                    "Sell, Low Confidence" if final_signal == "Bearish" else "Neutral")
 
     score_weights = {family: round(weight * 100.0, 2)
                      for family, weight in family_weights.items()}
