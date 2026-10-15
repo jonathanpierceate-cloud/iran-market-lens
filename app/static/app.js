@@ -64,7 +64,7 @@
     const boundary = Math.max(slice.lastIndexOf("؛"), slice.lastIndexOf("،"), slice.lastIndexOf(". "));
     return `${(boundary > max * .55 ? slice.slice(0, boundary) : slice).trim()}…`;
   };
-  const trendText = (value) => ({ bullish: "صعودی", bearish: "نزولی", neutral: "خنثی", unavailable: "داده ناکافی" }[value] || "داده ناکافی");
+  const trendText = (value) => ({ bullish: "صعودی", bearish: "نزولی", neutral: "بدون جهت غالب", unavailable: "داده ناکافی" }[value] || "داده ناکافی");
   const statusText = (status) => ({ available: "تازه", connected: "متصل", stale: "کهنه", cached_after_source_error: "آخرین داده", failed: "خطا", not_tested: "بررسی‌نشده", unavailable: "در دسترس نیست", disabled: "غیرفعال" }[status] || status || "نامشخص");
 
   async function api(path, options = {}) {
@@ -122,11 +122,11 @@
     $(`#${prefix}-time`).textContent = formatDate(quote.data_timestamp);
     freshness($(`#${prefix}-freshness`), quote.status, quote.data_timestamp);
     const trend = $(`#${prefix}-trend`);
-    const selectedTrend = quote.analysis?.trend || quote.analysis?.medium_term_trend;
+    const selectedTrend = quote.analysis?.score_band || quote.analysis?.trend || quote.analysis?.medium_term_trend;
     trend.textContent = trendText(selectedTrend);
     trend.className = `trend ${selectedTrend || "neutral"}`;
     const trendHeading = trend.parentElement?.querySelector("span");
-    if (trendHeading) trendHeading.textContent = `روند ${quote.analysis?.investment_horizon_label || horizonLabel(state.investmentHorizon)}`;
+    if (trendHeading) trendHeading.textContent = `جمع‌بندی ${quote.analysis?.investment_horizon_label || horizonLabel(state.investmentHorizon)}`;
     const scoreEl = $(`#${prefix}-score`);
     if (scoreEl) scoreEl.textContent = quote.analysis?.technical_score == null ? "—" : `${num(quote.analysis.technical_score, 0)} / ۱۰۰`;
   }
@@ -496,7 +496,7 @@
     };
     const bandLabels = {
       very_strong: "بسیار قوی", strong: "قوی", relatively_positive: "نسبتاً مثبت",
-      bullish: "صعودی", bearish: "نزولی", neutral: "خنثی", weak: "ضعیف",
+      bullish: "صعودی", bearish: "نزولی", neutral: "بدون جهت غالب", weak: "ضعیف",
       very_weak: "بسیار ضعیف", unavailable: "داده کافی نیست"
     };
     const familyNames = Object.fromEntries(Object.entries(labels).map(([key, [label]]) => [key, label]));
@@ -606,12 +606,12 @@
     const horizonName = a.investment_horizon_label || horizonLabel();
     const effectiveWeights = a.effective_score_weights || {};
     const scores = a.family_scores || {};
-    const trendLabels = { bullish: "صعودی", bearish: "نزولی", neutral: "خنثی", unavailable: "داده کافی نیست" };
+    const trendLabels = { bullish: "صعودی", bearish: "نزولی", neutral: "بدون جهت غالب", unavailable: "داده کافی نیست" };
     const strengthLabels = { strong: "قوی", medium: "متوسط", weak: "ضعیف", unavailable: "نامشخص" };
     const riskLabels = { low: "کم", medium: "متوسط", elevated: "نسبتاً بالا", high: "بالا", very_high: "بسیار بالا", unavailable: "نامشخص" };
     const entryLabels = { suitable: "مناسب", confirmation: "نیازمند تأیید", unsuitable: "نامناسب", unavailable: "داده کافی نیست" };
-    const bandLabels = { bullish: "صعودی", bearish: "نزولی", neutral: "خنثی", unavailable: "داده کافی نیست", very_strong: "بسیار قوی", strong: "قوی", relatively_positive: "نسبتاً مثبت", weak: "نسبتاً منفی", very_weak: "بسیار ضعیف" };
-    const trend = trendLabels[a.trend || a.medium_term_trend] || "داده کافی نیست";
+    const bandLabels = { bullish: "صعودی", bearish: "نزولی", neutral: "بدون جهت غالب", unavailable: "داده کافی نیست", very_strong: "بسیار قوی", strong: "قوی", relatively_positive: "نسبتاً مثبت", weak: "نسبتاً منفی", very_weak: "بسیار ضعیف" };
+    const trend = trendLabels[a.score_band || a.trend || a.medium_term_trend] || "داده کافی نیست";
     const strength = strengthLabels[a.trend_strength] || "نامشخص";
     const risk = riskLabels[a.risk] || "نامشخص";
     const entry = a.entry_quality?.label || entryLabels[a.entry_quality?.status] || "داده کافی نیست";
@@ -663,7 +663,7 @@
       "<h3>امتیاز تکنیکال: <strong>" + (scoreValue == null ? "داده کافی نیست" : num(scoreValue, 0) + " از ۱۰۰") + "</strong> · " + (bandLabels[a.score_band] || "نامشخص") + "</h3>" +
       "<p>" + scoreWeightText + " · RSI زیر ۳۰ ناحیه خرید، بین ۳۰ تا ۷۰ خنثی با امتیاز کاهشی نزدیک ۷۰، و بالای ۷۰ ناحیه فروش است. ورود با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p></div>" +
       "<div class=\"fund-model-meta\"><span>قیمت فعلی <b>" + price + "</b></span><span>تغییر روزانه <b>" + daily + "</b></span>" +
-      "<span>جهت " + horizonName + " <b>" + trend + "</b></span><span>قدرت روند <b>" + strength + "</b></span>" +
+      "<span>جمع‌بندی " + horizonName + " <b>" + trend + "</b></span><span>قدرت حرکت (ADX) <b>" + strength + "</b></span>" +
       "<span>ریسک نوسان <b>" + risk + (finite(a.risk_score) ? " · " + num(a.risk_score, 0) : "") + "</b></span>" +
       "<span title=\"" + esc(entryReason) + "\">ارزیابی خرید <b>" + entry + (finite(a.entry_quality?.score) ? " · کیفیت ورود " + num(a.entry_quality.score, 0) : "") + "</b></span>" +
       "<span title=\"درصد وزن پایه‌ای که دادهٔ قابل‌محاسبه دارد؛ وزن مؤثر گروه‌های باقی‌مانده جداگانه نشان داده می‌شود\">پوشش وزن پایهٔ گروه‌ها <b>" + (finite(a.available_family_weight_pct) ? num(a.available_family_weight_pct, 0) + "٪" : "—") + "</b></span>" +
@@ -1114,7 +1114,7 @@
   function renderOverviewAssetComparison() {
     const target = $("#overview-asset-comparison-body");
     if (!target) return;
-    const trendLabels = { bullish: "صعودی", bearish: "نزولی", neutral: "خنثی", unavailable: "نامشخص" };
+    const trendLabels = { bullish: "صعودی", bearish: "نزولی", neutral: "بدون جهت غالب", unavailable: "نامشخص" };
     const strengthLabels = { strong: "قوی", medium: "متوسط", weak: "ضعیف", unavailable: "نامشخص" };
     const riskLabels = { low: "کم", medium: "متوسط", elevated: "نسبتاً بالا", high: "بالا", very_high: "بسیار بالا", unavailable: "نامشخص" };
     const entryLabels = { suitable: "مساعد", confirmation: "نیازمند اصلاح و تثبیت", unsuitable: "نامساعد", unavailable: "نامشخص" };
@@ -1123,7 +1123,7 @@
     const kicker = $("#asset-comparison-kicker");
     if (kicker) kicker.textContent = `نمای مقایسه‌ای · دید ${horizonLabel()}`;
     const trendHeading = $("#asset-comparison-trend-heading");
-    if (trendHeading) trendHeading.textContent = `جهت ${horizonLabel()}`;
+    if (trendHeading) trendHeading.textContent = `جمع‌بندی ${horizonLabel()}`;
     const assets = [
       ["طلای جهانی · XAU/USD", state.gold],
       ["دلار · USD/IRT", state.dollar],
@@ -1136,12 +1136,12 @@
       const rawPrice = quote?.price ?? analysis.price;
       const price = rawPrice != null && Number.isFinite(Number(rawPrice)) ? `${money(rawPrice)} ${priceUnits[quote?.symbol] || ""}` : "—";
       const score = analysis.technical_score == null ? "—" : `${num(analysis.technical_score, 0)} / ۱۰۰`;
-      const direction = trendLabels[analysis.trend || analysis.medium_term_trend] || "نامشخص";
+      const direction = trendLabels[analysis.score_band || analysis.trend || analysis.medium_term_trend] || "نامشخص";
       const strength = strengthLabels[analysis.trend_strength] || "نامشخص";
       const risk = riskLabels[analysis.risk] || "نامشخص";
       const entry = entryLabels[analysis.entry_quality?.status] || "نامشخص";
       const coverage = analysis.data_coverage_pct == null ? "—" : `${num(analysis.data_coverage_pct, 0)}٪`;
-      const tone = analysis.trend || analysis.medium_term_trend || "unavailable";
+      const tone = analysis.score_band || analysis.trend || analysis.medium_term_trend || "unavailable";
       return `<tr><th scope="row">${name}</th><td>${price}</td><td>${score}</td><td><span class="asset-comparison-tag ${tone}">${direction}</span></td><td>${strength}</td><td>${risk}</td><td>${entry}</td><td>${coverage}</td></tr>`;
     });
     target.innerHTML = rows.join("");
