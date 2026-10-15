@@ -165,11 +165,9 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
                       "meaning": "این مقدار در پاسخ رسمی نماد نبود؛ عدد جایگزین محاسبه نشده است.",
                       "unavailable": True})
 
-    trend_item = next((item for item in groups["oscillators"]
-                       if str(item.get("short_name_en") or "").casefold() == "trend"), {})
-    trend_signal = str(trend_item.get("signal") or "Neutral").casefold()
-    trend = "bullish" if trend_signal in {"buy", "bullish", "strongbuy"} else \
-            "bearish" if trend_signal in {"sell", "bearish", "strongsell"} else "neutral"
+    # Summary cards and detailed analysis share the selected model's verdict.
+    # An individual Trend indicator (or its absence) must not override it.
+    trend = fund_model.get("score_band") or "unavailable"
     footer = main_gauge.get("footer") if isinstance(main_gauge.get("footer"), dict) else {}
     counts = {key: (footer.get(key) or {}).get("value") for key in ("Buy", "Neutral", "Sell")}
     def count_value(value: Any) -> float:
@@ -306,13 +304,12 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     if aroon.get("up") is not None and aroon.get("down") is not None:
         bullish_reasons.append(f"Aroon صعودی {fmt(aroon['up'])} در برابر Aroon نزولی {fmt(aroon['down'])} است") if aroon["up"] > aroon["down"] else None
         bearish_reasons.append(f"Aroon نزولی {fmt(aroon['down'])} در برابر Aroon صعودی {fmt(aroon['up'])} برتری دارد") if aroon["down"] > aroon["up"] else None
-    if adx is not None:
+    if adx is not None and trend in {"bullish", "bearish"}:
         (bullish_reasons if trend == "bullish" else bearish_reasons).append(f"ADX روی {fmt(adx)} است و قدرت روند را بالای آستانه ۲۵ نشان می‌دهد") if adx >= 25 else None
-    trend_source_label = "TSETMC" if is_tsetmc else "ره‌آورد"
     if trend == "bullish":
-        bullish_reasons.append(f"شاخص Trend محاسبه‌شده از {trend_source_label} صعودی است")
+        bullish_reasons.append(f"برآیند مدل {fund_model['investment_horizon_label']} صعودی است")
     elif trend == "bearish":
-        bearish_reasons.append(f"شاخص Trend محاسبه‌شده از {trend_source_label} نزولی است")
+        bearish_reasons.append(f"برآیند مدل {fund_model['investment_horizon_label']} نزولی است")
     if rsi is not None:
         if rsi > 70:
             bearish_reasons.append(f"RSI(14) روی {fmt(rsi)} است؛ بالای ۷۰ در ناحیه فروش و در معرض اصلاح قرار دارد")
