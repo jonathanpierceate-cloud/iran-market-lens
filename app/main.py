@@ -20,8 +20,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from .analysis import analyze, analyze_rahavard, stale_status
-from .config import (MAX_STALE_HOURS, ISIGNAL_GOLD_18K_PAGE_URL,
-                     ISIGNAL_TEPIX_PAGE_URL, RAHAVARD_API_BASE_URL,
+from .config import (MAX_STALE_HOURS, RAHAVARD_GOLD_18K_PAGE_URL,
+                     RAHAVARD_TEPIX_PAGE_URL, RAHAVARD_API_BASE_URL,
                      RAHAVARD_ETF_FUNDS_URL, RAHAVARD_GOLD_PAGE_URL,
                      RAHAVARD_LIGHT_BARS_URL,
                      RAHAVARD_USDT_PAGE_URL,
@@ -79,8 +79,8 @@ def _market_history(symbol: str, limit: int = 1000) -> list[dict[str, Any]]:
     fund = db.get_fund(symbol)
     if fund and not fund.get("ambiguous") and fund.get("source") == "Rahavard365":
         return db.history(fund["fund_key"], limit, source="Rahavard365")
-    preferred = {"GOLD": "Rahavard365", "GOLD_18K": "iSignal",
-                 "USD_IR_FREE": "Rahavard365", "TEPIX": "iSignal"}.get(symbol)
+    preferred = {"GOLD": "Rahavard365", "GOLD_18K": "Rahavard365",
+                 "USD_IR_FREE": "Rahavard365", "TEPIX": "Rahavard365"}.get(symbol)
     if preferred:
         bars = db.history(symbol, limit, source=preferred)
         if symbol == "USD_IR_FREE":
@@ -89,7 +89,7 @@ def _market_history(symbol: str, limit: int = 1000) -> list[dict[str, Any]]:
             if not bars:
                 return []
         if symbol in {"GOLD_18K", "TEPIX"}:
-            expected_url = ISIGNAL_GOLD_18K_PAGE_URL if symbol == "GOLD_18K" else ISIGNAL_TEPIX_PAGE_URL
+            expected_url = RAHAVARD_GOLD_18K_PAGE_URL if symbol == "GOLD_18K" else RAHAVARD_TEPIX_PAGE_URL
             bars = [bar for bar in bars if bar.get("source_url") == expected_url]
             if not bars:
                 return []
@@ -167,8 +167,8 @@ def _analyze_chart_candles(symbol: str, bars: list[dict[str, Any]], *,
     result["indicator_data_timestamp"] = timestamp
     result["price_is_cached"] = _timestamp_is_cached(timestamp)
     if not result.get("volume_data_available"):
-        if indicator_source == "iSignalChart" and symbol == "GOLD_18K":
-            result["volume_data_note"] = "نمودار iSignal برای طلای ۱۸ عیار حجم تاریخی ارائه نمی‌کند؛ شاخص‌های وابسته به حجم محاسبه نمی‌شوند."
+        if indicator_source == "Rahavard365Chart" and symbol == "GOLD_18K":
+            result["volume_data_note"] = "نمودار ره‌آورد برای طلای ۱۸ عیار حجم تاریخی معتبری ارائه نمی‌کند؛ شاخص‌های وابسته به حجم محاسبه نمی‌شوند."
         elif symbol == "TEPIX":
             result["volume_data_note"] = "حجم تاریخی شاخص در دادهٔ نمودار موجود نیست؛ امتیازهای فاقد داده حذف می‌شوند و پوشش گروه حجم کاهش می‌یابد."
         else:
@@ -193,9 +193,9 @@ def _market_quote(symbol: str, horizon: str = "long") -> dict[str, Any]:
         asset = conn.execute("SELECT * FROM assets WHERE symbol=?", (symbol,)).fetchone()
     asset_defaults = {
         "GOLD": {"name": "طلای جهانی", "source": "Rahavard365", "source_url": RAHAVARD_GOLD_PAGE_URL},
-        "GOLD_18K": {"name": "طلای ۱۸ عیار", "source": "iSignal", "source_url": ISIGNAL_GOLD_18K_PAGE_URL},
+        "GOLD_18K": {"name": "طلای ۱۸ عیار", "source": "Rahavard365", "source_url": RAHAVARD_GOLD_18K_PAGE_URL},
         "USD_IR_FREE": {"name": "دلار", "source": "Tabdeal", "source_url": TABDEAL_USDT_PAGE_URL},
-        "TEPIX": {"name": "شاخص کل بورس", "source": "iSignal", "source_url": ISIGNAL_TEPIX_PAGE_URL},
+        "TEPIX": {"name": "شاخص کل بورس", "source": "Rahavard365", "source_url": RAHAVARD_TEPIX_PAGE_URL},
     }
     data = dict(asset) if asset else asset_defaults.get(symbol)
     if symbol in {"GOLD_18K", "TEPIX"}:
@@ -204,8 +204,8 @@ def _market_quote(symbol: str, horizon: str = "long") -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="دارایی پیدا نشد")
     display_name = asset_defaults.get(symbol, {}).get("name") or data["name"]
     source_url = TABDEAL_USDT_PAGE_URL if is_usd_quote else data.get("source_url")
-    source_key = {"GOLD": "rahavard_gold", "GOLD_18K": "isignal_gold_18k", "DXY": "yahoo_dxy",
-                  "USD_IR_FREE": "tabdeal_usdt", "TEPIX": "isignal_tepix"}.get(symbol)
+    source_key = {"GOLD": "rahavard_gold", "GOLD_18K": "rahavard_gold_18k", "DXY": "yahoo_dxy",
+                  "USD_IR_FREE": "tabdeal_usdt", "TEPIX": "rahavard_tepix"}.get(symbol)
     quote_source = _source_map().get(source_key) if source_key else None
     analysis_source_key = "tabdeal_usdt" if is_usd_quote else source_key
     analysis_source = _source_map().get(analysis_source_key) if analysis_source_key else None
@@ -260,14 +260,13 @@ def _market_quote(symbol: str, horizon: str = "long") -> dict[str, Any]:
         "stale": bool(price_stale), "status": status,
     }
     output["price_is_cached"] = _timestamp_is_cached(observed_timestamp)
-    chart_indicator_source = ("TabdealChart" if is_usd_quote else
-                              "iSignalChart" if symbol in {"GOLD_18K", "TEPIX"} else "Rahavard365Chart")
+    chart_indicator_source = "TabdealChart" if is_usd_quote else "Rahavard365Chart"
     output["analysis"] = _analyze_chart_candles(
         symbol, analysis_bars, horizon=horizon,
         indicator_source=chart_indicator_source,
         source_url=(TABDEAL_USDT_CHART_PAGE_URL if is_usd_quote else
-                    ISIGNAL_GOLD_18K_PAGE_URL if symbol == "GOLD_18K" else
-                    ISIGNAL_TEPIX_PAGE_URL if symbol == "TEPIX" else None))
+                    RAHAVARD_GOLD_18K_PAGE_URL if symbol == "GOLD_18K" else
+                    RAHAVARD_TEPIX_PAGE_URL if symbol == "TEPIX" else None))
     output["analysis"]["source"] = "Tabdeal" if is_usd_quote else output.get("source")
     output["analysis"]["data_timestamp"] = analysis_timestamp
     output["analysis"]["status"] = (chart_analysis_status if is_usd_quote
@@ -276,8 +275,8 @@ def _market_quote(symbol: str, horizon: str = "long") -> dict[str, Any]:
         output["analysis"]["indicator_source"] = chart_indicator_source
         output["analysis"]["indicator_source_url"] = (
             TABDEAL_USDT_CHART_PAGE_URL if is_usd_quote else
-            ISIGNAL_GOLD_18K_PAGE_URL if symbol == "GOLD_18K" else
-            ISIGNAL_TEPIX_PAGE_URL if symbol == "TEPIX" else
+            RAHAVARD_GOLD_18K_PAGE_URL if symbol == "GOLD_18K" else
+            RAHAVARD_TEPIX_PAGE_URL if symbol == "TEPIX" else
             (analysis_bars[-1].get("source_url") if analysis_bars else data.get("source_url"))
         )
         output["analysis"]["indicator_data_timestamp"] = analysis_timestamp
@@ -390,10 +389,10 @@ async def lifespan(_: FastAPI):
     REFRESH_WAKE = asyncio.Event()
     for key, label, url in [
         ("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL),
-        ("isignal_gold_18k", "طلای ۱۸ عیار / iSignal", ISIGNAL_GOLD_18K_PAGE_URL),
+        ("rahavard_gold_18k", "طلای ۱۸ عیار / ره‌آورد۳۶۵", RAHAVARD_GOLD_18K_PAGE_URL),
         ("rahavard_usdt", "تاریخچهٔ دلار / ره‌آورد۳۶۵", RAHAVARD_USDT_PAGE_URL),
         ("tabdeal_usdt", "قیمت دلار / تتر · Tabdeal", TABDEAL_USDT_PAGE_URL),
-        ("isignal_tepix", "شاخص کل بورس / iSignal", ISIGNAL_TEPIX_PAGE_URL),
+        ("rahavard_tepix", "شاخص کل بورس / ره‌آورد۳۶۵", RAHAVARD_TEPIX_PAGE_URL),
         ("yahoo_dxy", "شاخص دلار آمریکا", "https://finance.yahoo.com/quote/DX-Y.NYB/"),
         ("rahavard_funds", "صندوق‌های قابل معامله / ره‌آورد۳۶۵", RAHAVARD_ETF_FUNDS_URL),
         ("rahavard_fund_details", "نمایه و NAV صندوق / ره‌آورد۳۶۵", RAHAVARD_API_BASE_URL + "/asset/{asset_id}"),
@@ -402,14 +401,14 @@ async def lifespan(_: FastAPI):
         existing_source = _source_map().get(key)
         if existing_source is None:
             db.save_source(key, label, "not_tested", url, None, "هنوز بررسی نشده است", None)
-        elif key == "tabdeal_usdt" and existing_source.get("status") == "disabled":
+        elif existing_source.get("status") == "disabled":
             db.save_source(key, label, "not_tested", url, None, None, None)
         elif existing_source.get("label") != label:
             db.update_source_label(key, label)
     legacy_sources = _source_map()
     for key, label in [("milli_gold_18k", "منبع پیشین طلای ۱۸ عیار / Milli · غیرفعال"),
-                       ("rahavard_tepix", "منبع پیشین شاخص کل / ره‌آورد۳۶۵ · غیرفعال"),
-                       ("rahavard_gold_18k", "Legacy 18K gold / Rahavard365 · inactive"),
+                       ("isignal_tepix", "منبع پیشین شاخص کل / iSignal · غیرفعال"),
+                       ("isignal_gold_18k", "منبع پیشین طلای ۱۸ عیار / iSignal · غیرفعال"),
                        ("tsetmc", "منبع قبلی قیمت صندوق‌ها · غیرفعال"),
                        ("tsetmc_fund_technicals", "تحلیل تکنیکال صندوق‌ها / TSETMC · غیرفعال"),
                        ("fipiran", "منبع قبلی مشخصات صندوق‌ها · غیرفعال"),
@@ -437,8 +436,8 @@ async def lifespan(_: FastAPI):
         # live market prices, fund listings, and NAV instead of an empty
         # dashboard.  Warm instances can be refreshed through /api/refresh.
         if (not db.funds(source="Rahavard365")
-                or not db.history("GOLD_18K", 1, source="iSignal")
-                or not db.history("TEPIX", 1, source="iSignal")):
+                or not db.history("GOLD_18K", 1, source="Rahavard365")
+                or not db.history("TEPIX", 1, source="Rahavard365")):
             REFRESH_STATE["running"] = True
             try:
                 REFRESH_STATE["last_result"] = await refresh_all()

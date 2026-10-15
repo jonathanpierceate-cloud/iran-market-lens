@@ -55,19 +55,16 @@ RAHAVARD_GOLD_PAGE_URL = os.getenv(
     "RAHAVARD_GOLD_PAGE_URL",
     "https://rahavard365.com/asset/2016/%D8%A7%D9%86%D8%B3-%D8%B7%D9%84%D8%A7-%D8%AF%D9%84%D8%A7%D8%B1-%D8%A7%D9%86%D8%B3",
 )
-ISIGNAL_GOLD_18K_PAGE_URL = os.getenv(
-    "ISIGNAL_GOLD_18K_PAGE_URL",
-    "https://isignal.ir/gold-currency/geram18/advancedchart",
+RAHAVARD_GOLD_18K_PAGE_URL = os.getenv(
+    "RAHAVARD_GOLD_18K_PAGE_URL",
+    "https://rahavard365.com/asset/1560/%D8%B7%D9%84%D8%A7-%DA%AF%D8%B1%D9%85-18-%D8%B9%DB%8C%D8%A7%D8%B1",
 )
-ISIGNAL_TEPIX_PAGE_URL = os.getenv(
-    "ISIGNAL_TEPIX_PAGE_URL",
-    "https://isignal.ir/stock/%d8%b4%d8%a7%d8%ae%d8%b5-%d8%a8%d9%88%d8%b1%d8%b3/",
+RAHAVARD_TEPIX_PAGE_URL = os.getenv(
+    "RAHAVARD_TEPIX_PAGE_URL",
+    "https://rahavard365.com/index/1/%D8%B4%D8%A7%D8%AE%D8%B5-%DA%A9%D9%84-%D8%A8%D9%88%D8%B1%D8%B3",
 )
-ISIGNAL_CHART_HISTORY_URL = os.getenv(
-    "ISIGNAL_CHART_HISTORY_URL", "https://advancedchart.isignal.ir/tradingView@1/history"
-)
-ISIGNAL_GOLD_18K_SYMBOL_ID = os.getenv("ISIGNAL_GOLD_18K_SYMBOL_ID", "100011")
-ISIGNAL_TEPIX_SYMBOL_ID = os.getenv("ISIGNAL_TEPIX_SYMBOL_ID", "32097828799138957")
+RAHAVARD_GOLD_18K_ASSET_ID = os.getenv("RAHAVARD_GOLD_18K_ASSET_ID", "1560")
+RAHAVARD_TEPIX_INDEX_ID = os.getenv("RAHAVARD_TEPIX_INDEX_ID", "1")
 RAHAVARD_USDT_PAGE_URL = "https://rahavard365.com/asset/44167/indicator"
 RAHAVARD_GOLD_ASSET_ID = os.getenv("RAHAVARD_GOLD_ASSET_ID", "2016")
 RAHAVARD_USDT_ASSET_ID = "44167"
