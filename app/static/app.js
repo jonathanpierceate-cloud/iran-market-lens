@@ -608,7 +608,7 @@
     const scores = a.family_scores || {};
     const trendLabels = { bullish: "صعودی", bearish: "نزولی", neutral: "خنثی", unavailable: "داده کافی نیست" };
     const strengthLabels = { strong: "قوی", medium: "متوسط", weak: "ضعیف", unavailable: "نامشخص" };
-    const riskLabels = { low: "کم", medium: "متوسط", high: "بالا", very_high: "بسیار بالا", unavailable: "نامشخص" };
+    const riskLabels = { low: "کم", medium: "متوسط", elevated: "نسبتاً بالا", high: "بالا", very_high: "بسیار بالا", unavailable: "نامشخص" };
     const entryLabels = { suitable: "مناسب", confirmation: "نیازمند تأیید", unsuitable: "نامناسب", unavailable: "داده کافی نیست" };
     const bandLabels = { bullish: "صعودی", bearish: "نزولی", neutral: "خنثی", unavailable: "داده کافی نیست", very_strong: "بسیار قوی", strong: "قوی", relatively_positive: "نسبتاً مثبت", weak: "نسبتاً منفی", very_weak: "بسیار ضعیف" };
     const trend = trendLabels[a.trend || a.medium_term_trend] || "داده کافی نیست";
@@ -1116,7 +1116,7 @@
     if (!target) return;
     const trendLabels = { bullish: "صعودی", bearish: "نزولی", neutral: "خنثی", unavailable: "نامشخص" };
     const strengthLabels = { strong: "قوی", medium: "متوسط", weak: "ضعیف", unavailable: "نامشخص" };
-    const riskLabels = { low: "کم", medium: "متوسط", high: "بالا", very_high: "بسیار بالا", unavailable: "نامشخص" };
+    const riskLabels = { low: "کم", medium: "متوسط", elevated: "نسبتاً بالا", high: "بالا", very_high: "بسیار بالا", unavailable: "نامشخص" };
     const entryLabels = { suitable: "مساعد", confirmation: "نیازمند اصلاح و تثبیت", unsuitable: "نامساعد", unavailable: "نامشخص" };
     const title = $("#asset-comparison-title");
     if (title) title.textContent = `مقایسه تکنیکال چهار دارایی · ${horizonLabel(state.investmentHorizon)}`;

@@ -8,7 +8,7 @@ from typing import Any
 from .fund_scoring import score_fund_model
 from .dashboard_scoring import DASHBOARD_SCORE_WEIGHTS, analyze_dashboard_asset
 from .scoring_profiles import normalize_horizon
-from .scoring_rules import normalize_stoch_rsi
+from .scoring_rules import entry_recommendation, normalize_stoch_rsi
 
 
 LONG_TERM_SCORE_WEIGHTS = DASHBOARD_SCORE_WEIGHTS
@@ -256,6 +256,30 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
     aroon = find_values("ARRON") or find_values("Aroon")
     adx_values = find_values("ADX")
     adx = adx_values.get("adx", adx_values.get("value"))
+    trend_strength = ("unavailable" if adx is None else "strong" if adx >= 25
+                      else "medium" if adx >= 20 else "weak")
+    oscillator_indicators = (family_scores.get("oscillators") or {}).get("indicators", [])
+    rsi_score = next((item.get("score") for item in oscillator_indicators
+                      if isinstance(item, dict) and item.get("key") == "RSI(14)"), None)
+    entry_score = (round(float(moving_average_score) * 0.60 + float(rsi_score) * 0.40, 1)
+                   if moving_average_score is not None and rsi_score is not None else None)
+    active_exit_price = (short_term_exit_price
+                         if fund_model.get("investment_horizon") == "short"
+                         else medium_term_exit_price)
+    entry_assessment = entry_recommendation(
+        rsi, moving_average_score, fund_model.get("technical_score"),
+        above_exit_average=(price > active_exit_price)
+        if price is not None and active_exit_price is not None else None,
+        resistance_distance_pct=nearest_resistance_distance)
+    entry_quality = {
+        **entry_assessment,
+        "score": entry_score,
+        "score_method": "۶۰٪ میانگین‌های متحرک + ۴۰٪ امتیاز RSI",
+        "rsi": rsi,
+        "rsi_score": rsi_score,
+        "moving_average_score": moving_average_score,
+    }
+    risk_rank = fund_model.get("risk_rank") or {}
     ao = find_values("AO").get("awesome")
     stoch_values = find_values("StochRSI")
     stoch_rsi = normalize_stoch_rsi(stoch_values.get("stochrsi", stoch_values.get("value")))
@@ -401,7 +425,10 @@ def analyze_rahavard(symbol: str, payload: dict[str, Any],
             "near_resistance_count": len(near_resistances),
             "overbought_count": overbought_count,
         },
-        "signal": signal, "trend": trend, "risk": "unavailable",
+        "signal": signal, "trend": trend, "trend_strength": trend_strength,
+        "risk": risk_rank.get("level") or "unavailable",
+        "risk_score": risk_rank.get("score"),
+        "entry_quality": entry_quality,
         "confidence": fund_model.get("confidence"),
         "inter_group_dispersion": fund_model.get("inter_group_dispersion"),
         "damping_factor": fund_model.get("damping_factor"),
