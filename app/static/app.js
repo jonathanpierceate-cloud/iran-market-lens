@@ -227,6 +227,13 @@
   }
 
   const indicatorFa = { "RSI(14)": "شاخص قدرت نسبی", "MFI(14)": "شاخص جریان پول", "CCI(14)": "شاخص کانال کالا", "WR(14)": "Williams %R", "SO(14)": "نوسان‌گر تصادفی", "Aroon(25)": "آرون", "ARRON(25)": "آرون", "ADX(14)": "قدرت روند", "AO(5,34)": "شتاب Awesome", "StochRSI(14)": "استوکاستیک RSI", "MACD(12,26,9)": "مکدی", "MTM(6)": "شتاب قیمت", "Ichimoku(9,26,52,26)": "ایچیموکو", "ATR(14)": "دامنه واقعی میانگین", "KELTNER(16)": "کانال کلتنر", "BB(20)": "باند بولینگر", "VRSI(14)": "RSI حجم", "VMACD(12,26)": "مکدی حجم", "OBV(20)": "حجم تعادلی", "RV(15)": "\u0646\u0633\u0628\u062a \u062d\u062c\u0645 \u06f1\u06f5\u0631\u0648\u0632\u0647", "RV(30)": "\u0646\u0633\u0628\u062a \u062d\u062c\u0645 \u06f3\u06f0\u0631\u0648\u0632\u0647", "RV(90)": "\u0646\u0633\u0628\u062a \u062d\u062c\u0645 \u06f9\u06f0\u0631\u0648\u0632\u0647", "HV(15)": "\u0646\u0648\u0633\u0627\u0646 \u062a\u0627\u0631\u06cc\u062e\u06cc \u06f1\u06f5\u0631\u0648\u0632\u0647", "HV(30)": "\u0646\u0648\u0633\u0627\u0646 \u062a\u0627\u0631\u06cc\u062e\u06cc \u06f3\u06f0\u0631\u0648\u0632\u0647", "HV(90)": "\u0646\u0648\u0633\u0627\u0646 \u062a\u0627\u0631\u06cc\u062e\u06cc \u06f9\u06f0\u0631\u0648\u0632\u0647" };
+  const hasNumericValue = (value) => value != null && value !== "" && Number.isFinite(Number(value));
+  const hasIndicatorValue = (item) => {
+    const value = item?.value;
+    if (Array.isArray(value)) return value.some((part) => hasNumericValue(part?.value));
+    if (value && typeof value === "object") return Object.values(value).some(hasNumericValue);
+    return hasNumericValue(value);
+  };
   const factorFa = { trend: "روند", momentum: "شتاب", moving_averages: "میانگین‌ها", volume: "حجم", volatility: "نوسان", oscillators: "نوسان‌گرها", support_resistance: "حمایت و مقاومت" };
   const signalFa = { strong_buy: "بررسی خرید · قوی", buy: "بررسی خرید", hold: "انتظار / نگهداری", sell: "احتیاط", strong_sell: "ریسک بالا", unavailable: "داده ناکافی" };
 
@@ -502,7 +509,10 @@
     const scoreWeightText = `\u0645\u062f\u0644 ${horizonName} \u00b7 \u0645\u06cc\u0627\u0646\u06af\u06cc\u0646\u200c\u0647\u0627\u06cc \u0645\u062a\u062d\u0631\u06a9 ${num(scoreWeights.moving_averages ?? 0, 0)}\u066a \u00b7 \u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628 ${num(scoreWeights.trend_momentum ?? 0, 0)}\u066a \u00b7 \u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a ${num(scoreWeights.support_resistance ?? 0, 0)}\u066a \u00b7 \u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627 ${num(scoreWeights.oscillators ?? 0, 0)}\u066a`;
     const effectiveScoreWeights = a.effective_score_weights || {};
     const familyScores = a.family_scores || {};
-    const familyCards = Object.entries(labels).map(([key, [label, description]]) => {
+    const familyCards = Object.entries(labels).filter(([key]) => {
+      const value = familyScores[key]?.score;
+      return value != null && Number.isFinite(Number(value));
+    }).map(([key, [label, description]]) => {
       const family = familyScores[key] || {};
       const value = family.score == null ? NaN : Number(family.score);
       const available = Number.isFinite(value);
@@ -556,8 +566,8 @@
     const unverified = (Array.isArray(a.missing_data) ? a.missing_data : [])
       .some((row) => row?.status === "formula_unverified");
     const modelNote = unverified
-      ? "برای بعضی شاخص‌ها در این نماد داده یا فرمول قابل اتکا موجود نبود و از امتیازدهی کنار گذاشته شدند."
-      : "اندیکاتور فاقد داده وارد میانگین گروه نمی‌شود؛ امتیاز نهایی فقط وقتی محاسبه می‌شود که هر چهار گروه دادهٔ معتبر داشته باشند.";
+      ? "شاخص‌های فاقد داده یا فرمول قابل اتکا از نمایش و امتیازدهی کنار گذاشته شده‌اند."
+      : "شاخص‌های بدون مقدار نمایش داده نمی‌شوند؛ وزنشان در همان گروه بازتوزیع می‌شود و وزن گروهِ بدون داده بین گروه‌های موجود تقسیم می‌شود.";
     const changeChip = (label, value) => {
       const delta = value == null || !Number.isFinite(Number(value)) ? null : Number(value);
       const klass = delta == null || delta === 0 ? "neutral" : delta > 0 ? "positive" : "negative";
@@ -572,7 +582,7 @@
         </div>
         <div class="fund-model-meta">
           <span>پوشش کل داده‌ها <b>${Number.isFinite(coverage) ? `${num(coverage, 0)}٪` : "—"}</b></span>
-          <span>وزن خانواده‌های قابل‌محاسبه <b>${Number.isFinite(familyWeight) ? `${num(familyWeight, 0)}٪` : "—"}</b></span>
+          <span title="درصد وزن پایه‌ای که دادهٔ قابل‌محاسبه دارد؛ وزن مؤثر گروه‌های باقی‌مانده جداگانه نشان داده می‌شود">پوشش وزن پایهٔ گروه‌ها <b>${Number.isFinite(familyWeight) ? `${num(familyWeight, 0)}٪` : "—"}</b></span>
           <span title="بر پایهٔ پوشش داده و هم‌سویی گروه‌ها؛ احتمال سود نیست">اعتماد سیگنال <b>${Number.isFinite(confidence) ? `${num(confidence, 1)}٪` : "—"}</b></span>
           <span title="نمایش فاصلهٔ امتیاز گروه‌ها از یکدیگر">پراکندگی گروه‌ها <b>${Number.isFinite(a.inter_group_dispersion) ? num(a.inter_group_dispersion, 1) : "—"}</b></span>
           <span>ریسک نوسان (بالاتر = ریسک بیشتر) <b>${riskLabels[risk.level] || "نامشخص"}${Number.isFinite(riskScore) ? ` · ${num(riskScore, 0)}/100` : ""}</b></span>
@@ -582,7 +592,7 @@
       ${factorSummary}
       <div class="fund-model-context"><span>${navText}</span></div>
       <div class="fund-score-changes"><b>تغییر امتیاز در روزهای معاملاتی گذشته</b>${changeChip("۵ روز", a.score_change_5d)}${changeChip("۲۰ روز", a.score_change_20d)}</div>
-      <div class="fund-model-disclaimer"><b>نحوهٔ خواندن امتیاز</b><span>${modelNote} اگر چند اندیکاتور یک گروه داده نداشته باشند، وزن اندیکاتورهای همان گروه متناسب می‌شود؛ وزن چهار گروه طبق اکسل ثابت است. امتیاز کل از میانگین متحرک، روند و شتاب، حمایت و مقاومت و اسیلاتورها ساخته می‌شود. اندیکاتورهای مستقل حجم در مدل نیستند؛ NAV و ریسک جداگانه نمایش داده می‌شوند.</span></div>
+      <div class="fund-model-disclaimer"><b>نحوهٔ خواندن امتیاز</b><span>${modelNote} اندیکاتورهای بدون مقدار نمایش داده نمی‌شوند و وزنشان بین اندیکاتورهای قابل‌محاسبهٔ همان گروه تقسیم می‌شود؛ اگر یک گروه کامل داده نداشته باشد، وزنش بین گروه‌های قابل‌محاسبه بازتوزیع می‌شود. امتیاز کل از میانگین متحرک، روند و شتاب، حمایت و مقاومت و اسیلاتورها ساخته می‌شود. اندیکاتورهای مستقل حجم در مدل نیستند؛ NAV و ریسک جداگانه نمایش داده می‌شوند.</span></div>
     </section>`;
   }
 
@@ -611,7 +621,7 @@
       { key: "support_resistance", label: "\u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a", description: "\u067e\u06cc\u0648\u062a\u200c\u0647\u0627\u06cc \u0641\u06cc\u0628\u0648\u0646\u0627\u0686\u06cc\u060c \u06a9\u0644\u0627\u0633\u06cc\u06a9\u060c \u06a9\u0627\u0645\u0627\u0631\u06cc\u0644\u0627\u060c \u0648\u0648\u062f\u06cc \u0648 \u062f\u06cc\u200c\u0645\u0627\u0631\u06a9" },
       { key: "oscillators", label: "\u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627", description: "RSI\u060c MFI\u060c CCI\u060c SO\u060c StochRSI\u060c WR \u0648 MTM" },
     ];
-    const familyCards = familyDefinitions.map((factor) => {
+    const familyCards = familyDefinitions.filter((factor) => finite(scores[factor.key]?.score)).map((factor) => {
       const family = scores[factor.key] || {};
       const value = finite(family.score) ? Number(family.score) : null;
       const weight = finite(weights[factor.key]) ? Number(weights[factor.key]) : 0;
@@ -654,7 +664,7 @@
       "<span>جهت " + horizonName + " <b>" + trend + "</b></span><span>قدرت روند <b>" + strength + "</b></span>" +
       "<span>ریسک نوسان <b>" + risk + (finite(a.risk_score) ? " · " + num(a.risk_score, 0) : "") + "</b></span>" +
       "<span title=\"" + esc(entryReason) + "\">ارزیابی خرید <b>" + entry + (finite(a.entry_quality?.score) ? " · کیفیت ورود " + num(a.entry_quality.score, 0) : "") + "</b></span>" +
-      "<span>پوشش داده <b>" + (finite(a.data_coverage_pct) ? num(a.data_coverage_pct, 0) + "٪" : "—") + "</b></span>" +
+      "<span title=\"درصد وزن پایه‌ای که دادهٔ قابل‌محاسبه دارد؛ وزن مؤثر گروه‌های باقی‌مانده جداگانه نشان داده می‌شود\">پوشش وزن پایهٔ گروه‌ها <b>" + (finite(a.available_family_weight_pct) ? num(a.available_family_weight_pct, 0) + "٪" : "—") + "</b></span>" +
       "<span title=\"بر پایهٔ پوشش داده و هم‌سویی گروه‌ها؛ احتمال سود نیست\">اعتماد سیگنال <b>" + (finite(a.confidence) ? num(a.confidence, 1) + "٪" : "—") + "</b></span>" +
       "<span title=\"فاصلهٔ امتیاز گروه‌ها از یکدیگر\">پراکندگی گروه‌ها <b>" + (finite(a.inter_group_dispersion) ? num(a.inter_group_dispersion, 1) : "—") + "</b></span>" +
       "<span>به‌روزرسانی <b>" + esc(formatDate(a.data_timestamp)) + "</b></span></div></div>" +
@@ -664,7 +674,7 @@
       "<div class=\"fund-model-context dashboard-levels\">" + levelText("حمایت نزدیک", a.nearest_support?.midpoint, a.score_breakdown?.support_distance_pct) +
       levelText("مقاومت پیش‌رو", a.nearest_resistance?.midpoint, a.score_breakdown?.resistance_distance_pct) +
       levelText("سطح ساختاری", a.structural_invalidation_level, null) + "</div>" +
-      "<div class=\"fund-model-disclaimer\"><b>روش و محدودیت محاسبه</b><span>امتیاز کل از چهار گروه میانگین‌های متحرک، روند و شتاب، حمایت و مقاومت و اسیلاتورها به‌دست می‌آید. وزن گروه‌ها طبق اکسل ثابت است؛ اگر چند اندیکاتور یک گروه داده نداشته باشند، وزن اندیکاتورهای همان گروه متناسب می‌شود. امتیاز کل فقط با دادهٔ معتبر از هر چهار گروه ساخته می‌شود. اندیکاتورهای مستقل حجم و کارت حجم حذف شده‌اند؛ MFI طبق اکسل در گروه اسیلاتورها باقی است. " +
+      "<div class=\"fund-model-disclaimer\"><b>روش و محدودیت محاسبه</b><span>امتیاز کل از گروه‌های میانگین‌های متحرک، روند و شتاب، حمایت و مقاومت و اسیلاتورها به‌دست می‌آید. اندیکاتورهای بدون مقدار نمایش داده نمی‌شوند و وزنشان در همان گروه بین اندیکاتورهای موجود تقسیم می‌شود؛ اگر یک گروه کامل داده نداشته باشد، وزن آن بین گروه‌های قابل‌محاسبه بازتوزیع می‌شود. اندیکاتورهای مستقل حجم و کارت حجم حذف شده‌اند؛ MFI طبق اکسل در گروه اسیلاتورها باقی است. " +
       limitations.map(esc).join(" ") + "</span></div></section>";
   }
 
@@ -714,7 +724,7 @@
     const trendTone = trendDirection == null ? "unknown" : trendDirection > 0 ? "positive" : trendDirection < 0 ? "negative" : "neutral";
     const scores = a.score_breakdown || {};
     const groupScore = (groupName) => {
-      const items = Array.isArray(a.indicators?.[groupName]) ? a.indicators[groupName] : [];
+      const items = (Array.isArray(a.indicators?.[groupName]) ? a.indicators[groupName] : []).filter(hasIndicatorValue);
       const values = items.map((item) => {
         const key = String(item?.signal || "").trim().toLowerCase().replace(/[^a-z]/g, "");
         if (["buy", "strongbuy", "bullish", "support"].includes(key)) return 100;
@@ -746,7 +756,7 @@
         : "سیگنال‌ها هم‌جهت نیستند؛ برای ورود، تثبیت قیمت و کاهش ریسک اصلاح را بررسی کن.";
     const scoreWeights = a.score_weights || {};
     const scoreWeightText = `مدل ${horizonLabel()} · میانگین متحرک ${num(scoreWeights.moving_averages ?? 0, 0)}٪ · روند و شتاب ${num(scoreWeights.trend_momentum ?? 0, 0)}٪ · حمایت و مقاومت ${num(scoreWeights.support_resistance ?? 0, 0)}٪ · اسیلاتورها ${num(scoreWeights.oscillators ?? 0, 0)}٪`;
-    const scoreCard = (label, value, detail, tone = "neutral") => { const unavailable = value == null; return `<article class="analysis-score-card ${tone} ${unavailable ? "unavailable" : ""}"><span>${label}</span><strong>${unavailable ? "—" : `${num(value, 0)}٪`}</strong><small>${detail}</small><i style="width:${unavailable ? 0 : Math.max(0, Math.min(100, value))}%"></i></article>`; };
+    const scoreCard = (label, value, detail, tone = "neutral") => value == null ? "" : `<article class="analysis-score-card ${tone}"><span>${label}</span><strong>${num(value, 0)}٪</strong><small>${detail}</small><i style="width:${Math.max(0, Math.min(100, value))}%"></i></article>`;
     const stats = countsAvailable ? `<div class="recommendation-stats">${buy != null ? `<span class="recommendation-count buy">خرید <b>${num(buy, 0)}</b></span>` : ""}${neutral != null ? `<span class="recommendation-count neutral">خنثی <b>${num(neutral, 0)}</b></span>` : ""}${sell != null ? `<span class="recommendation-count sell">فروش <b>${num(sell, 0)}</b></span>` : ""}</div>` : "";
     return `<section class="fund-recommendation ${tone}"><div class="fund-recommendation-main"><div><span class="recommendation-kicker">${a.source === "Rahavard365" ? "شاخص‌های ره‌آورد · امتیاز مدل AliVest" : `مدل ${horizonLabel()} AliVest`} · ${esc(a.symbol || "این دارایی")}</span><h3>${a.source === "Rahavard365" ? "سیگنال ره‌آورد" : "برآورد مدل AliVest"}: <strong>${verdict}</strong></h3></div><div class="recommendation-context"><p>${esc(rationale)}</p><div class="recommendation-trend ${trendTone}"><span>روند فعلی</span><b>${trendLabel}</b></div></div></div><div class="analysis-score-grid"><div class="analysis-score-card primary ${tone}"><span>امتیاز کلی تکنیکال</span><strong>${a.technical_score == null ? "—" : `${num(a.technical_score, 0)}٪`}</strong><small>${scoreWeightText}</small><i style="width:${a.technical_score == null ? 0 : Math.max(0, Math.min(100, Number(a.technical_score)))}%"></i></div>${scoreCard("میانگین‌های متحرک", movingAverageScore, "جایگاه قیمت نسبت به EMA / SMA", movingAverageScore >= 70 ? "positive" : movingAverageScore < 30 ? "negative" : "neutral")}${scoreCard("روند و شتاب", trendMomentumScore, "MACD · ADX · AROON · AO", trendMomentumScore >= 70 ? "positive" : trendMomentumScore < 30 ? "negative" : "neutral")}${scoreCard("نوسان‌گرها", oscillatorScore, oscillatorDetail, oscillatorScore >= 70 ? "positive" : oscillatorScore < 30 ? "negative" : "neutral")}${scoreCard("حمایت و مقاومت", resistanceScore, `${num(nearResistanceCount, 0)} سطح نزدیک · ${num(Number(scores.front_resistance_count ?? resistanceLevels.length), 0)} سطح جلو`, resistanceScore != null && resistanceScore < 30 ? "negative" : "neutral")}</div><div class="analysis-probability-grid"><article class="analysis-probability bullish"><div><span>ادامهٔ روند صعودی</span><strong>${num(bullishProbability, 0)}٪</strong></div><i style="width:${Math.max(0, Math.min(100, bullishProbability))}%"></i></article><article class="analysis-probability bearish"><div><span>ادامهٔ روند نزولی</span><strong>${num(bearishProbability, 0)}٪</strong></div><i style="width:${Math.max(0, Math.min(100, bearishProbability))}%"></i></article><article class="analysis-probability correction"><div><span>ریسک اصلاح</span><strong>${num(correctionProbability, 0)}٪</strong></div><small>سطح ریسک: ${esc(correctionLabel)}</small><i style="width:${Math.max(0, Math.min(100, correctionProbability))}%"></i></article></div>${stats}</section>`;
   }
@@ -991,7 +1001,7 @@
       rv: "حجم نسبی", vrsi: "VRSI", vmacd: "VMACD", obv: "OBV"
     };
     const volumeIndicator = (item) => /^(OBV|RV|VRSI|VMACD|SM)\s*\(/i.test(String(item?.short_name_en || item?.name_en || ""));
-    const cards = Object.entries(groups).flatMap(([group, items]) => group === "pivots" || group === "volumes" ? [] : (items || []).filter((item) => !volumeIndicator(item)).map((item) => {
+    const cards = Object.entries(groups).flatMap(([group, items]) => group === "pivots" || group === "volumes" ? [] : (items || []).filter((item) => !volumeIndicator(item) && hasIndicatorValue(item)).map((item) => {
       const name = item.short_name_en || item.name_en || "شاخص ره‌آورد";
       const note = notes.get(name) || {};
       const rawSignal = String(item.signal || "Neutral");
@@ -1020,7 +1030,6 @@
     }).join("");
     const score = a.technical_score == null ? "—" : num(a.technical_score, 0);
     const cls = a.signal === "buy" ? "bullish" : a.signal === "sell" ? "bearish" : "";
-    const missing = (a.missing_indicators || []).map((name) => `<article class="indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>در پاسخ نماد منتشر نشده</small></div><span class="indicator-status unknown">موجود نیست</span></div><p>برای این مقدار عدد جایگزین ساخته نشده است.</p><div class="indicator-range-guide"><b>این شاخص چه می‌گوید؟</b><span>${esc(indicatorPlainMeaning(name))}</span></div></article>`).join("");
     const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
     const dashboardModel = a.score_method?.startsWith("dashboard_rahavard_excel_weighted_");
     const tradePlan = dashboardModel ? exitManagementHtml(a) : tradePlanHtml(a);
@@ -1032,7 +1041,7 @@
     const indicatorTime = a.indicator_data_timestamp ? ` · دریافت ${esc(formatDate(a.indicator_data_timestamp))}` : "";
     const volumeDataNote = "";
     const signalDescription = computedFromChart ? "سیگنال محاسبه‌شده از کندل‌های نمودار" : "سیگنال رسمی";
-    return `${overview}${tradePlan}${volumeDataNote}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(a.indicator_count || cards.length)} شاخص با مقدار فعلی، تفسیر عددی و ${signalDescription}${indicatorSource}${indicatorTime}</p></div></div>${pivotTable}<div class="indicator-readouts">${gaugeCards}</div><div class="indicator-card-grid">${cards.join("")}${missing}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
+    return `${overview}${tradePlan}${volumeDataNote}<section class="indicator-workbench"><div class="indicator-section-title"><div><h3>اندیکاتورهای هر نماد</h3><p>${nf.format(cards.length)} شاخص با مقدار فعلی، تفسیر عددی و ${signalDescription}${indicatorSource}${indicatorTime}</p></div></div>${pivotTable}<div class="indicator-readouts">${gaugeCards}</div><div class="indicator-card-grid">${cards.join("")}</div><div class="indicator-key-note"><b>راهنما:</b> خریدزدگی و فروش‌زدگی هشدار افراط‌اند؛ همراه روند و حمایت/مقاومت خوانده شوند.</div></section>`;
   }
 
   function analysisHtml(a) {
@@ -1040,7 +1049,8 @@
     if (!a || a.technical_score == null) return `<div class="empty-state compact"><b>داده کافی برای محاسبه امتیاز موجود نیست</b><small>مدل فقط داده ذخیره‌شده از منبع را تحلیل می‌کند.</small></div>`;
     const all = a.indicators?.indicators || {};
     const seen = new Set();
-    const entries = Object.entries(all).filter(([key]) => {
+    const entries = Object.entries(all).filter(([key, value]) => {
+      if (!hasIndicatorValue(value)) return false;
       const normalized = key === "ARRON(25)" ? "Aroon(25)" : key;
       if (seen.has(normalized)) return false;
       seen.add(normalized);
@@ -1064,11 +1074,11 @@
     const maLabel = maState === "positive" ? "بالای هر سه میانگین" : maState === "caution" ? "زیر هر سه میانگین" : "ترکیبی / ناقص";
     const summary = (label, value, state, meaning) => `<div class="readout-card"><span>${label}</span><strong>${value}</strong><em class="indicator-status ${state}">${meaning}</em></div>`;
     const summaryCards = [
-      summary("RSI · قدرت حرکت", rsi?.value == null ? "—" : num(rsi.value, 1), rsi ? indicatorAssessment("RSI(14)", rsi).state : "unknown", rsi ? `${indicatorAssessment("RSI(14)", rsi).label} · زیر ۳۰ خرید، ۳۰ تا ۷۰ خنثی، بالای ۷۰ فروش` : "داده ناکافی"),
-      summary("MACD · شتاب روند", macd?.value == null ? "—" : `خط ${num(macd.value, 2)} / هیستوگرام ${num(macd.histogram, 2)}`, macd ? indicatorAssessment("MACD(12,26,9)", macd).state : "unknown", macd ? (Number(macd.histogram) > 0 ? "خط MACD بالای سیگنال؛ شتاب بهتر شده" : Number(macd.histogram) < 0 ? "خط MACD زیر سیگنال؛ شتاب ضعیف‌تر است" : "خط و سیگنال نزدیک هم") : "داده ناکافی"),
-      summary("ADX · قدرت و جهت روند", adx?.value == null ? "—" : num(adx.value, 1), adx ? indicatorAssessment("ADX(14)", adx).state : "unknown", adx ? `${indicatorAssessment("ADX(14)", adx).label} · ADX جهت را به‌تنهایی نمی‌گوید` : "داده ناکافی"),
-      summary("میانگین‌های EMA", maAlignment.length ? `${maAlignment.filter(Boolean).length} از ${maAlignment.length}` : "—", maState, `${maLabel} · نسبت قیمت به EMA20/50/200`)
-    ].join("");
+      hasIndicatorValue(rsi) ? summary("RSI · قدرت حرکت", num(rsi.value, 1), indicatorAssessment("RSI(14)", rsi).state, `${indicatorAssessment("RSI(14)", rsi).label} · زیر ۳۰ خرید، ۳۰ تا ۷۰ خنثی، بالای ۷۰ فروش`) : "",
+      hasIndicatorValue(macd) ? summary("MACD · شتاب روند", `خط ${num(macd.value, 2)} / هیستوگرام ${num(macd.histogram, 2)}`, indicatorAssessment("MACD(12,26,9)", macd).state, Number(macd.histogram) > 0 ? "خط MACD بالای سیگنال؛ شتاب بهتر شده" : Number(macd.histogram) < 0 ? "خط MACD زیر سیگنال؛ شتاب ضعیف‌تر است" : "خط و سیگنال نزدیک هم") : "",
+      hasIndicatorValue(adx) ? summary("ADX · قدرت و جهت روند", num(adx.value, 1), indicatorAssessment("ADX(14)", adx).state, `${indicatorAssessment("ADX(14)", adx).label} · ADX جهت را به‌تنهایی نمی‌گوید`) : "",
+      maAlignment.length ? summary("میانگین‌های EMA", `${maAlignment.filter(Boolean).length} از ${maAlignment.length}`, maState, `${maLabel} · نسبت قیمت به EMA20/50/200`) : ""
+    ].filter(Boolean).join("");
     const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
     const isDashboardModel = a.score_method?.startsWith("dashboard_rahavard_excel_weighted_");
     const tradePlan = isDashboardModel ? exitManagementHtml(a) : tradePlanHtml(a);

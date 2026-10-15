@@ -416,14 +416,19 @@ def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
                         "signal": "Insufficient Data"}
             else:
                 item = dict(item)
-            item["weight_pct"] = round(weight * 100.0, 2)
             item["sub_cluster"] = family
-            rows.append(item)
             if item.get("score") is None:
                 missing.append(name)
             else:
                 valid.append((item, weight))
         coverage = sum(weight for _, weight in valid)
+        # Keep only calculable indicator cards. Reallocate each missing
+        # indicator's configured share proportionally across the available
+        # indicators in the same family.
+        if coverage > 0:
+            for item, weight in valid:
+                item["weight_pct"] = round(weight / coverage * 100.0, 2)
+                rows.append(item)
         group_score = (sum(float(item["score"]) * weight for item, weight in valid) / coverage
                        if coverage > 0 and valid else None)
         coverage_by_family[family] = coverage
@@ -435,19 +440,22 @@ def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
             "sub_clusters": {"all_indicators": {
                 "score": round(group_score, 2) if group_score is not None else None,
                 "coverage_pct": round(coverage * 100.0, 1), "weight_pct": 100.0,
-                "indicators": list(weights),
+                "indicators": [item["key"] for item in rows],
             }},
         }
 
     valid_groups = [family for family in family_weights
                     if family_results[family]["score"] is not None]
     available_weight = sum(family_weights[family] for family in valid_groups)
-    if len(valid_groups) != len(family_weights) or available_weight <= 0:
+    if not valid_groups or available_weight <= 0:
         raw_score = final_score = dispersion = confidence = None
         effective: dict[str, float] = {}
         final_signal = "Insufficient Data"
     else:
-        effective = {family: family_weights[family] for family in valid_groups}
+        # If an entire family has no valid indicators, redistribute its
+        # configured share across the remaining families.
+        effective = {family: family_weights[family] / available_weight
+                     for family in valid_groups}
         raw_score = sum(effective[family] * float(family_results[family]["score"])
                         for family in valid_groups)
         final_score = _clip(raw_score)
@@ -455,8 +463,8 @@ def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
                                    (float(family_results[family]["score"]) - raw_score) ** 2
                                    for family in valid_groups))
         final_signal = "Bullish" if final_score > 70 else "Bearish" if final_score < 30 else "Neutral"
-        weighted_coverage = sum(effective[family] * coverage_by_family[family]
-                                for family in valid_groups)
+        weighted_coverage = sum(family_weights[family] * coverage_by_family[family]
+                                for family in family_weights)
         agreement = 1.0 - _clip(dispersion / 50.0, 0.0, 1.0)
         confidence = round(100.0 * weighted_coverage * agreement, 1)
 

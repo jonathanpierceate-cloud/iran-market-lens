@@ -274,14 +274,15 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
     negative = [{"family": key, "name": names[key], "score": family_scores[key]["score"]}
                 for key in sorted(family_scores, key=lambda k: family_scores[k]["score"] or 101)
                 if family_scores[key]["score"] is not None and family_scores[key]["score"] < 30][:2]
-    factors = [{"name": key, "score": family_scores[key]["score"], "weight": family_weights[key],
+    factors = [{"name": key, "score": family_scores[key]["score"],
+                "weight": float(effective.get(key, 0.0)) / 100.0,
                 "evidence": ", ".join((item.get("name") or item.get("key") or "")
                                        for item in rows[key] if item["score"] is not None)}
                for key in family_weights if family_scores[key]["score"] is not None]
     missing = [f"{names[family]}: {key}" for family in weights for key in family_scores[family]["missing_indicators"]]
     limitations = [
         "این امتیاز محاسبهٔ اختصاصی AliVest است، نه امتیاز رسمی ره‌آورد یا احتمال آماری موفقیت.",
-        "وزن اندیکاتورهای بدون داده در همان گروه متناسب می‌شود؛ امتیاز کل فقط وقتی ساخته می‌شود که هر چهار گروه امتیاز معتبر داشته باشند.",
+        "وزن اندیکاتورهای بدون داده در همان گروه متناسب می‌شود؛ اگر یک گروه کامل داده نداشته باشد، وزن آن بین گروه‌های قابل محاسبه تقسیم می‌شود.",
         f"RSI یکی از شاخص‌های نوسان‌گر و {family_weights['oscillators'] * weights['oscillators']['RSI(14)'] * 100:.1f}٪ از وزن پایهٔ کل است؛ خرید بر پایهٔ برآیند چهار گروه ارزیابی می‌شود.",
         "\u0627\u0646\u062f\u06cc\u06a9\u0627\u062a\u0648\u0631\u0647\u0627\u06cc \u0645\u0633\u062a\u0642\u0644 \u062d\u062c\u0645 \u0627\u0632 \u0627\u0645\u062a\u06cc\u0627\u0632\u062f\u0647\u06cc \u062d\u0630\u0641 \u0634\u062f\u0647\u200c\u0627\u0646\u062f\u061b MFI \u0637\u0628\u0642 \u0641\u0627\u06cc\u0644 \u0627\u06a9\u0633\u0644 \u062f\u0631 \u06af\u0631\u0648\u0647 \u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627 \u0628\u0627\u0642\u06cc \u0645\u0627\u0646\u062f\u0647 \u0627\u0633\u062a.",
     ]
