@@ -329,9 +329,45 @@
     return `عدد مستقیمی برای این شاخص منتشر نشده؛ سیگنال رسمی ره‌آورد «${signalText}» است.`;
   }
 
-  function indicatorAssessment(key, value) {
+  function indicatorScoreMap(analysis) {
+    const scores = new Map();
+    const normalize = (key) => String(key || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const add = (key, score) => {
+      if (key && Number.isFinite(Number(score))) scores.set(normalize(key), Number(score));
+    };
+    for (const family of Object.values(analysis?.family_scores || {})) {
+      for (const item of family?.indicators || []) {
+        const key = String(item?.key || "");
+        const score = item?.score;
+        if (score == null || !Number.isFinite(Number(score))) continue;
+        add(key, score);
+        const ma = key.match(/^EMA\/SMA\((\d+)\)$/i);
+        if (ma) {
+          add(`EMA(${ma[1]})`, score);
+          add(`SMA(${ma[1]})`, score);
+        }
+        if (/^MACD/i.test(key)) add("MACD(26)", score);
+        if (/^SO\(14\)/i.test(key)) add("SO(14)", score);
+        if (/^StochRSI\(14\)/i.test(key)) add("StochRSI(14)", score);
+        if (/^Ichimoku Cloud/i.test(key)) add("Ichimoku(9,26,52,26)", score);
+      }
+    }
+    return scores;
+  }
+
+  function lookupIndicatorScore(scoreMap, key) {
+    const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const direct = scoreMap.get(normalize(key));
+    if (direct != null) return direct;
+    const period = String(key || "").match(/^(?:EMA|SMA)\((\d+)\)$/i);
+    if (period) return scoreMap.get(normalize(`EMA(${period[1]})`)) ?? scoreMap.get(normalize(`SMA(${period[1]})`));
+    return undefined;
+  }
+
+  function indicatorAssessment(key, value, modelScore, preferModelScore = false) {
     const signal = value?.signal || "neutral";
-    const explicitScore = Number(value?.score ?? value?.indicator_score ?? value?.technical_score);
+    const rawScore = value?.score ?? value?.indicator_score ?? value?.technical_score;
+    const explicitScore = preferModelScore ? (modelScore ?? NaN) : (modelScore ?? (rawScore == null ? NaN : Number(rawScore)));
     if (Number.isFinite(explicitScore)) return scoreBandAssessment(explicitScore);
     if (value?.value == null || signal === "unavailable") return { state: "neutral", label: "خنثی" };
     if (key === "ADX(14)") {
@@ -348,10 +384,10 @@
   }
 
   function scoreBandAssessment(score) {
-    const rounded = Math.floor(Number(score) + 0.5);
-    return rounded >= 70 ? { state: "positive", label: "صعودی" }
-      : rounded <= 40 ? { state: "negative", label: "نزولی" }
-        : { state: "neutral", label: "خنثی" };
+    const numericScore = Number(score);
+    return numericScore >= 70 ? { state: "positive", label: "\u0635\u0639\u0648\u062f\u06cc" }
+      : numericScore <= 40 ? { state: "negative", label: "\u0646\u0632\u0648\u0644\u06cc" }
+        : { state: "neutral", label: "\u062e\u0646\u062b\u06cc" };
   }
 
   function indicatorExtra(key, value) {
@@ -970,6 +1006,8 @@
       bouncefromlower: ["صعودی", "positive"], nearupperuptrend: ["نزولی", "negative"]
     };
     const groups = { ...(a.indicators || {}), volumes: [] };
+    const scoreMap = indicatorScoreMap(a);
+    const hasModelScores = Object.keys(a.family_scores || {}).length > 0;
     const notes = new Map((a.indicator_notes || []).map((x) => [x.name, x]));
     const groupNames = { oscillators: "نوسانگرها و روند", moving_averages: "میانگین‌ها و باندها", bands: "باندهای نوسان", pivots: "پیوت‌ها و سطوح", volumes: "شاخص‌های حجم" };
     const pivotTable = pivotTableHtml(groups.pivots, a.price);
@@ -1034,6 +1072,7 @@
     if ((["Rahavard365Chart", "TabdealChart"].includes(a?.indicator_source) && Array.isArray(a.indicators?.oscillators)) || (a?.source === "Rahavard365" && (a?.indicator_source === "Rahavard365" || !a?.score_method?.startsWith("dashboard_rahavard_excel_weighted_")))) return rahavardAnalysisHtml(a);
     if (!a || a.technical_score == null) return `<div class="empty-state compact"><b>داده کافی برای محاسبه امتیاز موجود نیست</b><small>مدل فقط داده ذخیره‌شده از منبع را تحلیل می‌کند.</small></div>`;
     const all = a.indicators?.indicators || {};
+    const scoreMap = indicatorScoreMap(a);
     const seen = new Set();
     const entries = Object.entries(all).filter(([key, value]) => {
       if (!hasIndicatorValue(value)) return false;
@@ -1043,7 +1082,7 @@
       return true;
     });
     const cards = entries.map(([key, value]) => {
-      const assessment = indicatorAssessment(key, value);
+      const assessment = indicatorAssessment(key, value, lookupIndicatorScore(scoreMap, key), Object.keys(a.family_scores || {}).length > 0);
       const name = indicatorFa[key] || (/^(EMA|SMA)\(/.test(key) ? (key.startsWith("EMA") ? "میانگین نمایی" : "میانگین ساده") : key);
       const displayKey = key === "Aroon(25)" ? "ARRON(25)" : key;
       const extra = indicatorExtra(key, value);
@@ -1054,15 +1093,18 @@
     const rsi = ind["RSI(14)"];
     const macd = ind["MACD(12,26,9)"];
     const adx = ind["ADX(14)"];
+    const rsiAssessment = indicatorAssessment("RSI(14)", rsi, lookupIndicatorScore(scoreMap, "RSI(14)"), Object.keys(a.family_scores || {}).length > 0);
+    const macdAssessment = indicatorAssessment("MACD(12,26,9)", macd, lookupIndicatorScore(scoreMap, "MACD(12,26,9)"), Object.keys(a.family_scores || {}).length > 0);
+    const adxAssessment = indicatorAssessment("ADX(14)", adx, lookupIndicatorScore(scoreMap, "ADX(14)"), Object.keys(a.family_scores || {}).length > 0);
     const ma = a.indicators?.moving_average_analysis || {};
     const maAlignment = [ma.price_above_ema20, ma.price_above_ema50, ma.price_above_ema200].filter((v) => v != null);
     const maState = maAlignment.length && maAlignment.every(Boolean) ? "positive" : maAlignment.length && maAlignment.every((v) => !v) ? "caution" : "neutral";
     const maLabel = maState === "positive" ? "بالای هر سه میانگین" : maState === "caution" ? "زیر هر سه میانگین" : "ترکیبی / ناقص";
     const summary = (label, value, state, meaning) => `<div class="readout-card"><span>${label}</span><strong>${value}</strong><em class="indicator-status ${state}">${meaning}</em></div>`;
     const summaryCards = [
-      hasIndicatorValue(rsi) ? summary("RSI · قدرت حرکت", num(rsi.value, 1), indicatorAssessment("RSI(14)", rsi).state, `${indicatorAssessment("RSI(14)", rsi).label} · زیر ۳۰ خرید، ۳۰ تا ۷۰ خنثی، بالای ۷۰ فروش`) : "",
-      hasIndicatorValue(macd) ? summary("MACD · شتاب روند", `خط ${num(macd.value, 2)} / هیستوگرام ${num(macd.histogram, 2)}`, indicatorAssessment("MACD(12,26,9)", macd).state, Number(macd.histogram) > 0 ? "خط MACD بالای سیگنال؛ شتاب بهتر شده" : Number(macd.histogram) < 0 ? "خط MACD زیر سیگنال؛ شتاب ضعیف‌تر است" : "خط و سیگنال نزدیک هم") : "",
-      hasIndicatorValue(adx) ? summary("ADX · قدرت و جهت روند", num(adx.value, 1), indicatorAssessment("ADX(14)", adx).state, `${indicatorAssessment("ADX(14)", adx).label} · ADX جهت را به‌تنهایی نمی‌گوید`) : "",
+      hasIndicatorValue(rsi) ? summary("RSI · قدرت حرکت", num(rsi.value, 1), rsiAssessment.state, `${rsiAssessment.label} · زیر ۳۰ خرید، ۳۰ تا ۷۰ خنثی، بالای ۷۰ فروش`) : "",
+      hasIndicatorValue(macd) ? summary("MACD · شتاب روند", `خط ${num(macd.value, 2)} / هیستوگرام ${num(macd.histogram, 2)}`, macdAssessment.state, Number(macd.histogram) > 0 ? "خط MACD بالای سیگنال؛ شتاب بهتر شده" : Number(macd.histogram) < 0 ? "خط MACD زیر سیگنال؛ شتاب ضعیف‌تر است" : "خط و سیگنال نزدیک هم") : "",
+      hasIndicatorValue(adx) ? summary("ADX · قدرت و جهت روند", num(adx.value, 1), adxAssessment.state, `${adxAssessment.label} · ADX جهت را به‌تنهایی نمی‌گوید`) : "",
       maAlignment.length ? summary("میانگین‌های EMA", `${maAlignment.filter(Boolean).length} از ${maAlignment.length}`, maState, `${maLabel} · نسبت قیمت به EMA20/50/200`) : ""
     ].filter(Boolean).join("");
     const overview = `<section class="analysis-overview rahavard-overview">${rahavardRecommendationHtml(a)}</section>`;
