@@ -1,4 +1,4 @@
-"""Update 4 chart-based technical scoring for funds and dashboard assets."""
+"""Update 4.2 chart-based technical scoring for funds and dashboard assets."""
 from __future__ import annotations
 
 import math
@@ -83,7 +83,7 @@ def _pivot_sets(high: float, low: float, close: float, previous_open: float
     demark = {"PP": x / 4.0, "R1": x / 2.0 - low, "S1": x / 2.0 - high}
     offset = 1.1 * span
     camarilla = {
-        "PP": classic,
+        "PP": close,
         "R1": close + offset / 12, "R2": close + offset / 6,
         "R3": close + offset / 4, "R4": close + offset / 2,
         "S1": close - offset / 12, "S2": close - offset / 6,
@@ -96,7 +96,7 @@ def _pivot_sets(high: float, low: float, close: float, previous_open: float
 
 def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
                       ) -> dict[str, dict[str, dict[str, Any]]]:
-    """Calculate Update 4 indicator scores as z values, then map to 0–100."""
+    """Calculate Update 4.2 indicator scores as z values, then map to 0–100."""
     results: dict[str, dict[str, dict[str, Any]]] = {
         family: {} for family in FUND_SCORING_PROFILES["long"]["indicator_weights"]
     }
@@ -119,10 +119,12 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
             note: str = "", *, counter_trend: bool = False) -> None:
         if z is not None and not math.isfinite(z):
             z = None
+        raw_z = z
         damped = bool(counter_trend and strong_trend and trend_direction and z is not None
                       and z * trend_direction < 0)
         if damped and z is not None:
             z *= .5
+        raw_score = _score(raw_z) if raw_z is not None else None
         score = _score(z) if z is not None else None
         results[family][key] = {
             "key": key,
@@ -132,6 +134,7 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
             "note": note,
             "signal": _signal(score),
             "regime_adjusted": damped,
+            "raw_score": raw_score,
         }
 
     # Moving averages: combine each same-period EMA/SMA pair into one vote.
@@ -248,7 +251,10 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
     }
     for method, key in pivot_names.items():
         levels = pivot_sets.get(method)
-        pivot = _num(levels.get("PP")) if levels else None
+        pivot = ((_num(levels.get("S1")) + _num(levels.get("R1"))) / 2.0
+                 if scheme == "Camarilla" and levels
+                 and _num(levels.get("S1")) is not None and _num(levels.get("R1")) is not None
+                 else _num(levels.get("PP")) if levels else None)
         support = _num(levels.get("S1")) if levels else None
         resistance = _num(levels.get("R1")) if levels else None
         z = None
