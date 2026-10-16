@@ -96,6 +96,7 @@
 .indicator-previous b{color:#b9c7d7;font-size:14px;font-variant-numeric:tabular-nums;direction:ltr}
 .indicator-status{display:inline-flex;align-items:center;justify-content:center;max-width:100%;padding:4px 8px;border:1px solid transparent;border-radius:99px;font-size:12px;line-height:1.55;font-style:normal;white-space:normal;text-align:center}
 .indicator-status.positive{color:#8ae0bf;background:rgba(60,190,139,.12);border-color:rgba(60,190,139,.25)}
+.indicator-status.negative{color:#f09aa4;background:rgba(146,54,66,.16);border-color:rgba(220,105,119,.3)}
 .indicator-status.caution{color:#ffd18b;background:rgba(222,159,63,.12);border-color:rgba(222,159,63,.26)}
 .indicator-status.neutral{color:#b5c8dd;background:rgba(116,151,188,.12);border-color:rgba(116,151,188,.22)}
 .indicator-status.unknown{color:#b5bec9;background:rgba(125,137,151,.13);border-color:rgba(125,137,151,.2)}

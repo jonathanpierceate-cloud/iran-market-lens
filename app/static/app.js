@@ -331,44 +331,27 @@
 
   function indicatorAssessment(key, value) {
     const signal = value?.signal || "neutral";
-    const unavailable = value?.value == null || signal === "unavailable";
-    if (unavailable) return { state: "unknown", label: "داده ناکافی" };
+    const explicitScore = Number(value?.score ?? value?.indicator_score ?? value?.technical_score);
+    if (Number.isFinite(explicitScore)) return scoreBandAssessment(explicitScore);
+    if (value?.value == null || signal === "unavailable") return { state: "neutral", label: "خنثی" };
     if (key === "ADX(14)") {
       const plus = Number(value.plus_di), minus = Number(value.minus_di);
-      if (signal !== "strong") return { state: "neutral", label: "روند کم‌قدرت" };
+      if (signal !== "strong") return { state: "neutral", label: "خنثی" };
       if (Number.isFinite(plus) && Number.isFinite(minus) && plus !== minus)
-        return plus > minus ? { state: "positive", label: "روند قوی صعودی" } : { state: "caution", label: "روند قوی نزولی" };
-      return { state: "neutral", label: "روند قوی" };
+        return plus > minus ? { state: "positive", label: "صعودی" } : { state: "negative", label: "نزولی" };
+      return { state: "neutral", label: "خنثی" };
     }
-    if (["ATR(14)", "HV(15)", "HV(30)", "HV(90)", "VRSI(14)"].includes(key)) return { state: "neutral", label: "معیار نوسان/حجم" };
-    if (["RSI(14)", "StochRSI(14)"].includes(key)) {
-      if (signal === "buy") return { state: "positive", label: "ناحیه خرید" };
-      if (signal === "sell") return { state: "caution", label: "ناحیه فروش" };
-      return { state: "neutral", label: "محدوده خنثی" };
-    }
-    if (["MFI(14)", "CCI(14)", "WR(14)", "SO(14)"].includes(key)) {
-      if (signal === "oversold") return { state: "caution", label: "فروش‌زدگی · بااحتیاط" };
-      if (signal === "overbought") return { state: "caution", label: "خریدزدگی · بااحتیاط" };
-      return { state: "neutral", label: "محدوده میانی" };
-    }
-    if (["BB(20)", "KELTNER(16)"].includes(key)) {
-      if (signal === "bounce_from_lower") return { state: "positive", label: "برگشت از کف · مثبت" };
-      if (signal === "near_upper_uptrend") return { state: "caution", label: "نزدیک سقف در روند صعودی · منفی" };
-      if (signal === "bounce_from_lower") return { state: "positive", label: "برگشت از کف · مثبت" };
-      if (signal === "near_upper_uptrend") return { state: "caution", label: "نزدیک سقف در روند صعودی · منفی" };
-      if (signal === "breakout_up") return { state: "caution", label: "بالاتر از کانال · کشیدگی" };
-      if (signal === "breakout_down") return { state: "caution", label: "پایین‌تر از کانال · ضعف" };
-      return { state: "neutral", label: "داخل کانال" };
-    }
-    if (key.startsWith("EMA(") || key.startsWith("SMA(")) return signal === "bullish" ? { state: "positive", label: "قیمت بالای میانگین" } : { state: "caution", label: "قیمت زیر میانگین" };
-    if (key === "Aroon(25)" || key === "ARRON(25)") {
-      const up = Number(value.up), down = Number(value.down);
-      if (Number.isFinite(up) && Number.isFinite(down) && Math.max(up, down) < 50) return { state: "neutral", label: "روند کم‌رنگ" };
-    }
-    if (signal === "bullish") return { state: "positive", label: "مثبت برای روند" };
-    if (signal === "bearish") return { state: "caution", label: "فشار منفی" };
-    if (signal === "strong") return { state: "neutral", label: "روند قوی" };
+    if (["ATR(14)", "HV(15)", "HV(30)", "HV(90)", "VRSI(14)"].includes(key)) return { state: "neutral", label: "خنثی" };
+    if (["buy", "bullish", "strongbuy", "strong_buy", "oversold", "bounce_from_lower", "breakout_up"].includes(String(signal).toLowerCase())) return { state: "positive", label: "صعودی" };
+    if (["sell", "bearish", "strongsell", "strong_sell", "overbought", "near_upper_uptrend", "breakout_down"].includes(String(signal).toLowerCase())) return { state: "negative", label: "نزولی" };
     return { state: "neutral", label: "خنثی" };
+  }
+
+  function scoreBandAssessment(score) {
+    const rounded = Math.floor(Number(score) + 0.5);
+    return rounded >= 70 ? { state: "positive", label: "صعودی" }
+      : rounded <= 40 ? { state: "negative", label: "نزولی" }
+        : { state: "neutral", label: "خنثی" };
   }
 
   function indicatorExtra(key, value) {
@@ -979,14 +962,12 @@
     const computedFromChart = ["Rahavard365Chart", "TabdealChart"].includes(a.indicator_source);
     const signalFa = { buy: "خرید · مثبت", sell: "فروش · منفی", hold: "خنثی", strong_buy: "خرید قوی", strong_sell: "فروش قوی" };
     const siteSignals = {
-      buy: ["خرید / مثبت", "positive"], strongbuy: ["خرید قوی", "positive"], bullish: ["صعودی", "positive"],
-      sell: ["فروش / منفی", "caution"], strongsell: ["فروش قوی", "caution"], bearish: ["نزولی", "caution"],
-      neutral: ["خنثی", "neutral"], overbought: ["خریدزدگی · احتیاط", "caution"],
-      oversold: ["فروش‌زدگی · احتمال برگشت", "neutral"], resistance: ["مقاومت", "caution"],
-      support: ["حمایت", "neutral"], highvolume: ["حجم بالا · بدون جهت", "neutral"],
-      lowvolume: ["حجم پایین · تأیید ضعیف‌تر", "neutral"], unavailable: ["محاسبه نشد", "unknown"],
-      bouncefromlower: ["برگشت از کف · مثبت", "positive"],
-      nearupperuptrend: ["نزدیک سقف در روند صعودی · منفی", "caution"]
+      buy: ["صعودی", "positive"], strongbuy: ["صعودی", "positive"], bullish: ["صعودی", "positive"],
+      sell: ["نزولی", "negative"], strongsell: ["نزولی", "negative"], bearish: ["نزولی", "negative"],
+      neutral: ["خنثی", "neutral"], overbought: ["نزولی", "negative"], oversold: ["صعودی", "positive"],
+      resistance: ["نزولی", "negative"], support: ["خنثی", "neutral"], highvolume: ["خنثی", "neutral"],
+      lowvolume: ["خنثی", "neutral"], unavailable: ["خنثی", "neutral"],
+      bouncefromlower: ["صعودی", "positive"], nearupperuptrend: ["نزولی", "negative"]
     };
     const groups = { ...(a.indicators || {}), volumes: [] };
     const notes = new Map((a.indicator_notes || []).map((x) => [x.name, x]));
@@ -1008,7 +989,10 @@
       const note = notes.get(name) || {};
       const rawSignal = String(item.signal || "Neutral");
       const signalKey = rawSignal.toLowerCase().replace(/[^a-z]/g, "");
-      const [signalLabel, state] = siteSignals[signalKey] || [rawSignal, "neutral"];
+      const explicitScore = Number(item.score ?? item.indicator_score ?? item.technical_score);
+      const [signalLabel, state] = Number.isFinite(explicitScore)
+        ? (({ label, state }) => [label, state])(scoreBandAssessment(explicitScore))
+        : (siteSignals[signalKey] || ["خنثی", "neutral"]);
       const values = (item.value || []).map((part) => {
         const val = Number(part.value);
         if (!Number.isFinite(val)) return "";
