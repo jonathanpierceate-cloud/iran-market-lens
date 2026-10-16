@@ -116,7 +116,7 @@ def pivot_points(high: float, low: float, close: float, open_: float) -> dict[st
     x = (high + 2 * low + close) if close < open_ else ((2 * high + low + close) if close > open_ else (high + low + 2 * close))
     demark = {"pivot": x / 4, "R1": x / 2 - low, "R2": None, "R3": None,
               "S1": x / 2 - high, "S2": None, "S3": None}
-    camarilla = {"pivot": classic, "H3": close + span * 1.1 / 4,
+    camarilla = {"pivot": close, "H3": close + span * 1.1 / 4,
                  "L3": close - span * 1.1 / 4, "R1": close + span * 1.1 / 12,
                  "R2": close + span * 1.1 / 6, "R3": close + span * 1.1 / 4,
                  "S1": close - span * 1.1 / 12, "S2": close - span * 1.1 / 6,
@@ -535,13 +535,14 @@ def fund_chart_indicator_groups(bars: list[dict[str, Any]], *, source: str = "Ra
 
     bands = [band("BB(20)"), band("KELTNER(16)")]
 
-    pivot_window = [bar for bar in bars if bar.get("close") is not None][-30:]
+    pivot_bars = [bar for bar in bars if bar.get("close") is not None]
+    pivot_window = pivot_bars[-31:-1]
     pivot_levels = {}
     if len(pivot_window) >= 30:
         pivot_high = max(float(bar.get("high") or bar["close"]) for bar in pivot_window)
         pivot_low = min(float(bar.get("low") or bar["close"]) for bar in pivot_window)
         pivot_close = float(pivot_window[-1]["close"])
-        pivot_open = float(pivot_window[0].get("open") or pivot_window[0]["close"])
+        pivot_open = float(pivot_window[-1].get("open") or pivot_window[-1]["close"])
         pivot_levels = pivot_points(pivot_high, pivot_low, pivot_close, pivot_open)
     pivots = []
     for method in ("Fibonacci", "Classic", "Camarilla", "Woodie", "DeMark"):
