@@ -96,7 +96,7 @@ def _pivot_sets(high: float, low: float, close: float, previous_open: float
 
 def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
                       ) -> dict[str, dict[str, dict[str, Any]]]:
-    """Calculate Update 4.2 indicator scores as z values, then map to 0–100."""
+    """Calculate Update 4.2 indicator scores as z values, then map to 0â€“100."""
     results: dict[str, dict[str, dict[str, Any]]] = {
         family: {} for family in FUND_SCORING_PROFILES["long"]["indicator_weights"]
     }
@@ -252,7 +252,7 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
     for method, key in pivot_names.items():
         levels = pivot_sets.get(method)
         pivot = ((_num(levels.get("S1")) + _num(levels.get("R1"))) / 2.0
-                 if scheme == "Camarilla" and levels
+                 if method == "Camarilla" and levels
                  and _num(levels.get("S1")) is not None and _num(levels.get("R1")) is not None
                  else _num(levels.get("PP")) if levels else None)
         support = _num(levels.get("S1")) if levels else None
@@ -457,9 +457,9 @@ def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
     }
     # Apply the workbook's status filter only when a source supplies a status.
     status = str(trading_status or "").strip()
-    if status and status.casefold() not in {"normal", "active", "trading", "open", "عادی", "مجاز"}:
+    if status and status.casefold() not in {"normal", "active", "trading", "open", "Ø¹Ø§Ø¯ÛŒ", "Ù…Ø¬Ø§Ø²"}:
         decision = "Invalid Market Status"
-        decision_labels[decision] = f"نامعتبر ({status})"
+        decision_labels[decision] = f"Ù†Ø§Ù…Ø¹ØªØ¨Ø± ({status})"
     return {
         "technical_score": round(final_score, 2) if final_score is not None else None,
         "raw_score": round(raw_score, 2) if raw_score is not None else None,
@@ -518,3 +518,4 @@ def _empty_result(horizon: str = "long") -> dict[str, Any]:
         "investment_horizon": horizon,
         "score_method": f"tse_update4_scoring_{horizon}",
     }
+
