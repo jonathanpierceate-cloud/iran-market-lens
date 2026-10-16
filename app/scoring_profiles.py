@@ -1,4 +1,4 @@
-"""Short- and medium-term indicator weights from the Update 4 workbook."""
+"""Short- and medium-term indicator weights from the Update 4.2 workbook."""
 from __future__ import annotations
 
 HORIZON_LABELS = {
