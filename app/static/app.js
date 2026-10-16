@@ -519,7 +519,7 @@
       const coverage = family.coverage_pct == null ? NaN : Number(family.coverage_pct);
       const weight = Number(scoreWeights[key]);
       const effectiveWeight = Number(effectiveScoreWeights[key]);
-      const familyTone = !available ? "unavailable" : value > 70 ? "positive" : value < 30 ? "negative" : "neutral";
+      const familyTone = !available ? "unavailable" : value >= 70 ? "positive" : value <= 40 ? "negative" : "neutral";
       const validCount = Array.isArray(family.indicators) ? family.indicators.filter((item) => item?.score != null).length : 0;
       const missingCount = Array.isArray(family.missing_indicators) ? family.missing_indicators.length : 0;
       const countText = validCount || missingCount ? `${num(validCount, 0)} شاخص در محاسبه · ${num(missingCount, 0)} ناموجود` : "دادهٔ معتبر در دسترس نیست";
@@ -532,7 +532,7 @@
       const detailRows = details.map((item) => {
         const hasScore = item.score != null && Number.isFinite(Number(item.score));
         const itemScore = hasScore ? Number(item.score) : NaN;
-        const itemTone = !hasScore ? "unavailable" : itemScore > 70 ? "positive" : itemScore < 30 ? "negative" : "neutral";
+        const itemTone = !hasScore ? "unavailable" : itemScore >= 70 ? "positive" : itemScore <= 40 ? "negative" : "neutral";
         const itemName = indicatorLabels[item.key] || indicatorLabels[item.name] || item.name || item.key || "شاخص";
         const raw = item.value == null ? "" : typeof item.value === "object"
           ? Object.entries(item.value).filter(([, value]) => value != null && Number.isFinite(Number(value))).map(([key, value]) => `${key} ${num(value, 1)}`).join(" · ")
@@ -627,12 +627,12 @@
       const family = scores[factor.key] || {};
       const value = finite(family.score) ? Number(family.score) : null;
       const weight = finite(weights[factor.key]) ? Number(weights[factor.key]) : 0;
-      const tone = value == null ? "unavailable" : value > 70 ? "positive" : value < 30 ? "negative" : "neutral";
+      const tone = value == null ? "unavailable" : value >= 70 ? "positive" : value <= 40 ? "negative" : "neutral";
       const coverage = finite(family.coverage_pct) ? num(family.coverage_pct, 0) + "٪" : "—";
       const details = Array.isArray(family.indicators) ? family.indicators : [];
       const detailRows = details.map((item) => {
         const hasScore = finite(item.score);
-        const itemTone = !hasScore ? "unavailable" : Number(item.score) > 70 ? "positive" : Number(item.score) < 30 ? "negative" : "neutral";
+        const itemTone = !hasScore ? "unavailable" : Number(item.score) >= 70 ? "positive" : Number(item.score) <= 40 ? "negative" : "neutral";
         const raw = item.value == null ? "" : typeof item.value === "object"
           ? Object.entries(item.value).filter(([, value]) => value != null && finite(value)).map(([key, value]) => key + " " + num(value, 1)).join(" · ")
           : finite(item.value) ? "مقدار " + num(item.value, 1) : "";
@@ -760,7 +760,7 @@
     const scoreWeightText = `مدل ${horizonLabel()} · میانگین متحرک ${num(scoreWeights.moving_averages ?? 0, 0)}٪ · روند و شتاب ${num(scoreWeights.trend_momentum ?? 0, 0)}٪ · حمایت و مقاومت ${num(scoreWeights.support_resistance ?? 0, 0)}٪ · اسیلاتورها ${num(scoreWeights.oscillators ?? 0, 0)}٪`;
     const scoreCard = (label, value, detail, tone = "neutral") => value == null ? "" : `<article class="analysis-score-card ${tone}"><span>${label}</span><strong>${num(value, 0)}٪</strong><small>${detail}</small><i style="width:${Math.max(0, Math.min(100, value))}%"></i></article>`;
     const stats = countsAvailable ? `<div class="recommendation-stats">${buy != null ? `<span class="recommendation-count buy">خرید <b>${num(buy, 0)}</b></span>` : ""}${neutral != null ? `<span class="recommendation-count neutral">خنثی <b>${num(neutral, 0)}</b></span>` : ""}${sell != null ? `<span class="recommendation-count sell">فروش <b>${num(sell, 0)}</b></span>` : ""}</div>` : "";
-    return `<section class="fund-recommendation ${tone}"><div class="fund-recommendation-main"><div><span class="recommendation-kicker">${a.source === "Rahavard365" ? "شاخص‌های ره‌آورد · امتیاز مدل AliVest" : `مدل ${horizonLabel()} AliVest`} · ${esc(a.symbol || "این دارایی")}</span><h3>${a.source === "Rahavard365" ? "سیگنال ره‌آورد" : "برآورد مدل AliVest"}: <strong>${verdict}</strong></h3></div><div class="recommendation-context"><p>${esc(rationale)}</p><div class="recommendation-trend ${trendTone}"><span>روند فعلی</span><b>${trendLabel}</b></div></div></div><div class="analysis-score-grid"><div class="analysis-score-card primary ${tone}"><span>امتیاز کلی تکنیکال</span><strong>${a.technical_score == null ? "—" : `${num(a.technical_score, 0)}٪`}</strong><small>${scoreWeightText}</small><i style="width:${a.technical_score == null ? 0 : Math.max(0, Math.min(100, Number(a.technical_score)))}%"></i></div>${scoreCard("میانگین‌های متحرک", movingAverageScore, "جایگاه قیمت نسبت به EMA / SMA", movingAverageScore >= 70 ? "positive" : movingAverageScore < 30 ? "negative" : "neutral")}${scoreCard("روند و شتاب", trendMomentumScore, "MACD · ADX · AROON · AO", trendMomentumScore >= 70 ? "positive" : trendMomentumScore < 30 ? "negative" : "neutral")}${scoreCard("نوسان‌گرها", oscillatorScore, oscillatorDetail, oscillatorScore >= 70 ? "positive" : oscillatorScore < 30 ? "negative" : "neutral")}${scoreCard("حمایت و مقاومت", resistanceScore, `${num(nearResistanceCount, 0)} سطح نزدیک · ${num(Number(scores.front_resistance_count ?? resistanceLevels.length), 0)} سطح جلو`, resistanceScore != null && resistanceScore < 30 ? "negative" : "neutral")}</div><div class="analysis-probability-grid"><article class="analysis-probability bullish"><div><span>ادامهٔ روند صعودی</span><strong>${num(bullishProbability, 0)}٪</strong></div><i style="width:${Math.max(0, Math.min(100, bullishProbability))}%"></i></article><article class="analysis-probability bearish"><div><span>ادامهٔ روند نزولی</span><strong>${num(bearishProbability, 0)}٪</strong></div><i style="width:${Math.max(0, Math.min(100, bearishProbability))}%"></i></article><article class="analysis-probability correction"><div><span>ریسک اصلاح</span><strong>${num(correctionProbability, 0)}٪</strong></div><small>سطح ریسک: ${esc(correctionLabel)}</small><i style="width:${Math.max(0, Math.min(100, correctionProbability))}%"></i></article></div>${stats}</section>`;
+    return `<section class="fund-recommendation ${tone}"><div class="fund-recommendation-main"><div><span class="recommendation-kicker">${a.source === "Rahavard365" ? "شاخص‌های ره‌آورد · امتیاز مدل AliVest" : `مدل ${horizonLabel()} AliVest`} · ${esc(a.symbol || "این دارایی")}</span><h3>${a.source === "Rahavard365" ? "سیگنال ره‌آورد" : "برآورد مدل AliVest"}: <strong>${verdict}</strong></h3></div><div class="recommendation-context"><p>${esc(rationale)}</p><div class="recommendation-trend ${trendTone}"><span>روند فعلی</span><b>${trendLabel}</b></div></div></div><div class="analysis-score-grid"><div class="analysis-score-card primary ${tone}"><span>امتیاز کلی تکنیکال</span><strong>${a.technical_score == null ? "—" : `${num(a.technical_score, 0)}٪`}</strong><small>${scoreWeightText}</small><i style="width:${a.technical_score == null ? 0 : Math.max(0, Math.min(100, Number(a.technical_score)))}%"></i></div>${scoreCard("میانگین‌های متحرک", movingAverageScore, "جایگاه قیمت نسبت به EMA / SMA", movingAverageScore >= 70 ? "positive" : movingAverageScore <= 40 ? "negative" : "neutral")}${scoreCard("روند و شتاب", trendMomentumScore, "MACD · ADX · AROON · AO", trendMomentumScore >= 70 ? "positive" : trendMomentumScore <= 40 ? "negative" : "neutral")}${scoreCard("نوسان‌گرها", oscillatorScore, oscillatorDetail, oscillatorScore >= 70 ? "positive" : oscillatorScore <= 40 ? "negative" : "neutral")}${scoreCard("حمایت و مقاومت", resistanceScore, `${num(nearResistanceCount, 0)} سطح نزدیک · ${num(Number(scores.front_resistance_count ?? resistanceLevels.length), 0)} سطح جلو`, resistanceScore != null && resistanceScore <= 40 ? "negative" : "neutral")}</div><div class="analysis-probability-grid"><article class="analysis-probability bullish"><div><span>ادامهٔ روند صعودی</span><strong>${num(bullishProbability, 0)}٪</strong></div><i style="width:${Math.max(0, Math.min(100, bullishProbability))}%"></i></article><article class="analysis-probability bearish"><div><span>ادامهٔ روند نزولی</span><strong>${num(bearishProbability, 0)}٪</strong></div><i style="width:${Math.max(0, Math.min(100, bearishProbability))}%"></i></article><article class="analysis-probability correction"><div><span>ریسک اصلاح</span><strong>${num(correctionProbability, 0)}٪</strong></div><small>سطح ریسک: ${esc(correctionLabel)}</small><i style="width:${Math.max(0, Math.min(100, correctionProbability))}%"></i></article></div>${stats}</section>`;
   }
 
   function scenarioHtml(a) {
@@ -1385,7 +1385,7 @@
       const price = f.market_price ?? f.real_close_price;
       const scoreValue = f.technical_score == null ? null : Number(f.technical_score);
       const scoreCoverage = f.data_coverage_pct == null ? null : Number(f.data_coverage_pct);
-      const scoreTone = scoreValue == null || !Number.isFinite(scoreValue) ? "unknown" : scoreValue > 70 ? "positive" : scoreValue < 30 ? "negative" : "neutral";
+      const scoreTone = scoreValue == null || !Number.isFinite(scoreValue) ? "unknown" : scoreValue >= 70 ? "positive" : scoreValue <= 40 ? "negative" : "neutral";
       const scoreTitle = `امتیاز ${horizonLabel()} AliVest · پوشش داده: ${scoreCoverage != null && Number.isFinite(scoreCoverage) ? `${num(scoreCoverage, 0)}٪` : "نامشخص"}`;
       const scoreCell = scoreValue == null || !Number.isFinite(scoreValue) ? `<span class="technical-score-chip unknown" title="${esc(f.technical_error || "امتیاز هنوز محاسبه نشده")}">—</span>` : `<span class="technical-score-chip ${scoreTone}" title="${esc(scoreTitle)}">${num(scoreValue, 0)} / 100</span>`;
       const typeLabel = f.fund_type_label || f.category || "نامشخص";
@@ -1597,7 +1597,7 @@
       const profitTone = Number(profit.total) > 0 ? "positive" : Number(profit.total) < 0 ? "negative" : "";
       const priceTone = Number(item.daily_return) > 0 ? "positive" : Number(item.daily_return) < 0 ? "negative" : "";
       const scoreValue = item.technical_score == null ? null : Number(item.technical_score);
-      const scoreTone = !Number.isFinite(scoreValue) ? "unknown" : scoreValue > 70 ? "positive" : scoreValue < 30 ? "negative" : "neutral";
+      const scoreTone = !Number.isFinite(scoreValue) ? "unknown" : scoreValue >= 70 ? "positive" : scoreValue <= 40 ? "negative" : "neutral";
       const marketValue = item.price != null && item.units != null && Number.isFinite(Number(item.price)) && Number.isFinite(Number(item.units))
         ? Number(item.price) * Number(item.units) : null;
       const exitAverage = item.active_exit_average || (item.active_exit_horizon === "کوتاه‌مدت" ? "EMA(10)" : "SMA(30)");
