@@ -188,6 +188,7 @@ body.light-mode .global-investment-horizon select { background: #fff; border-col
 .quote-line { margin-top: 15px; }
 .quote-value { font-size: 32px; color: #f4f7f5; }
 .quote-unit { color: #a0b0af; }
+.quote-value { min-width: 0; }
 .quote-meta { color: #91a4a3; border-color: #2a3e45; }
 .quote-meta b { color: #d1ddda; }
 .gold18k-valuation {
@@ -465,6 +466,27 @@ body.light-mode .market-card:hover, body.light-mode .panel:hover { border-color:
 body.light-mode .card-kicker { color: #415c55; }
 body.light-mode .freshness, body.light-mode .quote-unit, body.light-mode .quote-meta, body.light-mode .chart-periods, body.light-mode .section-note { color: #647b75; }
 body.light-mode .quote-value, body.light-mode .funds-stat strong { color: #1d3631; }
+
+@media (max-width: 600px) {
+  .market-card .quote-line {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: baseline;
+    column-gap: 6px;
+    direction: ltr;
+  }
+  .market-card .quote-value {
+    min-width: 0;
+    white-space: nowrap;
+    text-align: left;
+    font-size: clamp(18px, 6.4vw, 26px);
+    letter-spacing: -1.5px;
+  }
+  .market-card .quote-unit,
+  .market-card .change-pill { white-space: nowrap; }
+  .market-card .quote-unit { font-size: 12px; }
+  .market-card .change-pill { font-size: 12px; padding: 3px 5px; }
+}
 body.light-mode .quote-meta b, body.light-mode .card-bottom, body.light-mode .fund-best { color: #3f5a53; }
 body.light-mode .quote-meta, body.light-mode .card-bottom { border-color: #e1eae6; }
 body.light-mode .panel-kicker { color: #47736a; }
