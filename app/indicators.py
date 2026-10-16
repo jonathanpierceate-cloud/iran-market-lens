@@ -512,7 +512,8 @@ def fund_chart_indicator_groups(bars: list[dict[str, Any]], *, source: str = "Ra
     if len(closes) > 30 and all(value > 0 for value in closes[-31:]):
         trend_value = (closes[-1] / closes[-31] - 1.0) * 100.0
         trend_score = min(100.0, max(0.0, 50.0 + 5.0 * trend_value))
-        trend_signal = "bullish" if trend_score >= 70 else "bearish" if trend_score <= 40 else "neutral"
+        shown_trend_score = math.floor(trend_score + 0.5)
+        trend_signal = "bullish" if shown_trend_score >= 70 else "bearish" if shown_trend_score <= 40 else "neutral"
     oscillators.insert(5, item("Trend", {"value": trend_value}, trend_signal))
 
     moving_averages = []
