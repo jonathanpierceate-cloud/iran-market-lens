@@ -349,7 +349,10 @@
         if (/^MACD/i.test(key)) add("MACD(26)", score);
         if (/^SO\(14\)/i.test(key)) add("SO(14)", score);
         if (/^StochRSI\(14\)/i.test(key)) add("StochRSI(14)", score);
-        if (/^Ichimoku Cloud/i.test(key)) add("Ichimoku(9,26,52,26)", score);
+        if (/^Ichimoku Cloud/i.test(key)) {
+          add("Ichimoku Cloud", score);
+          add("Ichimoku(9,26,52,26)", score);
+        }
       }
     }
     return scores;
@@ -1027,10 +1030,12 @@
       const note = notes.get(name) || {};
       const rawSignal = String(item.signal || "Neutral");
       const signalKey = rawSignal.toLowerCase().replace(/[^a-z]/g, "");
-      const explicitScore = Number(item.score ?? item.indicator_score ?? item.technical_score);
+      const rawScore = item.score ?? item.indicator_score ?? item.technical_score;
+      const modelScore = lookupIndicatorScore(scoreMap, name);
+      const explicitScore = hasModelScores ? (modelScore ?? NaN) : (rawScore == null ? NaN : Number(rawScore));
       const [signalLabel, state] = Number.isFinite(explicitScore)
         ? (({ label, state }) => [label, state])(scoreBandAssessment(explicitScore))
-        : (siteSignals[signalKey] || ["خنثی", "neutral"]);
+        : (hasModelScores ? ["خنثی", "neutral"] : (siteSignals[signalKey] || ["خنثی", "neutral"]));
       const values = (item.value || []).map((part) => {
         const val = Number(part.value);
         if (!Number.isFinite(val)) return "";
