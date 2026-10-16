@@ -626,9 +626,9 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
         "entry_quality": entry_quality,
         "top_factors": {
             "positive": ({"family": top_positive[0], "score": round(top_positive[1], 1)}
-                          if top_positive and top_positive[1] > 70 else None),
+                          if top_positive and top_positive[1] >= 70 else None),
             "negative": ({"family": top_negative[0], "score": round(top_negative[1], 1)}
-                          if top_negative and top_negative[1] < 30 else None),
+                          if top_negative and top_negative[1] <= 40 else None),
         },
         "missing_data": diagnostics,
         "valid_groups": engine["valid_groups"],

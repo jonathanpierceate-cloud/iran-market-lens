@@ -271,10 +271,10 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
 
     positive = [{"family": key, "name": names[key], "score": family_scores[key]["score"]}
                 for key in sorted(family_scores, key=lambda k: family_scores[k]["score"] or -1, reverse=True)
-                if family_scores[key]["score"] is not None and family_scores[key]["score"] > 70][:2]
+                if family_scores[key]["score"] is not None and family_scores[key]["score"] >= 70][:2]
     negative = [{"family": key, "name": names[key], "score": family_scores[key]["score"]}
                 for key in sorted(family_scores, key=lambda k: family_scores[k]["score"] or 101)
-                if family_scores[key]["score"] is not None and family_scores[key]["score"] < 30][:2]
+                if family_scores[key]["score"] is not None and family_scores[key]["score"] <= 40][:2]
     factors = [{"name": key, "score": family_scores[key]["score"],
                 "weight": float(effective.get(key, 0.0)) / 100.0,
                 "evidence": ", ".join((item.get("name") or item.get("key") or "")
