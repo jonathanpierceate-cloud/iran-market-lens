@@ -215,7 +215,7 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         pivot = _number(levels.get("pivot")) if levels else None
         score, raw = None, None
         if current is not None and pivot is not None and pivot > 0:
-            upper_name, lower_name = ("H3", "L3") if scheme == "Camarilla" else ("R1", "S1")
+            upper_name, lower_name = "R1", "S1"
             upper, lower = _number(levels.get(upper_name)), _number(levels.get(lower_name))
             score = pivot_level_score(current, pivot, upper, lower)
             raw = {"pivot": pivot, upper_name: upper, lower_name: lower}
