@@ -49,14 +49,35 @@ def stoch_rsi_entry_score(value: float | None) -> float | None:
 
 def band_position_score(price: float | None, lower: float | None,
                         upper: float | None) -> float | None:
-    """Spreadsheet rule: clamp((1 - band position) * 100)."""
+    """Update 4.1 band score: favor the lower edge and penalize the upper edge.
+
+    Within the channel, the central area falls linearly from 70 near the lower
+    edge to 40 near the upper edge. A 2%-of-price edge zone is capped at 30%
+    of channel width so the buy and sell zones cannot overlap.
+    """
     values = (price, lower, upper)
     if any(value is None or not math.isfinite(value) for value in values):
         return None
     if price <= 0 or upper <= lower:
         return None
-    position = (price - lower) / (upper - lower)
-    return _clamp((1.0 - position) * 100.0)
+    width = upper - lower
+    near = min(0.02 * price, 0.30 * width)
+    if near <= 0:
+        return None
+    if price <= lower:
+        return 100.0
+    lower_distance = price - lower
+    if lower_distance < near:
+        return 100.0 - 30.0 * lower_distance / near
+    upper_distance = upper - price
+    if upper_distance <= 0:
+        return 0.0
+    if upper_distance < near:
+        return 40.0 * upper_distance / near
+    middle_width = width - 2.0 * near
+    if middle_width <= 0:
+        return 55.0
+    return 70.0 - 30.0 * (lower_distance - near) / middle_width
 
 
 def moving_average_score(price: float | None, average: float | None,

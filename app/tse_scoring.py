@@ -6,6 +6,7 @@ from typing import Any
 
 from .indicators import compute_indicators
 from .scoring_profiles import FUND_SCORING_PROFILES, normalize_horizon
+from .scoring_rules import band_position_score
 
 EPS = 1e-9
 GROUP_WEIGHTS = FUND_SCORING_PROFILES["long"]["family_weights"]
@@ -172,8 +173,8 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
         "\u06f7\u06f0\u066a \u062c\u0627\u06cc\u06af\u0627\u0647 \u0642\u06cc\u0645\u062a \u0646\u0633\u0628\u062a \u0628\u0647 \u0627\u0628\u0631 \u0648 \u06f3\u06f0\u066a \u0627\u062e\u062a\u0644\u0627\u0641 \u062a\u0646\u06a9\u0627\u0646\u200c\u0633\u0646 \u0648 \u06a9\u06cc\u062c\u0648\u0646\u200c\u0633\u0646\u060c \u0646\u0631\u0645\u0627\u0644\u200c\u0634\u062f\u0647 \u0628\u0627 ATR.")
 
     bb_upper, bb_lower = _at(series.get("bb_upper")), _at(series.get("bb_lower"))
-    bb_z = _clip(1.0 - 2.0 * (price - bb_lower) / (bb_upper - bb_lower)) \
-        if bb_upper is not None and bb_lower is not None and bb_upper > bb_lower else None
+    bb_score = band_position_score(price, bb_lower, bb_upper)
+    bb_z = (bb_score - 50.0) / 50.0 if bb_score is not None else None
     put("moving_averages", "BB(20)", bb_z,
         {"lower": bb_lower, "upper": bb_upper, "price": price},
         "\u0645\u0648\u0642\u0639\u06cc\u062a \u0646\u0633\u0628\u06cc \u062f\u0631 \u0628\u0627\u0646\u062f\u061b \u06a9\u0641 \u0628\u0627\u0646\u062f \u0627\u0645\u062a\u06cc\u0627\u0632 \u0628\u0627\u0644\u0627\u060c \u0633\u0642\u0641 \u0628\u0627\u0646\u062f \u0627\u0645\u062a\u06cc\u0627\u0632 \u067e\u0627\u06cc\u06cc\u0646\u061b \u062f\u0631 \u0631\u0648\u0646\u062f \u0642\u0648\u06cc \u0633\u06cc\u06af\u0646\u0627\u0644 \u062e\u0644\u0627\u0641 \u0631\u0648\u0646\u062f \u0646\u0635\u0641 \u0645\u06cc\u200c\u0634\u0648\u062f.",
@@ -182,8 +183,8 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
     keltner_mid, atr16 = _at(series.get("keltner_mid")), _at(series.get("atr16"))
     keltner_lower = keltner_mid - 2.0 * atr16 if keltner_mid is not None and atr16 is not None else None
     keltner_upper = keltner_mid + 2.0 * atr16 if keltner_mid is not None and atr16 is not None else None
-    keltner_z = _clip(1.0 - 2.0 * (price - keltner_lower) / (keltner_upper - keltner_lower)) \
-        if keltner_lower is not None and keltner_upper is not None and keltner_upper > keltner_lower else None
+    keltner_score = band_position_score(price, keltner_lower, keltner_upper)
+    keltner_z = (keltner_score - 50.0) / 50.0 if keltner_score is not None else None
     put("moving_averages", "KELTNER(16)", keltner_z,
         {"lower": keltner_lower, "upper": keltner_upper, "price": price},
         "\u0645\u0648\u0642\u0639\u06cc\u062a \u0646\u0633\u0628\u06cc \u062f\u0631 \u06a9\u0627\u0646\u0627\u0644\u061b \u0633\u06cc\u06af\u0646\u0627\u0644 \u062e\u0644\u0627\u0641 \u0631\u0648\u0646\u062f \u0642\u0648\u06cc \u0646\u0635\u0641 \u0645\u06cc\u200c\u0634\u0648\u062f.",
