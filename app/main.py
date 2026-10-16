@@ -723,6 +723,7 @@ def _fund_model_context(fund: dict[str, Any], *, category_id: str | None = None,
         "price_timestamp": fund.get("data_timestamp") or raw.get("trade_date_time"),
         "daily_return_pct": _watchlist_number(fund.get("daily_return")),
         "fund_history": price_history,
+        "trading_status": fund.get("trading_status") or raw.get("trading_status"),
     }
     kind = resolve_fund_type(context)
     context["resolved_fund_type"] = kind

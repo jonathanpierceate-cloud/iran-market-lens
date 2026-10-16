@@ -1,4 +1,4 @@
-"""Short- and medium-term indicator weights from the Update 3 workbook."""
+"""Short- and medium-term indicator weights from the Update 4 workbook."""
 from __future__ import annotations
 
 HORIZON_LABELS = {
@@ -105,7 +105,7 @@ _SHORT_FAMILY_WEIGHTS = {
 
 def _profile(horizon: str, family_weights: dict[str, float]) -> dict[str, object]:
     return {
-        "profile": f"update_3_{horizon}_term",
+        "profile": f"update_4_{horizon}_term",
         "family_weights": family_weights,
         "indicator_weights": {
             family: _normalize(weights[horizon])
@@ -117,7 +117,7 @@ def _profile(horizon: str, family_weights: dict[str, float]) -> dict[str, object
 _SHORT_PROFILE = _profile("short", _SHORT_FAMILY_WEIGHTS)
 _MEDIUM_PROFILE = _profile("medium", _MEDIUM_FAMILY_WEIGHTS)
 
-# Both fund and dashboard cards share Update 3's formulas and weights.
+# Both fund and dashboard cards share Update 4's formulas and weights.
 FUND_SCORING_PROFILES = {"short": _SHORT_PROFILE, "long": _MEDIUM_PROFILE}
 DASHBOARD_SCORING_PROFILES = FUND_SCORING_PROFILES
 

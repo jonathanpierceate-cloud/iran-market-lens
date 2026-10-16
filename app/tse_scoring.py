@@ -1,4 +1,4 @@
-"""Update 3 chart-based technical scoring for funds and dashboard assets."""
+"""Update 4 chart-based technical scoring for funds and dashboard assets."""
 from __future__ import annotations
 
 import math
@@ -94,7 +94,7 @@ def _pivot_sets(high: float, low: float, close: float, previous_open: float
 
 def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
                       ) -> dict[str, dict[str, dict[str, Any]]]:
-    """Calculate Update 3 indicator scores as z values, then map to 0–100."""
+    """Calculate Update 4 indicator scores as z values, then map to 0–100."""
     results: dict[str, dict[str, dict[str, Any]]] = {
         family: {} for family in FUND_SCORING_PROFILES["long"]["indicator_weights"]
     }
@@ -124,7 +124,7 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
         score = _score(z) if z is not None else None
         results[family][key] = {
             "key": key,
-            "score": round(score, 2) if score is not None else None,
+            "score": score,
             "weight_pct": 0.0,
             "value": value,
             "note": note,
@@ -259,7 +259,7 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
             {"pivot": pivot, "S1": support, "R1": resistance},
             "\u0641\u0627\u0635\u0644\u0647\u200c\u06cc \u0642\u06cc\u0645\u062a \u0627\u0632 Pivot \u0628\u0631 \u0627\u0633\u0627\u0633 \u0641\u0627\u0635\u0644\u0647\u200c\u06cc \u0648\u0627\u0642\u0639\u06cc \u062a\u0627 S1 \u06cc\u0627 R1 \u0646\u0631\u0645\u0627\u0644 \u0634\u062f\u0647.")
 
-    # Oscillator values follow the Update 3 piecewise-linear breakpoints.
+    # Oscillator values follow the Update 4 piecewise-linear breakpoints.
     oscillator_z_points = [
         (30, [(30, 1), (35, .4), (40, .2), (50, 0), (60, -.2), (65, -.4), (70, -1)]),
         (20, [(20, 1), (30, .4), (40, .2), (50, 0), (60, -.2), (70, -.4), (80, -1)]),
@@ -268,17 +268,20 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
     rsi = _at(series.get("rsi14"))
     put("oscillators", "RSI(14)", _linear(rsi, oscillator_z_points[0][1]),
         {"value": rsi},
-        "\u0627\u0645\u062a\u06cc\u0627\u0632 RSI \u0628\u0647\u200c\u0635\u0648\u0631\u062a \u067e\u06cc\u0648\u0633\u062a\u0647 \u0627\u0632 \u0645\u0631\u0632\u0647\u0627\u06cc \u0641\u0627\u06cc\u0644 Update 3 \u062f\u0631\u0648\u0646\u200c\u06cc\u0627\u0628\u06cc \u0645\u06cc\u200c\u0634\u0648\u062f.")
+        "\u0627\u0645\u062a\u06cc\u0627\u0632 RSI \u0628\u0647\u200c\u0635\u0648\u0631\u062a \u067e\u06cc\u0648\u0633\u062a\u0647 \u0627\u0632 \u0645\u0631\u0632\u0647\u0627\u06cc \u0641\u0627\u06cc\u0644 Update 4 \u062f\u0631\u0648\u0646\u200c\u06cc\u0627\u0628\u06cc \u0645\u06cc\u200c\u0634\u0648\u062f.",
+        counter_trend=True)
 
     mfi = _at(series.get("mfi14"))
     put("oscillators", "MFI(14)", _linear(mfi, oscillator_z_points[1][1]),
         {"value": mfi},
-        "\u0628\u0631\u0627\u0633\u0627\u0633 \u0646\u0642\u0627\u0637 \u0634\u06a9\u0633\u062a \u0627\u06a9\u0633\u0644\u061b \u0648\u0631\u0648\u062f \u062d\u062c\u0645 \u0645\u0639\u0627\u0645\u0644\u0647 \u0628\u0631\u0627\u06cc \u0645\u062d\u0627\u0633\u0628\u0647 \u0644\u0627\u0632\u0645 \u0627\u0633\u062a.")
+        "\u0628\u0631\u0627\u0633\u0627\u0633 \u0646\u0642\u0627\u0637 \u0634\u06a9\u0633\u062a \u0627\u06a9\u0633\u0644\u061b \u0648\u0631\u0648\u062f \u062d\u062c\u0645 \u0645\u0639\u0627\u0645\u0644\u0647 \u0628\u0631\u0627\u06cc \u0645\u062d\u0627\u0633\u0628\u0647 \u0644\u0627\u0632\u0645 \u0627\u0633\u062a.",
+        counter_trend=True)
 
     cci = _at(series.get("cci14"))
     put("oscillators", "CCI(14)", _linear(cci, oscillator_z_points[2][1]),
         {"value": cci},
-        "\u0628\u0631\u0627\u0633\u0627\u0633 \u0646\u0642\u0627\u0637 \u0634\u06a9\u0633\u062a CCI \u062f\u0631 \u0641\u0627\u06cc\u0644 Update 3.")
+        "\u0628\u0631\u0627\u0633\u0627\u0633 \u0646\u0642\u0627\u0637 \u0634\u06a9\u0633\u062a CCI \u062f\u0631 \u0641\u0627\u06cc\u0644 Update 4.",
+        counter_trend=True)
 
     so_k = _at(series.get("so_k"))
     put("oscillators", "SO(14) %K", _linear(so_k, oscillator_z_points[1][1]),
@@ -307,7 +310,8 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
 
 def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
                    trend_value: float | None = None,
-                   trend_schema_type: str | None = None) -> dict[str, Any]:
+                   trend_schema_type: str | None = None,
+                   trading_status: str | None = None) -> dict[str, Any]:
     """Score available indicators and redistribute missing weights in-group."""
     horizon = normalize_horizon(horizon)
     profile = FUND_SCORING_PROFILES[horizon]
@@ -335,6 +339,7 @@ def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
     series = calculated.get("indicator_series") or {}
     scored = _indicator_scores(normalized, series)
     family_results: dict[str, dict[str, Any]] = {}
+    raw_family_scores: dict[str, float] = {}
     coverage_by_family: dict[str, float] = {}
     valid_indicators: list[tuple[str, float, float]] = []
     effective_indicator_weights: dict[str, dict[str, float]] = {}
@@ -362,6 +367,10 @@ def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
         group_score = (sum(float(item["score"]) * weight for item, weight in available) / coverage
                        if coverage > 0 else None)
         coverage_by_family[family] = coverage
+        if group_score is not None:
+            raw_family_scores[family] = group_score
+        for item in rows:
+            item["score"] = round(float(item["score"]), 2)
         family_results[family] = {
             "score": round(group_score, 2) if group_score is not None else None,
             "coverage_pct": round(coverage * 100.0, 1),
@@ -387,11 +396,11 @@ def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
     else:
         effective = {family: family_weights[family] / available_family_weight
                      for family in valid_groups}
-        raw_score = sum(effective[family] * float(family_results[family]["score"])
+        raw_score = sum(effective[family] * raw_family_scores[family]
                         for family in valid_groups)
         final_score = max(0.0, min(100.0, raw_score))
         dispersion = math.sqrt(sum(effective[family] *
-                                   (float(family_results[family]["score"]) - raw_score) ** 2
+                                   (raw_family_scores[family] - raw_score) ** 2
                                    for family in valid_groups))
         final_signal = {"Buy": "Bullish", "Sell": "Bearish",
                         "Neutral": "Neutral"}[_signal(final_score)]
@@ -438,6 +447,11 @@ def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
         "Sell, Low Confidence": "\u0641\u0631\u0648\u0634 \u0628\u0627 \u0627\u0637\u0645\u06cc\u0646\u0627\u0646 \u067e\u0627\u06cc\u06cc\u0646",
         "Insufficient Data": "\u062f\u0627\u062f\u0647 \u0646\u0627\u06a9\u0627\u0641\u06cc",
     }
+    # Apply the workbook's status filter only when a source supplies a status.
+    status = str(trading_status or "").strip()
+    if status and status.casefold() not in {"normal", "active", "trading", "open", "عادی", "مجاز"}:
+        decision = "Invalid Market Status"
+        decision_labels[decision] = f"نامعتبر ({status})"
     return {
         "technical_score": round(final_score, 2) if final_score is not None else None,
         "raw_score": round(raw_score, 2) if raw_score is not None else None,
@@ -462,7 +476,7 @@ def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
         "valid_groups": valid_groups,
         "observations": len(normalized),
         "investment_horizon": horizon,
-        "score_method": f"tse_update3_scoring_{horizon}",
+        "score_method": f"tse_update4_scoring_{horizon}",
     }
 
 
@@ -494,5 +508,5 @@ def _empty_result(horizon: str = "long") -> dict[str, Any]:
         "data_coverage_pct": 0.0, "available_family_weight_pct": 0.0,
         "valid_groups": [], "observations": 0,
         "investment_horizon": horizon,
-        "score_method": f"tse_update3_scoring_{horizon}",
+        "score_method": f"tse_update4_scoring_{horizon}",
     }
