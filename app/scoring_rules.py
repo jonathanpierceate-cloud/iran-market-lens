@@ -49,7 +49,7 @@ def stoch_rsi_entry_score(value: float | None) -> float | None:
 
 def band_position_score(price: float | None, lower: float | None,
                         upper: float | None) -> float | None:
-    """Update 4.1 band score: favor the lower edge and penalize the upper edge.
+    """Update 4.2 band score: favor the lower edge and penalize the upper edge.
 
     Within the channel, the central area falls linearly from 70 near the lower
     edge to 40 near the upper edge. A 2%-of-price edge zone is capped at 30%
