@@ -240,7 +240,7 @@
   function indicatorMeaning(key, value) {
     if (/^(EMA|SMA)\(/.test(key)) return `میانگین قیمت در دوره ${key.match(/\d+/)?.[0] || "مشخص"}؛ قیمت بالاتر از آن معمولاً به نفع روند صعودی است.`;
     const meanings = {
-      "RSI(14)": "زیر ۳۰ ناحیه خرید، ۳۰ تا ۷۰ خنثی و بالای ۷۰ ناحیه فروش است؛ در محدوده خنثی هرچه RSI به ۷۰ نزدیک‌تر شود امتیاز کمتر می‌شود.",
+      "RSI(14)": "در مدل: RSI تا ۳۵ ناحیه خرید (امتیاز ۷۰ تا ۱۰۰)، ۳۵ تا ۶۰ خنثی و از ۶۰ به بالا ناحیه فروش (امتیاز ۴۰ و کمتر) است.",
       "MFI(14)": "فشار خرید و فروش با درنظرگرفتن حجم؛ زیر ۲۰ فروش‌زدگی و بالای ۸۰ خریدزدگی را نشان می‌دهد.",
       "CCI(14)": "فاصله قیمت از میانگین؛ بالای ۱۰۰ حرکت قوی و زیر منفی ۱۰۰ ضعف یا فروش‌زدگی را نشان می‌دهد.",
       "WR(14)": "جایگاه قیمت در دامنه ۱۴ دوره؛ بالای منفی ۲۰ خریدزدگی و زیر منفی ۸۰ فروش‌زدگی است.",
@@ -249,7 +249,7 @@
       "ARRON(25)": "تازگی ثبت سقف و کف ۲۵ دوره را می‌سنجد؛ خط بالاتر جهت غالب را نشان می‌دهد.",
       "ADX(14)": "قدرت روند را می‌سنجد، نه جهت آن؛ بالای ۲۵ معمولاً روند قوی‌تر است. جهت از +DI و −DI خوانده می‌شود.",
       "AO(5,34)": "شتاب کوتاه‌مدت در برابر بلندمدت؛ مثبت به نفع شتاب صعودی و منفی نشانه شتاب نزولی است.",
-      "StochRSI(14)": "مقدار بین ۰ تا ۱ است: ۰ تا ۰٫۲۰ ناحیه خرید، ۰٫۲۰ تا ۰٫۸۰ خنثی و ۰٫۸۰ تا ۱ ناحیه فروش.",
+      "StochRSI(14)": "مقیاس ۰ تا ۱۰۰؛ زیر ۳۰ ناحیه خرید، بالای ۶۰ ناحیه فروش و بین آن‌ها خنثی است.",
       "MACD(12,26,9)": "اختلاف میانگین‌های نمایی؛ هیستوگرام مثبت یعنی خط MACD بالای خط سیگنال و منفی یعنی پایین آن است.",
       "MTM(6)": "تغییر قیمت نسبت به ۶ دوره قبل؛ مثبت یعنی شتاب رو به بالا و منفی یعنی شتاب رو به پایین.",
       "Ichimoku(9,26,52,26)": "خط عددی مقدار تنکان است؛ وضعیت روند را با جای قیمت نسبت به ابر و تقاطع تنکان/کیجون بسنجید.",
@@ -278,7 +278,7 @@
           : signal === "lowvolume" ? "حجم پایین" : signal === "highvolume" ? "حجم بالا" : "خنثی";
     const first = value("value", "rsi", "mfi", "cci", "wr", "awesome", "mtm", "rv", "vrsi", "obv");
     if (/^hv/i.test(name) && Number.isFinite(first)) return "\u0646\u0648\u0633\u0627\u0646 \u062a\u0627\u0631\u06cc\u062e\u06cc \u0633\u0627\u0644\u0627\u0646\u0647\u200c\u0634\u062f\u0647 \u0628\u0631\u0627\u0628\u0631 " + num(first, 2) + "% \u0627\u0633\u062a\u061b \u0645\u0642\u062f\u0627\u0631 \u0628\u0627\u0644\u0627\u062a\u0631 \u0628\u0647\u200c\u0645\u0639\u0646\u06cc \u0631\u06cc\u0633\u06a9 \u0646\u0648\u0633\u0627\u0646 \u0628\u06cc\u0634\u062a\u0631 \u0627\u0633\u062a.";
-    if (/^rsi/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first > 70 ? "بالاتر از ۷۰ و در ناحیه فروش است." : first < 30 ? "زیر ۳۰ و در ناحیه خرید است." : `در محدوده خنثی ۳۰ تا ۷۰ است${first > 50 ? "؛ نزدیک‌شدن به ۷۰ امتیاز را کمتر می‌کند." : "."}`}`;
+    if (/^rsi/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first <= 35 ? "در محدوده خرید مدل (امتیاز ۷۰ تا ۱۰۰) است." : first >= 60 ? "در محدوده فروش مدل (امتیاز ۴۰ و کمتر) است." : "در محدوده خنثی مدل قرار دارد."}`;
     if (/^mfi/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first >= 80 ? "بالاتر از ۸۰ و نشان‌دهنده خریدزدگی جریان پول است." : first <= 20 ? "زیر ۲۰ و نشان‌دهنده فروش‌زدگی جریان پول است." : "در محدوده میانی جریان پول قرار دارد."}`;
     if (/^cci/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first >= 100 ? "بالاتر از ۱۰۰ و نشان‌دهنده حرکت قوی اما کشیده‌شده است." : first <= -100 ? "پایین‌تر از منفی ۱۰۰ و نشان‌دهنده فروش‌زدگی است." : "بین منفی ۱۰۰ و مثبت ۱۰۰ قرار دارد."}`;
     if (/^wr/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first >= -20 ? "نزدیک صفر و در ناحیه خریدزدگی است." : first <= -80 ? "زیر منفی ۸۰ و در ناحیه فروش‌زدگی است." : "در محدوده میانی دامنه قیمت است."}`;
@@ -293,8 +293,8 @@
     if (/^adx/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first >= 25 ? "بالاتر از ۲۵ و نشان‌دهنده روند قدرتمندتر است." : "زیر ۲۵ و نشان‌دهنده روند کم‌قدرت است."} جهت را باید از سایر شاخص‌ها خواند.`;
     if (/^ao/i.test(name) && Number.isFinite(first)) return `عدد ${num(first, 2)} است؛ ${first > 0 ? "بالای صفر و به نفع شتاب صعودی است." : first < 0 ? "زیر صفر و به نفع شتاب نزولی است." : "روی صفر و خنثی است."}`;
     if (/stochrsi/i.test(name) && Number.isFinite(first)) {
-      const normalized = first > 1 ? first / 100 : first;
-      return `عدد ${num(normalized, 3)} از ۱ است؛ ${normalized >= .8 ? "در ناحیه فروش است." : normalized <= .2 ? "در ناحیه خرید است." : "در محدوده خنثی است."}`;
+      const scaled = first <= 1 ? first * 100 : first;
+      return `عدد ${num(scaled, 1)} از ۱۰۰ است؛ ${scaled >= 60 ? "در ناحیه فروش مدل است." : scaled < 30 ? "در ناحیه خرید مدل است." : "در محدوده خنثی مدل است."}`;
     }
     if (/^macd/i.test(name)) {
       const macd = value("macd"), line = value("signal");
@@ -347,6 +347,7 @@
           add(`SMA(${ma[1]})`, score);
         }
         if (/^MACD/i.test(key)) add("MACD(26)", score);
+        if (/^SO\(14\)/i.test(key)) add("WR(14)", score);
         if (/^SO\(14\)/i.test(key)) add("SO(14)", score);
         if (/^StochRSI\(14\)/i.test(key)) add("StochRSI(14)", score);
         if (/^Ichimoku Cloud/i.test(key)) {
@@ -388,9 +389,32 @@
 
   function scoreBandAssessment(score) {
     const numericScore = Number(score);
-    return numericScore >= 70 ? { state: "positive", label: "\u0635\u0639\u0648\u062f\u06cc" }
-      : numericScore <= 40 ? { state: "negative", label: "\u0646\u0632\u0648\u0644\u06cc" }
-        : { state: "neutral", label: "\u062e\u0646\u062b\u06cc" };
+    const label = numericScore >= 70 ? "\u0635\u0639\u0648\u062f\u06cc"
+      : numericScore <= 40 ? "\u0646\u0632\u0648\u0644\u06cc" : "\u062e\u0646\u062b\u06cc";
+    const state = numericScore >= 70 ? "positive" : numericScore <= 40 ? "negative" : "neutral";
+    return { state, label: `${label} · ${num(numericScore, 1)}/100` };
+  }
+
+  function indicatorModelNote(key) {
+    if (/^WR\(14\)/i.test(key) || /williams/i.test(key)) return "ادغام‌شده در SO(14)";
+    if (/^(EMA|SMA)\(200\)$/i.test(key) || /^Trend(?:\b|\s)/i.test(key)) return "صرفاً نمایشی · بدون وزن در مدل";
+    return "";
+  }
+
+  function indicatorAdjustedNote(key, modelScore, familyScores) {
+    if (!Number.isFinite(Number(modelScore))) return "";
+    for (const family of Object.values(familyScores || {})) {
+      const row = (family?.indicators || []).find((item) => {
+        const k = String(item?.key || "");
+        return k.toLowerCase() === String(key).toLowerCase()
+          || (/^MACD/i.test(key) && /^MACD/i.test(k))
+          || (/^SO\(14\)/i.test(key) && /^SO\(14\)/i.test(k));
+      });
+      if (!row?.regime_adjusted) continue;
+      const raw = row.raw_score ?? row.score_before_adjustment;
+      return raw == null ? "تعدیل‌شده بر اساس قدرت روند" : `تعدیل روند · امتیاز خام ${num(raw, 1)} ← نهایی ${num(modelScore, 1)}`;
+    }
+    return "";
   }
 
   function indicatorExtra(key, value) {
@@ -457,7 +481,7 @@
     if (key === "BB(20)" || key === "KELTNER(16)") return num(value.middle ?? value.value, 2);
     if (key === "StochRSI(14)") {
       const raw = Number(value.value);
-      return num(raw > 1 ? raw / 100 : raw, 3);
+      return num(raw > 1 ? raw : raw * 100, 1);
     }
     if (/^RV\(/.test(key)) return num(value.value, 2) + "\u00d7";
     if (/^HV\(/.test(key)) return num(value.value, 2) + "%";
@@ -468,8 +492,8 @@
     const key = String(name || "").toLowerCase().replace(/[^a-z]/g, "");
     if (key.startsWith("rv")) return "\u0646\u0633\u0628\u062a \u062d\u062c\u0645 \u0622\u062e\u0631\u06cc\u0646 \u06a9\u0646\u062f\u0644 \u0628\u0647 \u0645\u06cc\u0627\u0646\u06af\u06cc\u0646 \u062d\u062c\u0645 \u062f\u0648\u0631\u0647 \u0627\u0633\u062a\u061b \u062c\u0647\u062a \u0631\u0627 \u0628\u0627 \u0633\u0627\u06cc\u0631 \u0634\u0627\u062e\u0635\u200c\u0647\u0627 \u0628\u0633\u0646\u062c.";
     if (key.startsWith("hv")) return "\u0646\u0648\u0633\u0627\u0646 \u062a\u0627\u0631\u06cc\u062e\u06cc \u0633\u0627\u0644\u0627\u0646\u0647\u200c\u0634\u062f\u0647 \u0642\u06cc\u0645\u062a \u0631\u0627 \u0645\u06cc\u200c\u0633\u0646\u062c\u062f\u061b \u0645\u0642\u062f\u0627\u0631 \u0628\u0627\u0644\u0627\u062a\u0631 \u06cc\u0639\u0646\u06cc \u0631\u06cc\u0633\u06a9 \u0646\u0648\u0633\u0627\u0646 \u0628\u06cc\u0634\u062a\u0631.";
-    if (key.startsWith("stochrsi")) return "نسبت جایگاه RSI در دامنه ۱۴ دوره به‌صورت ۰ تا ۱؛ زیر ۰٫۲۰ خرید، بالای ۰٫۸۰ فروش و بین آن‌ها خنثی.";
-    if (key.startsWith("rsi")) return "قدرت و سرعت حرکت قیمت را خلاصه می‌کند؛ برای دیدن شتاب و داغ‌شدن حرکت به کار می‌رود.";
+    if (key.startsWith("stochrsi")) return "مقیاس ۰ تا ۱۰۰؛ زیر ۳۰ ناحیه خرید، بالای ۶۰ ناحیه فروش و بین آن‌ها خنثی.";
+    if (key.startsWith("rsi")) return "در این مدل: ۳۵ و کمتر ناحیه خرید (امتیاز ۷۰ تا ۱۰۰)، بین ۳۵ تا ۶۰ خنثی، و ۶۰ به بالا ناحیه فروش (امتیاز ۴۰ و کمتر) است.";
     if (key.startsWith("mfi")) return "فشار خرید و فروش را با ترکیب تغییر قیمت و حجم معاملات نشان می‌دهد.";
     if (key.startsWith("cci")) return "نشان می‌دهد قیمت چقدر از میانگین معمولش فاصله گرفته و حرکت چقدر قوی شده است.";
     if (key.startsWith("wr") || key.startsWith("williams")) return "جای قیمت را نسبت به سقف و کف اخیر نشان می‌دهد؛ برای سنجش مومنتوم کوتاه‌مدت است.";
@@ -600,7 +624,7 @@
       <div class="fund-model-score-head">
         <div><span class="recommendation-kicker">مدل ${horizonName} AliVest · محاسبه بر پایه داده‌های ره‌آورد</span>
           <h3>امتیاز تکنیکال ${a.dashboard_asset ? "دارایی" : "صندوق"}: <strong>${validScore ? `${num(score, 0)} از ۱۰۰` : "داده کافی نیست"}</strong></h3>
-          <p>${scoreWeightText}. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · امتیاز اندیکاتورها طبق منحنی‌های آپدیت ۴.۱ محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود همچنان با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p>
+          <p>${scoreWeightText}. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · امتیاز اندیکاتورها طبق منحنی‌های آپدیت ۴.۲ محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود همچنان با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p>
         </div>
         <div class="fund-model-meta">
           <span>پوشش کل داده‌ها <b>${Number.isFinite(coverage) ? `${num(coverage, 0)}٪` : "—"}</b></span>
@@ -683,7 +707,7 @@
     return "<section class=\"fund-recommendation " + scoreTone + " fund-model-recommendation dashboard-model-recommendation\">" +
       "<div class=\"fund-model-score-head\"><div><span class=\"recommendation-kicker\">مدل " + horizonName + " · امتیاز اختصاصی AliVest بر پایهٔ داده‌های ره‌آورد</span>" +
       "<h3>امتیاز تکنیکال: <strong>" + (scoreValue == null ? "داده کافی نیست" : num(scoreValue, 0) + " از ۱۰۰") + "</strong> · " + (bandLabels[a.score_band] || "نامشخص") + "</h3>" +
-      "<p>" + scoreWeightText + " · امتیاز اندیکاتورها طبق منحنی‌های آپدیت ۴.۱ محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p></div>" +
+      "<p>" + scoreWeightText + " · امتیاز اندیکاتورها طبق منحنی‌های آپدیت ۴.۲ محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p></div>" +
       "<div class=\"fund-model-meta\"><span>قیمت فعلی <b>" + price + "</b></span><span>تغییر روزانه <b>" + daily + "</b></span>" +
       "<span>جمع‌بندی " + horizonName + " <b>" + trend + "</b></span><span>قدرت حرکت (ADX) <b>" + strength + "</b></span>" +
       "<span>ریسک نوسان <b>" + risk + (finite(a.risk_score) ? " · " + num(a.risk_score, 0) : "") + "</b></span>" +
@@ -852,8 +876,22 @@
     if (shortExit == null && mediumExit == null) {
       return `<div class="risk-exit-panel unavailable"><b>میانگین EMA(10) و SMA(30) در دادهٔ فعلی موجود نیست</b><small>سطح خروج معتبر پس از دریافت دادهٔ روزانه نمایش داده می‌شود.</small></div>`;
     }
-    const exitCard = (kind, label, average, value) => `<article class="risk-exit-card ${kind}"><span>${label} · ${average}</span><b>${value == null ? "—" : `${money(value)} ${unit}`}</b><small>${value == null ? `مقدار ${average} در دادهٔ فعلی موجود نیست.` : `حد ضرر با بسته‌شدن کندل روزانه زیر ${average} فعال می‌شود؛ افت لحظه‌ای به‌تنهایی سیگنال خروج نیست.`}</small></article>`;
-    return `<div class="risk-exit-panel"><div class="risk-exit-head"><div><span class="panel-kicker">قاعدهٔ خروج</span><h4>خروج از موقعیت و حد ضرر</h4><p>ملاک خروج، بسته‌شدن کندل روزانه زیر میانگین مربوط است.</p></div>${currentBadge}</div><div class="risk-exit-grid">${exitCard("short", "کوتاه‌مدت", "EMA(10)", shortExit)}${exitCard("medium", "میان‌مدت", "SMA(30)", mediumExit)}</div></div>`;
+    const exitCard = (kind, label, average, level) => {
+      const hasCurrent = Number.isFinite(current) && current > 0;
+      const broken = hasCurrent && level != null && current < level;
+      const distancePct = hasCurrent && level > 0 ? Math.abs((current - level) / level) * 100 : null;
+      const stateText = level == null ? `مقدار ${average} در دادهٔ فعلی موجود نیست.`
+          : !hasCurrent ? "برای مقایسه، قیمت فعلی در دسترس نیست."
+            : broken ? "حد ضرر شکسته شده (خروج فعال) · قیمت فعلی زیر سطح است؛ مبنای تأیید نهایی کندل روزانه است."
+              : `فاصله تا حد ضرر: ${pct(distancePct)} · فعال‌شدن با بسته‌شدن کندل روزانه زیر ${average}`;
+      const stateClass = level == null || !hasCurrent ? "unknown" : broken ? "broken" : "safe";
+      const stateLabel = level == null ? "داده موجود نیست" : !hasCurrent ? "وضعیت نامشخص" : broken ? "حد ضرر شکسته شده (خروج فعال)" : "حد ضرر فعال نشده";
+      return `<article class="risk-exit-card ${kind} ${stateClass}"><span>${label} · ${average}</span><b>${level == null ? "—" : `${money(level)} ${unit}`}</b><small>${stateText}</small><strong class="risk-exit-state ${stateClass}">${stateLabel}</strong></article>`;
+    };
+    const anyBroken = (current > 0 && shortExit != null && current < shortExit)
+      || (current > 0 && mediumExit != null && current < mediumExit);
+    const panelState = !Number.isFinite(current) || current <= 0 ? "unavailable" : anyBroken ? "broken" : "safe";
+    return `<div class="risk-exit-panel ${panelState}"><div class="risk-exit-head"><div><span class="panel-kicker">قاعدهٔ خروج</span><h4>خروج از موقعیت و حد ضرر</h4><p>وضعیت حد ضرر (مبنای کندل روزانه)</p></div>${currentBadge}</div><div class="risk-exit-grid">${exitCard("short", "کوتاه‌مدت", "EMA(10)", shortExit)}${exitCard("medium", "میان‌مدت", "SMA(30)", mediumExit)}</div></div>`;
   }
 
   function tradePlanHtml(a) {
@@ -976,7 +1014,11 @@
       const methodName = /^PivotPoint/i.test(name) ? name : `PivotPoint${name}(30)`;
       const cellFor = (column) => {
         const key = column.toLowerCase();
-        const raw = column === "P" ? (values.get("p") ?? values.get("pp") ?? values.get("pivot") ?? values.get("pivotpoint")) : values.get(key);
+        let raw = column === "P" ? (values.get("p") ?? values.get("pp") ?? values.get("pivot") ?? values.get("pivotpoint")) : values.get(key);
+        if (column === "P" && /camarilla/i.test(methodName)) {
+          const support = Number(values.get("s1")), resistance = Number(values.get("r1"));
+          if (Number.isFinite(support) && Number.isFinite(resistance)) raw = (support + resistance) / 2;
+        }
         if (raw == null || raw === "") return `<td data-label="${column}">—</td>`;
         const value = Number(raw);
         if (!Number.isFinite(value)) return `<td data-label="${column}">—</td>`;
@@ -1016,10 +1058,11 @@
     const pivotTable = pivotTableHtml(groups.pivots, a.price);
     const valueNames = {
       rsi: "RSI", mfi: "جریان پول", cci: "CCI", wr: "Williams %R", k: "خط K", d: "خط D",
-      up: "Aroon صعودی", down: "Aroon نزولی", adx: "قدرت روند", awesome: "AO", stochrsi: "StochRSI",
+      up: "Aroon صعودی", down: "Aroon نزولی", adx: "قدرت روند", plus_di: "+DI (جهت مثبت)", minus_di: "−DI (جهت منفی)", awesome: "AO", stochrsi: "StochRSI",
       macd: "خط MACD", signal: "خط سیگنال", MTM: "مومنتوم", value: "مقدار",
-      tenken_sen_formula: "تنکن‌سن", kijun_sen_formula: "کیجون‌سن", senkou_span_a_formula: "ابر A",
+      tenken_sen_formula: "تنکان‌سن", tenkan_sen_formula: "تنکان‌سن", kijun_sen_formula: "کیجون‌سن", senkou_span_a_formula: "ابر A",
       senkou_span_b_formula: "ابر B", upper: "سقف باند", middle: "خط میانی", lower: "کف باند", distance: "فاصله از باند بالا",
+      histogram: "هیستوگرام", mtm: "تغییر ۶ روزه (مومنتوم)", previous_value: "مقدار قبلی",
       dl: "فاصله قیمت تا کف (%)", distance: "فاصله قیمت تا سقف (%)", pivot: "نقطه پیوت", r1: "مقاومت ۱", r2: "مقاومت ۲", r3: "مقاومت ۳",
       r4: "مقاومت ۴", s1: "حمایت ۱", s2: "حمایت ۲", s3: "حمایت ۳", s4: "حمایت ۴",
       rv: "حجم نسبی", vrsi: "VRSI", vmacd: "VMACD", obv: "OBV"
@@ -1027,6 +1070,7 @@
     const volumeIndicator = (item) => /^(OBV|RV|VRSI|VMACD|SM)\s*\(/i.test(String(item?.short_name_en || item?.name_en || ""));
     const cards = Object.entries(groups).flatMap(([group, items]) => group === "pivots" || group === "volumes" ? [] : (items || []).filter((item) => !volumeIndicator(item) && hasIndicatorValue(item)).map((item) => {
       const name = item.short_name_en || item.name_en || "شاخص ره‌آورد";
+      const displayName = /^MACD\(/i.test(name) ? "MACD(12,26,9)" : name;
       const note = notes.get(name) || {};
       const rawSignal = String(item.signal || "Neutral");
       const signalKey = rawSignal.toLowerCase().replace(/[^a-z]/g, "");
@@ -1036,18 +1080,27 @@
       const [signalLabel, state] = Number.isFinite(explicitScore)
         ? (({ label, state }) => [label, state])(scoreBandAssessment(explicitScore))
         : (hasModelScores ? ["خنثی", "neutral"] : (siteSignals[signalKey] || ["خنثی", "neutral"]));
-      const values = (item.value || []).map((part) => {
+      const parts = Array.isArray(item.value) ? item.value : [];
+      const values = (parts.length === 1 && Number.isFinite(Number(modelScore)))
+        ? `<div class="rahavard-indicator-value"><span>امتیاز شاخص (از ۱۰۰)</span><b>${num(modelScore, 1)}</b></div>`
+        : parts.map((part) => {
         const val = Number(part.value);
         if (!Number.isFinite(val)) return "";
         const key = String(part.name || "");
         const percentValue = /distance/i.test(key) || key === "dl";
         const priceIndicator = /^(EMA|SMA|BB|KELTNER|Ichimoku|PivotPoint)/i.test(name) && !percentValue;
-        const rendered = percentValue ? pct(val * 100) : num(val, priceIndicator ? 0 : 2);
+        const normalizedValue = /stochrsi/i.test(name) && /stochrsi/i.test(key) ? (val <= 1 ? val * 100 : val) : val;
+        const rendered = percentValue ? pct(val * 100) : num(normalizedValue, priceIndicator ? 0 : 2);
         return `<div class="rahavard-indicator-value"><span>${esc(valueNames[key] || part.long_name_en || key)}</span><b>${rendered}</b></div>`;
       }).join("");
       const noValueNote = computedFromChart ? "دادهٔ کافی برای محاسبهٔ این شاخص موجود نیست." : "مقداری در پاسخ ره‌آورد نبود.";
       const numericSummary = indicatorNumericSummary(name, item);
-      return `<article class="indicator-card rahavard-indicator-card"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(groupNames[group] || group)}</small></div><span class="indicator-status ${state}">${esc(signalLabel)}</span></div><div class="rahavard-indicator-values">${values || `<span class="factor-foot">${esc(noValueNote)}</span>`}</div><p>${esc(numericSummary)}</p><div class="indicator-range-guide"><b>این شاخص چه می‌گوید؟</b><span>${esc(note.meaning || indicatorPlainMeaning(name))}</span></div></article>`;
+      const modelNote = indicatorModelNote(name);
+      const adjustmentNote = indicatorAdjustedNote(name, modelScore, a.family_scores);
+      const guideMeaning = /^RSI\(14\)/i.test(name) ? indicatorPlainMeaning("RSI(14)")
+        : /stochrsi/i.test(name) ? indicatorPlainMeaning("StochRSI(14)")
+          : note.meaning || indicatorPlainMeaning(name);
+      return `<article class="indicator-card rahavard-indicator-card"><div class="indicator-card-head"><div><b>${esc(displayName)}</b><small>${esc(groupNames[group] || group)}</small></div><span class="indicator-status ${state}">${esc(signalLabel)}</span></div>${modelNote || adjustmentNote ? `<small class="indicator-model-note">${esc(modelNote || adjustmentNote)}</small>` : ""}<div class="rahavard-indicator-values">${values || `<span class="factor-foot">${esc(noValueNote)}</span>`}</div><p>${esc(numericSummary)}</p><div class="indicator-range-guide"><b>این شاخص چه می‌گوید؟</b><span>${esc(guideMeaning)}</span></div></article>`;
     }));
     const gaugeCards = (["main", "pivot"]).map((key) => {
       const gauge = a.site_gauges?.[key];
@@ -1091,7 +1144,9 @@
       const name = indicatorFa[key] || (/^(EMA|SMA)\(/.test(key) ? (key.startsWith("EMA") ? "میانگین نمایی" : "میانگین ساده") : key);
       const displayKey = key === "Aroon(25)" ? "ARRON(25)" : key;
       const extra = indicatorExtra(key, value);
-      return `<article class="indicator-card" title="فرمول: ${esc(value.formula || "ثبت نشده")}"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(displayKey)}</small></div><span class="indicator-status ${assessment.state}">${assessment.label}</span></div><div class="indicator-card-value"><strong>${indicatorValueText(key, value)}</strong><span>${key.startsWith("EMA(") || key.startsWith("SMA(") ? "مقدار میانگین" : key === "BB(20)" || key === "KELTNER(16)" ? "خط میانی کانال" : key === "Ichimoku(9,26,52,26)" ? "خط تنکان" : "مقدار فعلی"}</span></div><p>${esc(indicatorNumericSummary(key, value))}</p><div class="indicator-range-guide"><b>این شاخص چه می‌گوید؟</b><span>${esc(indicatorPlainMeaning(key))}</span></div>${extra ? `<div class="indicator-extra">${esc(extra)}</div>` : ""}<div class="indicator-previous">مقدار قبلی <b>${value.previous_value == null ? "—" : num(value.previous_value, 3)}</b></div></article>`;
+      const modelNote = indicatorModelNote(key);
+      const adjustmentNote = indicatorAdjustedNote(key, lookupIndicatorScore(scoreMap, key), a.family_scores);
+      return `<article class="indicator-card" title="فرمول: ${esc(value.formula || "ثبت نشده")}"><div class="indicator-card-head"><div><b>${esc(name)}</b><small>${esc(displayKey)}</small></div><span class="indicator-status ${assessment.state}">${assessment.label}</span></div>${modelNote || adjustmentNote ? `<small class="indicator-model-note">${esc(modelNote || adjustmentNote)}</small>` : ""}<div class="indicator-card-value"><strong>${indicatorValueText(key, value)}</strong><span>${key.startsWith("EMA(") || key.startsWith("SMA(") ? "مقدار میانگین" : key === "BB(20)" || key === "KELTNER(16)" ? "خط میانی کانال" : key === "Ichimoku(9,26,52,26)" ? "خط تنکان" : "مقدار فعلی"}</span></div><p>${esc(indicatorNumericSummary(key, value))}</p><div class="indicator-range-guide"><b>این شاخص چه می‌گوید؟</b><span>${esc(indicatorPlainMeaning(key))}</span></div>${extra ? `<div class="indicator-extra">${esc(extra)}</div>` : ""}<div class="indicator-previous">مقدار قبلی <b>${value.previous_value == null ? "—" : num(value.previous_value, 3)}</b></div></article>`;
     }).join("");
     const pivotTable = pivotTableHtml(a.indicators?.pivots || {}, a.price);
     const ind = all;
@@ -1107,7 +1162,7 @@
     const maLabel = maState === "positive" ? "بالای هر سه میانگین" : maState === "caution" ? "زیر هر سه میانگین" : "ترکیبی / ناقص";
     const summary = (label, value, state, meaning) => `<div class="readout-card"><span>${label}</span><strong>${value}</strong><em class="indicator-status ${state}">${meaning}</em></div>`;
     const summaryCards = [
-      hasIndicatorValue(rsi) ? summary("RSI · قدرت حرکت", num(rsi.value, 1), rsiAssessment.state, `${rsiAssessment.label} · زیر ۳۰ خرید، ۳۰ تا ۷۰ خنثی، بالای ۷۰ فروش`) : "",
+      hasIndicatorValue(rsi) ? summary("RSI · قدرت حرکت", num(rsi.value, 1), rsiAssessment.state, `${rsiAssessment.label} · مدل: تا ۳۵ خرید، ۳۵ تا ۶۰ خنثی، از ۶۰ فروش`) : "",
       hasIndicatorValue(macd) ? summary("MACD · شتاب روند", `خط ${num(macd.value, 2)} / هیستوگرام ${num(macd.histogram, 2)}`, macdAssessment.state, Number(macd.histogram) > 0 ? "خط MACD بالای سیگنال؛ شتاب بهتر شده" : Number(macd.histogram) < 0 ? "خط MACD زیر سیگنال؛ شتاب ضعیف‌تر است" : "خط و سیگنال نزدیک هم") : "",
       hasIndicatorValue(adx) ? summary("ADX · قدرت و جهت روند", num(adx.value, 1), adxAssessment.state, `${adxAssessment.label} · ADX جهت را به‌تنهایی نمی‌گوید`) : "",
       maAlignment.length ? summary("میانگین‌های EMA", `${maAlignment.filter(Boolean).length} از ${maAlignment.length}`, maState, `${maLabel} · نسبت قیمت به EMA20/50/200`) : ""
