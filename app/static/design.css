@@ -1701,3 +1701,7 @@ body.light-mode #view-funds .fund-type-chip { color: #536675; }
 @media (max-width: 720px) {
   #view-funds .fund-table-name strong { font-size: 16px; }
 }
+
+/* Keep long purchase labels inside their own table cell. */
+#view-funds .fund-purchase-assessment { width: 100%; min-width: 0; justify-items: stretch; }
+#view-funds .fund-purchase-chip { box-sizing: border-box; max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: center; }
