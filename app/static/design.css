@@ -1727,3 +1727,18 @@ body.light-mode #view-funds .fund-type-chip { color: #536675; }
 /* Keep long purchase labels inside their own table cell. */
 #view-funds .fund-purchase-assessment { width: 100%; min-width: 0; justify-items: stretch; }
 #view-funds .fund-purchase-chip { box-sizing: border-box; max-width: 100%; white-space: normal; overflow-wrap: anywhere; text-align: center; }
+/* Keep the desktop navigation on the right; mobile navigation remains at the bottom. */
+@media (min-width: 851px) {
+  .sidebar {
+    inset: 0 0 0 auto;
+    border-left: 0;
+    border-right: 1px solid var(--line-soft);
+  }
+  .main-area {
+    margin-left: 0;
+    margin-right: 248px;
+  }
+}
+@media (min-width: 851px) and (max-width: 1150px) {
+  .main-area { margin-right: 215px; }
+}
