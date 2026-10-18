@@ -609,18 +609,7 @@
     const positiveFactor = factors.positive;
     const negativeFactor = factors.negative;
     const factorSummary = `<div class="fund-model-factors"><span class="positive">نقطه قوت: ${positiveFactor ? `${familyNames[positiveFactor.family] || "عامل تکنیکال"} · ${num(positiveFactor.score, 0)}/100` : "عامل مثبت برجسته‌ای از داده‌های موجود به دست نیامد"}</span><span class="negative">نیازمند توجه: ${negativeFactor ? `${familyNames[negativeFactor.family] || "عامل تکنیکال"} · ${num(negativeFactor.score, 0)}/100` : "عامل منفی برجسته‌ای از داده‌های موجود به دست نیامد"}</span></div>`;
-    const unverified = (Array.isArray(a.missing_data) ? a.missing_data : [])
-      .some((row) => row?.status === "formula_unverified");
-    const modelNote = unverified
-      ? "شاخص‌های فاقد داده یا فرمول قابل اتکا از نمایش و امتیازدهی کنار گذاشته شده‌اند."
-      : "شاخص‌های بدون مقدار نمایش داده نمی‌شوند؛ وزنشان در همان گروه بازتوزیع می‌شود و وزن گروهِ بدون داده بین گروه‌های موجود تقسیم می‌شود.";
-    const changeChip = (label, value) => {
-      const delta = value == null || !Number.isFinite(Number(value)) ? null : Number(value);
-      const klass = delta == null || delta === 0 ? "neutral" : delta > 0 ? "positive" : "negative";
-      const shown = delta == null ? "سابقه کافی نیست" : `${delta > 0 ? "+" : ""}${num(delta, 1)} امتیاز`;
-      return `<span class="fund-score-change ${klass}"><small>${label}</small><b>${shown}</b></span>`;
-    };
-    return `<section class="fund-recommendation ${tone} fund-model-recommendation">
+return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       <div class="fund-model-score-head">
         <div><span class="recommendation-kicker">مدل ${horizonName} AliVest · محاسبه بر پایه داده‌های ره‌آورد</span>
           <h3>امتیاز تکنیکال ${a.dashboard_asset ? "دارایی" : "صندوق"}: <strong>${validScore ? `${num(score, 0)} از ۱۰۰` : "داده کافی نیست"}</strong></h3>
@@ -639,8 +628,6 @@
       <div class="fund-family-score-grid">${familyCards}</div>
       ${factorSummary}
       <div class="fund-model-context"><span>${navText}</span></div>
-      <div class="fund-score-changes"><b>تغییر امتیاز در روزهای معاملاتی گذشته</b>${changeChip("۵ روز", a.score_change_5d)}${changeChip("۲۰ روز", a.score_change_20d)}</div>
-      <div class="fund-model-disclaimer"><b>نحوهٔ خواندن امتیاز</b><span>${modelNote} اندیکاتورهای بدون مقدار نمایش داده نمی‌شوند و وزنشان بین اندیکاتورهای قابل‌محاسبهٔ همان گروه تقسیم می‌شود؛ اگر یک گروه کامل داده نداشته باشد، وزنش بین گروه‌های قابل‌محاسبه بازتوزیع می‌شود. امتیاز کل از میانگین متحرک، روند و شتاب، حمایت و مقاومت و اسیلاتورها ساخته می‌شود. اندیکاتورهای مستقل حجم در مدل نیستند؛ NAV و ریسک جداگانه نمایش داده می‌شوند.</span></div>
     </section>`;
   }
 
