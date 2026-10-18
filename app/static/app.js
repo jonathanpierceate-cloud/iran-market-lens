@@ -1703,6 +1703,35 @@
           : exitTone === "positive"
             ? "قیمت بیش از ۵٪ بالاتر از حد خروج است"
             : "قیمت یا حد خروج در دسترس نیست";
+      const indicators = item.watchlist_indicators || {};
+      const metric = (key) => {
+        const value = Number(indicators[key]);
+        return indicators[key] == null || !Number.isFinite(value) ? null : value;
+      };
+      const rsi = metric("rsi");
+      const adx = metric("adx");
+      const macdLine = metric("macd_line");
+      const macdSignal = metric("macd_signal");
+      const ema20 = metric("ema20");
+      const ema50 = metric("ema50");
+      const nearestSupport = metric("nearest_support");
+      const nearestResistance = metric("nearest_resistance");
+      const indicatorNotes = [];
+      if (rsi != null) indicatorNotes.push("RSI " + num(rsi, 1) + " · " + (rsi >= 70 ? "اشباع خرید" : rsi <= 30 ? "اشباع فروش؛ نیازمند تأیید برگشت" : "خنثی"));
+      if (macdLine != null && macdSignal != null) indicatorNotes.push("MACD " + (macdLine >= macdSignal ? "بالای" : "زیر") + " خط سیگنال");
+      if (adx != null) indicatorNotes.push("ADX " + num(adx, 1) + " · " + (adx >= 25 ? "روند قوی" : adx >= 20 ? "روند متوسط" : "روند ضعیف"));
+      const priceVsAverage = (average, name) => average == null || !Number.isFinite(currentPrice) || currentPrice <= 0
+        ? null : "قیمت " + (currentPrice >= average ? "بالای " : "زیر ") + name;
+      const emaNotes = [priceVsAverage(ema20, "EMA20"), priceVsAverage(ema50, "EMA50")].filter(Boolean);
+      if (emaNotes.length) indicatorNotes.push(emaNotes.join(" و "));
+      if (nearestSupport != null) indicatorNotes.push("حمایت " + money(nearestSupport));
+      if (nearestResistance != null) indicatorNotes.push("مقاومت " + money(nearestResistance));
+      const holding = item.holding_decision || {};
+      const adding = item.add_position_decision || {};
+      const analysisDetails = indicatorNotes.length ? indicatorNotes.join(" · ") : (item.technical_error || "دادهٔ اندیکاتورهای اصلی در دسترس نیست.");
+      const exitRule = "فروش/کاهش فقط پس از بسته‌شدن کندل روزانه زیر " + exitAverage + " تأیید می‌شود.";
+      const analysisTitle = [holding.reason, adding.reason, exitRule].filter(Boolean).join(" · ");
+      const watchAnalysis = '<div class="watch-analysis-summary" title="' + esc(analysisTitle) + '"><div class="watch-analysis-actions"><span>موقعیت: <b>' + esc(holding.label || "داده کافی نیست") + '</b></span><span>افزایش حجم: <b>' + esc(adding.label || "صبر") + '</b></span></div><p>' + esc(analysisDetails) + '</p><small>' + esc(exitRule) + '</small></div>';
       const priceFresh = item.price != null && item.price_is_cached === false;
       const freshnessLabel = priceFresh ? "داده تازه" : "داده کهنه یا ناموجود";
       return `<tr>
@@ -1713,10 +1742,10 @@
         <td data-label="آخرین قیمت"><span class="watch-cell-primary">${money(item.price)}</span><small class="watch-cell-secondary ${priceTone}">${item.daily_return == null ? "—" : pct(item.daily_return)}</small></td>
         <td data-label="سود/زیان فعلی"><span class="watch-cell-primary ${profitTone}">${profit.total == null ? "—" : money(profit.total)}</span><small class="watch-cell-secondary ${profitTone}">${profit.pct == null ? "" : `(${pct(profit.pct)})`}</small></td>
         <td data-label="حد خروج" title="${esc(exitState)}؛ حد خروج با بسته‌شدن کندل روزانه زیر ${esc(exitAverage)} تأیید می‌شود"><span class="watch-cell-primary ${exitTone}">${money(item.active_exit_price)}</span><small class="watch-cell-secondary">${esc(exitAverage)}</small></td>
-        <td data-label="امتیاز نماد"><span class="watch-score ${scoreTone}" title="${esc(item.technical_error || "امتیاز بر پایهٔ محاسبهٔ اندیکاتورها از نمودار روزانهٔ ره‌آورد")}">${scoreValue == null || !Number.isFinite(scoreValue) ? "—" : `${num(scoreValue, 0)}٪`}</span></td>
+        <td data-label="امتیاز نماد"><span class="watch-score ${scoreTone}" title="${esc(item.technical_error || "امتیاز بر پایهٔ محاسبهٔ اندیکاتورها از نمودار روزانهٔ ره‌آورد")}">${scoreValue == null || !Number.isFinite(scoreValue) ? "—" : `${num(scoreValue, 0)}٪`}</span></td><td data-label="تحلیل خلاصه">${watchAnalysis}</td>
       </tr>`;
     }).join("");
-    body.innerHTML = `<table class="watchlist-table"><thead><tr><th scope="col">نماد <small>(${nf.format(items.length)})</small></th><th scope="col">تعداد</th><th scope="col">قیمت سربه‌سر</th><th scope="col">ارزش فعلی</th><th scope="col">آخرین قیمت</th><th scope="col">سود/زیان فعلی</th><th scope="col">حد خروج</th><th scope="col">امتیاز نماد</th></tr></thead><tbody>${rows}</tbody></table>`;
+    body.innerHTML = `<table class="watchlist-table"><thead><tr><th scope="col">نماد <small>(${nf.format(items.length)})</small></th><th scope="col">تعداد</th><th scope="col">قیمت سربه‌سر</th><th scope="col">ارزش فعلی</th><th scope="col">آخرین قیمت</th><th scope="col">سود/زیان فعلی</th><th scope="col">حد خروج</th><th scope="col">امتیاز نماد</th><th scope="col">تحلیل خلاصه</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   async function fillVisibleFundNavs(generation = fundNavGeneration) {

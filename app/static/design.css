@@ -1742,3 +1742,28 @@ body.light-mode #view-funds .fund-type-chip { color: #536675; }
 @media (min-width: 851px) and (max-width: 1150px) {
   .main-area { margin-right: 215px; }
 }
+/* Compact per-position technical decision summary in the watchlist. */
+#view-watchlist .watchlist-table { min-width: 1540px; }
+#view-watchlist .watchlist-table th:first-child, #view-watchlist .watchlist-table td:first-child { width: 12%; }
+#view-watchlist .watchlist-table th:nth-child(2), #view-watchlist .watchlist-table td:nth-child(2) { width: 7%; }
+#view-watchlist .watchlist-table th:nth-child(3), #view-watchlist .watchlist-table td:nth-child(3) { width: 10%; }
+#view-watchlist .watchlist-table th:nth-child(4), #view-watchlist .watchlist-table td:nth-child(4) { width: 10%; }
+#view-watchlist .watchlist-table th:nth-child(5), #view-watchlist .watchlist-table td:nth-child(5) { width: 10%; }
+#view-watchlist .watchlist-table th:nth-child(6), #view-watchlist .watchlist-table td:nth-child(6) { width: 13%; }
+#view-watchlist .watchlist-table th:nth-child(7), #view-watchlist .watchlist-table td:nth-child(7) { width: 8%; }
+#view-watchlist .watchlist-table th:nth-child(8), #view-watchlist .watchlist-table td:nth-child(8) { width: 7%; }
+#view-watchlist .watchlist-table th:nth-child(9), #view-watchlist .watchlist-table td:nth-child(9) { width: 23%; }
+#view-watchlist .watch-analysis-summary { display: grid; gap: 4px; min-width: 0; text-align: right; white-space: normal; line-height: 1.65; }
+#view-watchlist .watch-analysis-actions { display: grid; gap: 2px; color: #aab8c8; font-size: 11px; }
+#view-watchlist .watch-analysis-actions b { color: #e5ebf2; }
+#view-watchlist .watch-analysis-summary p { color: #b8c5d2; font-size: 11px; overflow-wrap: anywhere; }
+#view-watchlist .watch-analysis-summary small { color: #91a0b1; font-size: 10px; }
+body.light-mode #view-watchlist .watch-analysis-actions { color: #5e7181; }
+body.light-mode #view-watchlist .watch-analysis-actions b { color: #344758; }
+body.light-mode #view-watchlist .watch-analysis-summary p { color: #506477; }
+body.light-mode #view-watchlist .watch-analysis-summary small { color: #657889; }
+@media (max-width: 720px) {
+  #view-watchlist .watchlist-table { min-width: 0; }
+  #view-watchlist .watchlist-table td:nth-child(8),
+  #view-watchlist .watchlist-table td:nth-child(9) { grid-column: 1 / -1; }
+}

@@ -197,9 +197,12 @@ def entry_recommendation(rsi: float | None, moving_average_score: float | None,
     if moving_average_score < 45 or overall_score < 45:
         return {"status": "unsuitable", "label": "فعلاً نامناسب",
                 "reason": f"RSI متعادل است، اما امتیاز میانگین‌های متحرک {moving_average_score:.0f} و امتیاز کل {overall_score:.0f} از ۱۰۰ است؛ روند برای ورود پشتیبانی کافی نمی‌دهد."}
-    if moving_average_score < 60 or overall_score < 60:
+    if moving_average_score < 60:
         return {"status": "confirmation", "label": "صبر · روند تأیید نشده",
-                "reason": f"RSI روی {rsi:.1f} است، اما امتیاز میانگین‌های متحرک {moving_average_score:.0f} و امتیاز کل {overall_score:.0f} از حد ورود مدل پایین‌تر است؛ منتظر تقویت روند بمان."}
+                "reason": f"امتیاز میانگین‌های متحرک {moving_average_score:.0f} از حداقل ۶۰ پایین‌تر است؛ تا تأیید روند صبر کن."}
+    if overall_score < 70:
+        return {"status": "confirmation", "label": "صبر · امتیاز زیر ۷۰",
+                "reason": f"امتیاز کل {overall_score:.1f} از ۷۰ِ لازم برای وضعیت مناسب خرید پایین‌تر است؛ فعلاً حجم اضافه نکن."}
     if resistance_distance_pct is not None and resistance_distance_pct < 2.0:
         return {"status": "confirmation", "label": "صبر · مقاومت نزدیک",
                 "reason": f"میانگین‌ها و RSI مناسب‌اند، اما مقاومت فقط {resistance_distance_pct:.1f}٪ بالاتر است؛ ورود را تا عبور و تثبیت یا اصلاح قیمت عقب بینداز."}
