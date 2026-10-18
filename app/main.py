@@ -29,6 +29,7 @@ from .config import (MAX_STALE_HOURS, RAHAVARD_GOLD_18K_PAGE_URL,
                      REFRESH_INTERVAL_SECONDS, ROOT)
 from .db import db, utc_now
 from .fund_scoring import FUND_TYPE_BY_CATEGORY_ID, FUND_TYPE_LABELS, resolve_fund_type
+from .tse_scoring import score_tse_bars
 from .indicators import fund_chart_indicator_groups
 from .scoring_profiles import normalize_horizon, horizon_label
 from .scoring_rules import entry_recommendation
@@ -688,20 +689,55 @@ def _record_fund_score_history(result: dict[str, Any] | None, fund_key: str,
     if not isinstance(result, dict) or result.get("technical_score") is None:
         return
     score_date = str(data_timestamp or result.get("score_timestamp") or "")
+    date_key = score_date[:10]
     method = str(result.get("score_method") or "")
+    bars = price_history if isinstance(price_history, list) else []
+    if not bars:
+        try:
+            bars = db.history(fund_key, 500, source="Rahavard365")
+        except Exception:
+            bars = []
+
     try:
         db.save_fund_score_snapshot(
             fund_key, score_date, float(result["technical_score"]),
             result.get("data_coverage_pct"), method)
-        bars = price_history if price_history is not None else db.history(
-            fund_key, 60, source="Rahavard365")
         sessions = [str(row.get("timestamp") or "")[:10] for row in bars]
         result.update(db.fund_score_changes(fund_key, score_date, method, sessions))
     except Exception:
-        # Some serverless deployments do not provide durable writable storage.
         result["score_change_5d"] = None
         result["score_change_20d"] = None
 
+    # Rebuild missing prior scores from historical OHLCV bars. This works on
+    # serverless deployments where database snapshots are not durable and also
+    # backfills periods before the current scoring method was introduced.
+    if len(date_key) != 10 or not bars:
+        return
+    bars_by_date: dict[str, dict[str, Any]] = {}
+    for row in bars:
+        if not isinstance(row, dict):
+            continue
+        bar_date = str(row.get("timestamp") or "")[:10]
+        if len(bar_date) == 10 and bar_date <= date_key:
+            bars_by_date[bar_date] = row
+    sessions = sorted(bars_by_date)
+    if date_key not in bars_by_date:
+        return
+    current_index = sessions.index(date_key)
+    horizon = normalize_horizon(result.get("investment_horizon") or "long")
+    current_score = _watchlist_number(result.get("technical_score"))
+    if current_score is None:
+        return
+    for lookback, key in ((5, "score_change_5d"), (20, "score_change_20d")):
+        if result.get(key) is not None or current_index < lookback:
+            continue
+        historical_bars = [bars_by_date[day] for day in sessions[:current_index - lookback + 1]]
+        try:
+            prior_score = score_tse_bars(historical_bars, horizon=horizon).get("technical_score")
+            if prior_score is not None:
+                result[key] = round(current_score - float(prior_score), 1)
+        except (TypeError, ValueError, ArithmeticError):
+            continue
 
 def _fund_model_context(fund: dict[str, Any], *, category_id: str | None = None,
                         category: Any = None, price_history: list[dict[str, Any]] | None = None,
