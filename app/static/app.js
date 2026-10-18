@@ -1738,12 +1738,16 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       if (emaNotes.length) indicatorNotes.push(emaNotes.join(" و "));
       if (nearestSupport != null) indicatorNotes.push("حمایت " + money(nearestSupport));
       if (nearestResistance != null) indicatorNotes.push("مقاومت " + money(nearestResistance));
-      const holding = item.holding_decision || {};
+      const holding = item.holding_decision || {};      const basePositionLabel = holding.label || "داده کافی نیست";
+      let positionLabel = basePositionLabel;
+      if (saleDecision.label === "فروش / خروج") positionLabel = saleDecision.label;
+      else if (saleDecision.label === "سیو سود پله‌ای") positionLabel = basePositionLabel + " · سیو سود پله‌ای";
+      else if (saleDecision.label === "سیو سود را زیر نظر بگیر") positionLabel = basePositionLabel + " · بررسی سیو سود";
       const adding = item.add_position_decision || {};
       const analysisDetails = indicatorNotes.length ? indicatorNotes.join(" · ") : (item.technical_error || "دادهٔ اندیکاتورهای اصلی در دسترس نیست.");
       const exitRule = "فروش/کاهش فقط پس از بسته‌شدن کندل روزانه زیر " + exitAverage + " تأیید می‌شود.";
       const analysisTitle = [holding.reason, adding.reason, saleDecision.reason, exitRule].filter(Boolean).join(" · ");
-      const watchAnalysis = '<div class="watch-analysis-summary" title="' + esc(analysisTitle) + '"><div class="watch-analysis-actions"><span>موقعیت: <b>' + esc(holding.label || "داده کافی نیست") + '</b></span><span>افزایش حجم: <b>' + esc(adding.label || "صبر") + '</b></span><span>فروش / سیو سود: <b>' + esc(saleDecision.label) + '</b></span></div><p>' + esc(analysisDetails) + '</p><small>' + esc(saleDecision.reason) + ' · ' + esc(exitRule) + '</small></div>';
+      const watchAnalysis = '<div class="watch-analysis-summary" title="' + esc(analysisTitle) + '"><div class="watch-analysis-actions"><span>موقعیت: <b>' + esc(positionLabel) + '</b></span><span>افزایش حجم: <b>' + esc(adding.label || "صبر") + '</b></span></div><p>' + esc(analysisDetails) + '</p><small>' + esc(saleDecision.reason) + ' · ' + esc(exitRule) + '</small></div>';
       const priceFresh = item.price != null && item.price_is_cached === false;
       const freshnessLabel = priceFresh ? "داده تازه" : "داده کهنه یا ناموجود";
       return `<tr>
