@@ -1836,6 +1836,44 @@
             item.last_daily_close_timestamp = analysis.data_timestamp;
             item.technical_data_timestamp = analysis.data_timestamp;
             item.purchase_assessment = result.purchase_assessment;
+            item.watchlist_indicators = analysis.watchlist_indicators || {};
+            const dailyClose = analysis.price == null ? null : Number(analysis.price);
+            const activeExit = item.active_exit_price == null ? null : Number(item.active_exit_price);
+            const technicalScore = item.technical_score == null ? null : Number(item.technical_score);
+            const units = item.units == null ? 0 : Number(item.units);
+            const hasCoreData = Number.isFinite(activeExit) && activeExit > 0 && Number.isFinite(technicalScore);
+            const exitConfirmed = dailyClose != null && Number.isFinite(dailyClose) && Number.isFinite(activeExit) && dailyClose < activeExit;
+            if (!hasCoreData) {
+              item.holding_decision = { label: "داده کافی نیست", tone: "unknown", reason: "برای تعیین نگهداری یا خروج، قیمت و تحلیل کامل لازم است." };
+              item.add_position_decision = { label: "فعلاً اضافه نکن", tone: "neutral", reason: "تا کامل‌شدن داده‌ها برای افزایش حجم صبر کن." };
+            } else if (dailyClose == null || !Number.isFinite(dailyClose)) {
+              item.holding_decision = units <= 0
+                ? { label: "موقعیتی ثبت نشده", tone: "neutral", reason: "برای این نماد تعداد واحدی ثبت نشده است." }
+                : { label: "در انتظار کندل روزانه", tone: "neutral", reason: "قیمت پایانی روزانه برای تأیید حد خروج در دسترس نیست." };
+              item.add_position_decision = { label: "صبر تا تأیید روزانه", tone: "neutral", reason: "تا دریافت قیمت پایانی روزانه، شکست میانگین و شرایط افزودن حجم را تأیید نمی‌کنم." };
+            } else if (exitConfirmed) {
+              item.holding_decision = units <= 0
+                ? { label: "موقعیتی ثبت نشده", tone: "neutral", reason: "برای این نماد تعداد واحدی ثبت نشده است." }
+                : { label: "فروش / کاهش", tone: "negative", reason: "آخرین کندل روزانه زیر " + item.active_exit_average + " بسته شده و حد خروج تأیید شده است." };
+              item.add_position_decision = { label: "خیر · حد خروج تأیید شد", tone: "negative", reason: "تا زمانی که کندل روزانه بالای " + item.active_exit_average + " تثبیت نشده، حجم اضافه نکن." };
+            } else if (units <= 0) {
+              item.holding_decision = { label: "موقعیتی ثبت نشده", tone: "neutral", reason: "برای این نماد تعداد واحدی ثبت نشده است." };
+              item.add_position_decision = result.purchase_assessment?.status === "suitable"
+                ? { label: "بله · پله‌ای", tone: "positive", reason: result.purchase_assessment.reason || "شرایط ورود تأیید شده؛ مرحله‌ای اضافه کن." }
+                : result.purchase_assessment?.status === "unsuitable"
+                  ? { label: "خیر · فعلاً", tone: "negative", reason: result.purchase_assessment.reason || "شرایط ورود مناسب نیست." }
+                  : { label: result.purchase_assessment?.label || "صبر · داده کافی نیست", tone: "neutral", reason: result.purchase_assessment?.reason || "برای افزایش حجم تا کامل‌شدن شرایط ورود صبر کن." };
+            } else if (technicalScore < 40) {
+              item.holding_decision = { label: "کاهش ریسک", tone: "negative", reason: "امتیاز تکنیکال ضعیف است؛ نگهداری کامل ریسک بالاتری دارد." };
+              item.add_position_decision = { label: "خیر · فعلاً", tone: "negative", reason: "امتیاز تکنیکال ضعیف است." };
+            } else {
+              item.holding_decision = { label: "نگهداری", tone: "positive", reason: "آخرین کندل روزانه بالای " + item.active_exit_average + " بسته شده؛ حد خروج فقط با بسته‌شدن روزانه زیر آن فعال می‌شود." };
+              item.add_position_decision = result.purchase_assessment?.status === "suitable"
+                ? { label: "بله · پله‌ای", tone: "positive", reason: result.purchase_assessment.reason || "شرایط ورود تأیید شده؛ مرحله‌ای اضافه کن." }
+                : result.purchase_assessment?.status === "unsuitable"
+                  ? { label: "خیر · فعلاً", tone: "negative", reason: result.purchase_assessment.reason || "شرایط ورود مناسب نیست." }
+                  : { label: result.purchase_assessment?.label || "صبر · داده کافی نیست", tone: "neutral", reason: result.purchase_assessment?.reason || "برای افزایش حجم تا کامل‌شدن شرایط ورود صبر کن." };
+            }
             item.distance_to_exit = item.price != null && item.active_exit_price != null
               ? { value: Number(item.price) - Number(item.active_exit_price), pct: (Number(item.price) - Number(item.active_exit_price)) / Number(item.price) * 100 }
               : null;
