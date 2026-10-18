@@ -1718,6 +1718,27 @@
       const ema50 = metric("ema50");
       const nearestSupport = metric("nearest_support");
       const nearestResistance = metric("nearest_resistance");
+      const positionUnits = Number(item.units) || 0;
+      const profitPct = profit.pct == null ? null : Number(profit.pct);
+      const exitConfirmed = positionUnits > 0 && Number.isFinite(Number(item.last_daily_close)) && Number.isFinite(activeExitPrice) && Number(item.last_daily_close) < activeExitPrice;
+      const resistanceGapPct = Number.isFinite(nearestResistance) && currentPrice > 0
+        ? (nearestResistance - currentPrice) / currentPrice * 100 : null;
+      const profitTakingSignals = [
+        rsi != null && rsi >= 70,
+        mfi != null && mfi >= 80,
+        stochRsi != null && stochRsi >= 0.8,
+        macdLine != null && macdSignal != null && macdLine < macdSignal,
+        resistanceGapPct != null && resistanceGapPct >= 0 && resistanceGapPct <= 3,
+      ].filter(Boolean).length;
+      let saleDecision;
+      if (custom) saleDecision = { label: "داده کافی نیست", reason: "برای این نماد دادهٔ تحلیلی در دسترس نیست." };
+      else if (positionUnits <= 0) saleDecision = { label: "موقعیتی ثبت نشده", reason: "برای سیو سود یا فروش، واحدی در این نماد ثبت نشده است." };
+      else if (exitConfirmed) saleDecision = { label: "فروش / خروج", reason: "آخرین کندل روزانه زیر " + exitAverage + " بسته شده؛ حد خروج تأیید است." };
+      else if (profitPct != null && profitPct > 0 && profitTakingSignals >= 2) saleDecision = { label: "سیو سود پله‌ای", reason: "سود باز است و " + num(profitTakingSignals, 0) + " نشانهٔ ضعف یا مقاومت دیده می‌شود؛ سیو سود مرحله‌ای را بررسی کن." };
+      else if (profitPct != null && profitPct > 0 && profitTakingSignals === 1) saleDecision = { label: "سیو سود را زیر نظر بگیر", reason: "سود باز است، اما فقط یک نشانهٔ احتیاط دیده می‌شود؛ تأیید بیشتر لازم است." };
+      else if (scoreValue != null && scoreValue < 40) saleDecision = { label: "کاهش ریسک", reason: "امتیاز تکنیکال زیر ۴۰ است؛ کاهش بخشی از موقعیت را بررسی کن." };
+      else if (profitPct != null && profitPct > 0) saleDecision = { label: "فعلاً سیو سود لازم نیست", reason: "سود باز است، اما نشانه‌های هم‌زمان کافی برای سیو سود دیده نمی‌شود." };
+      else saleDecision = { label: "فروش تأیید نشده", reason: "حد خروج با بسته‌شدن زیر " + exitAverage + " تأیید نشده است." };
       const indicatorNotes = [];
       if (rsi != null) indicatorNotes.push("RSI " + num(rsi, 1) + " · " + (rsi >= 70 ? "اشباع خرید" : rsi <= 30 ? "اشباع فروش؛ نیازمند تأیید برگشت" : "خنثی"));
       if (mfi != null) indicatorNotes.push("MFI " + num(mfi, 1) + " · " + (mfi >= 80 ? "خریدزدگی" : mfi <= 20 ? "فروش‌زدگی" : "میانی"));
@@ -1734,8 +1755,8 @@
       const adding = item.add_position_decision || {};
       const analysisDetails = indicatorNotes.length ? indicatorNotes.join(" · ") : (item.technical_error || "دادهٔ اندیکاتورهای اصلی در دسترس نیست.");
       const exitRule = "فروش/کاهش فقط پس از بسته‌شدن کندل روزانه زیر " + exitAverage + " تأیید می‌شود.";
-      const analysisTitle = [holding.reason, adding.reason, exitRule].filter(Boolean).join(" · ");
-      const watchAnalysis = '<div class="watch-analysis-summary" title="' + esc(analysisTitle) + '"><div class="watch-analysis-actions"><span>موقعیت: <b>' + esc(holding.label || "داده کافی نیست") + '</b></span><span>افزایش حجم: <b>' + esc(adding.label || "صبر") + '</b></span></div><p>' + esc(analysisDetails) + '</p><small>' + esc(exitRule) + '</small></div>';
+      const analysisTitle = [holding.reason, adding.reason, saleDecision.reason, exitRule].filter(Boolean).join(" · ");
+      const watchAnalysis = '<div class="watch-analysis-summary" title="' + esc(analysisTitle) + '"><div class="watch-analysis-actions"><span>موقعیت: <b>' + esc(holding.label || "داده کافی نیست") + '</b></span><span>افزایش حجم: <b>' + esc(adding.label || "صبر") + '</b></span><span>فروش / سیو سود: <b>' + esc(saleDecision.label) + '</b></span></div><p>' + esc(analysisDetails) + '</p><small>' + esc(saleDecision.reason) + ' · ' + esc(exitRule) + '</small></div>';
       const priceFresh = item.price != null && item.price_is_cached === false;
       const freshnessLabel = priceFresh ? "داده تازه" : "داده کهنه یا ناموجود";
       return `<tr>
