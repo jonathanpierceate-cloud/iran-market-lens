@@ -1284,7 +1284,7 @@ _DEFAULT_WATCHLIST_ITEMS = [
     ("سینرژی", 1000, 63651),
     ("آگاس", 100, 460104),
     ("متال", 2000, 40915),
-    ("اهرم", 1500, 76341),
+    ("اهرم", 0, None),
 ]
 _LEGACY_WATCHLIST_SYMBOLS = {"سبزآبنوس", "تکپاد"}
 _WATCHLIST_DISPLAY_BY_ASSET_ID = {
