@@ -1709,6 +1709,8 @@
         return indicators[key] == null || !Number.isFinite(value) ? null : value;
       };
       const rsi = metric("rsi");
+      const mfi = metric("mfi");
+      const stochRsi = metric("stoch_rsi");
       const adx = metric("adx");
       const macdLine = metric("macd_line");
       const macdSignal = metric("macd_signal");
@@ -1718,8 +1720,10 @@
       const nearestResistance = metric("nearest_resistance");
       const indicatorNotes = [];
       if (rsi != null) indicatorNotes.push("RSI " + num(rsi, 1) + " · " + (rsi >= 70 ? "اشباع خرید" : rsi <= 30 ? "اشباع فروش؛ نیازمند تأیید برگشت" : "خنثی"));
+      if (mfi != null) indicatorNotes.push("MFI " + num(mfi, 1) + " · " + (mfi >= 80 ? "خریدزدگی" : mfi <= 20 ? "فروش‌زدگی" : "میانی"));
+      if (stochRsi != null) indicatorNotes.push("StochRSI " + num(stochRsi, 2) + " · " + (stochRsi >= 0.8 ? "ناحیه فروش" : stochRsi <= 0.2 ? "ناحیه خرید" : "خنثی"));
       if (macdLine != null && macdSignal != null) indicatorNotes.push("MACD " + (macdLine >= macdSignal ? "بالای" : "زیر") + " خط سیگنال");
-      if (adx != null) indicatorNotes.push("ADX " + num(adx, 1) + " · " + (adx >= 25 ? "روند قوی" : adx >= 20 ? "روند متوسط" : "روند ضعیف"));
+      if (adx != null) indicatorNotes.push("ADX " + num(adx, 1) + " · قدرت " + (adx >= 25 ? "بالا" : adx >= 20 ? "متوسط" : "پایین"));
       const priceVsAverage = (average, name) => average == null || !Number.isFinite(currentPrice) || currentPrice <= 0
         ? null : "قیمت " + (currentPrice >= average ? "بالای " : "زیر ") + name;
       const emaNotes = [priceVsAverage(ema20, "EMA20"), priceVsAverage(ema50, "EMA50")].filter(Boolean);
