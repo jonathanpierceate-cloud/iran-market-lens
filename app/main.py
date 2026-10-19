@@ -1179,7 +1179,7 @@ async def fund_score_batch(payload: FundScoreBatchInput,
                     if current_volume is not None and current_volume > 0 and len(prior_volumes) >= 5:
                         avg_volume = sum(prior_volumes) / len(prior_volumes)
                         volume_ratio = current_volume / avg_volume if avg_volume > 0 else None
-                    if volume_ratio is not None and volume_ratio >= 1.2 and bar_return is not None:
+                    if volume_ratio is not None and volume_ratio >= 1.0 and bar_return is not None:
                         volume_pressure = "selling" if bar_return < -0.5 else "buying" if bar_return > 0.5 else "neutral"
                 purchase_assessment = _fund_purchase_assessment(current_price, analysis_result)
                 return {"fund_key": fund["fund_key"], "technical_score": analysis_result.get("technical_score"),
@@ -1586,8 +1586,8 @@ async def get_watchlist(horizon: str = Query(default="long"),
                     prior_close = _watchlist_number(ordered_bars[confirmed_index - 1].get("close"))
                     if last_daily_close is not None and prior_close:
                         confirmed_bar_return = (last_daily_close - prior_close) / prior_close * 100
-        volume_pressure = ("selling" if volume_ratio is not None and volume_ratio >= 1.2 and confirmed_bar_return is not None and confirmed_bar_return < -0.5
-                           else "buying" if volume_ratio is not None and volume_ratio >= 1.2 and confirmed_bar_return is not None and confirmed_bar_return > 0.5
+        volume_pressure = ("selling" if volume_ratio is not None and volume_ratio >= 1.0 and confirmed_bar_return is not None and confirmed_bar_return < -0.5
+                           else "buying" if volume_ratio is not None and volume_ratio >= 1.0 and confirmed_bar_return is not None and confirmed_bar_return > 0.5
                            else "neutral" if volume_ratio is not None else None)
         stamp = (trade.get("end_date_time") if live_price is not None else None) \
             or ((cached_history[-1].get("timestamp") if cached_history else None)) \
