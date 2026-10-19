@@ -1298,6 +1298,10 @@ def _add_position_from_assessment(assessment: dict[str, Any], *, volume_pressure
         ratio_text = f"حجم معاملات حدود {volume_ratio:.1f} برابر میانگین ۲۰ روزه است" if volume_ratio is not None else "حجم معاملات بالاتر از میانگین است"
         return {"label": "خیر · حجم فروش", "tone": "negative",
                 "reason": f"{ratio_text} و قیمت روز {daily_return:.2f}٪ افت کرده؛ افزایش حجم را فشار فروش در نظر بگیر."}
+    if volume_pressure == "buying" and assessment.get("status") == "suitable":
+        ratio_text = f"حدود {volume_ratio:.1f} برابر میانگین ۲۰ روزه" if volume_ratio is not None else "بالاتر از میانگین"
+        return {"label": "بله · فشار خرید", "tone": "positive",
+                "reason": f"حجم {ratio_text} است و کندل روزانه صعودی بسته شده؛ جهت حجم و قیمت همسو است. ورود را پله‌ای انجام بده."}
     if assessment.get("status") == "suitable":
         return {"label": "بله · پله‌ای", "tone": "positive", "reason": assessment.get("reason", "شرایط RSI و میانگین‌ها مناسب است؛ مرحله‌ای اضافه کن.")}
     if assessment.get("status") == "unsuitable":
