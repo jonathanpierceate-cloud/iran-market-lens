@@ -1747,7 +1747,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       if (custom) saleDecision = { label: "داده کافی نیست", reason: "برای این نماد دادهٔ تحلیلی در دسترس نیست." };
       else if (positionUnits <= 0) saleDecision = { label: "موقعیتی ثبت نشده", reason: "برای سیو سود یا فروش، واحدی در این نماد ثبت نشده است." };
       else if (exitConfirmed) saleDecision = { label: "فروش / خروج", reason: "آخرین کندل روزانه زیر " + exitAverage + " بسته شده؛ حد خروج تأیید است." };
-      else if (profitPct != null && profitPct > 0 && profitTakingSignals >= 2) saleDecision = { label: "سیو سود پله‌ای", reason: "سود باز است و " + num(profitTakingSignals, 0) + " نشانهٔ ضعف یا مقاومت دیده می‌شود؛ سیو سود مرحله‌ای را بررسی کن." };
+      else if (profitPct != null && profitPct > 0 && profitTakingSignals >= 2) saleDecision = { label: "سیو سود پله‌ای", reason: num(profitTakingSignals, 0) + " نشانهٔ احتیاط فعال است؛ بخشی از موقعیت را سیو سود کن و باقی را تا تأیید حد خروج نگه‌دار." };
       else if (profitPct != null && profitPct > 0 && profitTakingSignals === 1) saleDecision = { label: "سیو سود را زیر نظر بگیر", reason: "سود باز است، اما فقط یک نشانهٔ احتیاط دیده می‌شود؛ تأیید بیشتر لازم است." };
       else if (scoreValue != null && scoreValue < 40) saleDecision = { label: "کاهش ریسک", reason: "امتیاز تکنیکال زیر ۴۰ است؛ کاهش بخشی از موقعیت را بررسی کن." };
       else if (profitPct != null && profitPct > 0) saleDecision = { label: "فعلاً سیو سود لازم نیست", reason: "سود باز است، اما نشانه‌های هم‌زمان کافی برای سیو سود دیده نمی‌شود." };
@@ -1777,8 +1777,8 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       const basePositionLabel = holding.label || "داده کافی نیست";
       let positionLabel = basePositionLabel;
       if (saleDecision.label === "فروش / خروج") positionLabel = saleDecision.label;
-      else if (saleDecision.label === "سیو سود پله‌ای") positionLabel = basePositionLabel + " · سیو سود پله‌ای";
-      else if (saleDecision.label === "سیو سود را زیر نظر بگیر") positionLabel = basePositionLabel + " · بررسی سیو سود";
+      else if (saleDecision.label === "سیو سود پله‌ای") positionLabel = "سیو سود بخشی؛ باقیمانده نگهداری";
+      else if (saleDecision.label === "سیو سود را زیر نظر بگیر") positionLabel = "نگهداری؛ سیو سود را زیر نظر بگیر";
       if (nearExitWarning && saleDecision.label !== "فروش / خروج") positionLabel = nearExitBroken ? "هشدار · حمایت شکسته" : "هشدار · نزدیک حمایت";
       let adding = item.add_position_decision || {};
       if (nearExitWarning) adding = { label: nearExitBroken ? "خیر · حمایت شکسته" : "صبر · نزدیک حمایت", reason: nearExitBroken ? "کندل روزانه زیر حمایت نزدیک بسته شده؛ تا بازپس‌گیری سطح، حجم اضافه نکن." : `فاصلهٔ قیمت تا حمایت نزدیک ${num(nearExitGapPct, 1)}٪ است؛ تا روشن‌شدن واکنش قیمت، حجم اضافه نکن.` };
