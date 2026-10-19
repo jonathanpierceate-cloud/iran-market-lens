@@ -1920,7 +1920,9 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
               ? { value: Number(item.price) - Number(item.active_exit_price), pct: (Number(item.price) - Number(item.active_exit_price)) / Number(item.price) * 100 }
               : null;
             if (item.volume_pressure === "selling") {
-              item.add_position_decision = { label: "خیر · حجم فروش", tone: "negative", reason: `حجم معاملات ${item.volume_ratio == null ? "بالاست" : `حدود ${num(item.volume_ratio, 1)} برابر میانگین است`} و هم‌زمان قیمت افت کرده؛ افزایش حجم را فشار فروش در نظر بگیر.` };
+              item.add_position_decision = { label: "خیر · فشار فروش", tone: "negative", reason: `حجم معاملات ${item.volume_ratio == null ? "بالاست" : `حدود ${num(item.volume_ratio, 1)} برابر میانگین است`} و کندل روزانه نزولی بسته شده؛ افزایش حجم را فشار فروش در نظر بگیر.` };
+            } else if (item.volume_pressure === "buying" && result.purchase_assessment?.status === "suitable") {
+              item.add_position_decision = { label: "بله · فشار خرید", tone: "positive", reason: `حجم معاملات ${item.volume_ratio == null ? "بالاست" : `حدود ${num(item.volume_ratio, 1)} برابر میانگین است`} و کندل روزانه صعودی بسته شده؛ جهت حجم و قیمت همسو است. ورود را پله‌ای انجام بده.` };
             }
           }
           renderPersonalWatchlist(state.watchlist, data.totals || {});
