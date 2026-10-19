@@ -1881,11 +1881,12 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
             item.investment_horizon_label = analysis.investment_horizon_label || horizonLabel();
             item.last_daily_close = analysis.price;
             item.last_daily_close_timestamp = analysis.data_timestamp;
-            item.near_exit_price = item.watchlist_indicators.nearest_support;
-            item.near_exit_confirmed = item.near_exit_price != null && Number(analysis.price) < Number(item.near_exit_price);
+
             item.technical_data_timestamp = analysis.data_timestamp;
             item.purchase_assessment = result.purchase_assessment;
             item.watchlist_indicators = analysis.watchlist_indicators || {};
+            item.near_exit_price = item.watchlist_indicators.nearest_support;
+            item.near_exit_confirmed = item.near_exit_price != null && Number(analysis.price) < Number(item.near_exit_price);
             item.family_scores = analysis.family_scores || {};
             item.risk_rank = analysis.risk_rank || {};
             item.score_change_1d = result.score_change_1d ?? analysis.score_change_1d;
