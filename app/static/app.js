@@ -1657,7 +1657,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     });
     if (sortMode === "score") sortedItems.sort((a, b) => {
       const av = Number(a.score_change_1d), bv = Number(b.score_change_1d);
-      return (Number.isFinite(av) ? av : Infinity) - (Number.isFinite(bv) ? bv : Infinity);
+      return (Number.isFinite(av) && av < 0 ? av : Infinity) - (Number.isFinite(bv) && bv < 0 ? bv : Infinity);
     });
     if (sortMode === "profit") sortedItems.sort((a, b) => {
       const av = Number(a.profit?.total), bv = Number(b.profit?.total);
@@ -1881,6 +1881,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
             item.investment_horizon_label = analysis.investment_horizon_label || horizonLabel();
             item.last_daily_close = analysis.price;
             item.last_daily_close_timestamp = analysis.data_timestamp;
+            item.near_exit_price = item.watchlist_indicators.nearest_support;
             item.near_exit_confirmed = item.near_exit_price != null && Number(analysis.price) < Number(item.near_exit_price);
             item.technical_data_timestamp = analysis.data_timestamp;
             item.purchase_assessment = result.purchase_assessment;
@@ -1894,7 +1895,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
               ? "selling"
               : Number.isFinite(Number(item.volume_ratio)) && Number(item.volume_ratio) >= 1 && Number.isFinite(quoteDayChange) && quoteDayChange > 0.5
                 ? "buying" : null;
-            item.near_exit_price = item.watchlist_indicators.nearest_support;
+
             const dailyClose = analysis.price == null ? null : Number(analysis.price);
             const activeExit = item.active_exit_price == null ? null : Number(item.active_exit_price);
             const technicalScore = item.technical_score == null ? null : Number(item.technical_score);
