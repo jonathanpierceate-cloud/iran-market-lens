@@ -1586,8 +1586,9 @@ async def get_watchlist(horizon: str = Query(default="long"),
                     prior_close = _watchlist_number(ordered_bars[confirmed_index - 1].get("close"))
                     if last_daily_close is not None and prior_close:
                         confirmed_bar_return = (last_daily_close - prior_close) / prior_close * 100
-        volume_pressure = ("selling" if volume_ratio is not None and volume_ratio >= 1.0 and confirmed_bar_return is not None and confirmed_bar_return < -0.5
-                           else "buying" if volume_ratio is not None and volume_ratio >= 1.0 and confirmed_bar_return is not None and confirmed_bar_return > 0.5
+        volume_direction_return = daily_return if daily_return is not None else confirmed_bar_return
+        volume_pressure = ("selling" if volume_ratio is not None and volume_ratio >= 1.0 and volume_direction_return is not None and volume_direction_return < -0.5
+                           else "buying" if volume_ratio is not None and volume_ratio >= 1.0 and volume_direction_return is not None and volume_direction_return > 0.5
                            else "neutral" if volume_ratio is not None else None)
         stamp = (trade.get("end_date_time") if live_price is not None else None) \
             or ((cached_history[-1].get("timestamp") if cached_history else None)) \
