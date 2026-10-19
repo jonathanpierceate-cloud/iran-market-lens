@@ -1767,10 +1767,10 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       else if (saleDecision.label === "سیو سود پله‌ای") positionLabel = basePositionLabel + " · سیو سود پله‌ای";
       else if (saleDecision.label === "سیو سود را زیر نظر بگیر") positionLabel = basePositionLabel + " · بررسی سیو سود";
       const adding = item.add_position_decision || {};
-      const analysisDetails = indicatorNotes.length ? indicatorNotes.join(" · ") : (item.technical_error || "دادهٔ اندیکاتورهای اصلی در دسترس نیست.");
-      const exitRule = "فروش/کاهش فقط پس از بسته‌شدن کندل روزانه زیر " + exitAverage + " تأیید می‌شود.";
+      const exitRule = "حد خروج اصلی فقط با بسته‌شدن کندل روزانه زیر " + exitAverage + " تأیید می‌شود.";
+      const showSaleReason = ["فروش / خروج", "سیو سود پله‌ای", "سیو سود را زیر نظر بگیر", "کاهش ریسک"].includes(saleDecision.label);
       const analysisTitle = [holding.reason, adding.reason, saleDecision.reason, exitRule].filter(Boolean).join(" · ");
-      const watchAnalysis = '<div class="watch-analysis-summary" title="' + esc(analysisTitle) + '"><div class="watch-analysis-actions"><span>موقعیت: <b>' + esc(positionLabel) + '</b></span><span>افزایش حجم: <b>' + esc(adding.label || "صبر") + '</b></span></div><p>' + esc(analysisDetails) + '</p><small>' + esc(saleDecision.reason) + ' · ' + esc(exitRule) + '</small></div>';
+      const watchAnalysis = '<div class="watch-analysis-summary" title="' + esc(analysisTitle) + '"><div class="watch-analysis-actions"><span>موقعیت: <b>' + esc(positionLabel) + '</b></span><span>افزایش حجم: <b>' + esc(adding.label || "صبر") + '</b></span></div><div class="watch-indicator-chips">' + (indicatorChips.join("") || `<span class="watch-analysis-empty">${esc(item.technical_error || "دادهٔ اندیکاتورهای اصلی در دسترس نیست.")}</span>`) + '</div>' + (indicatorExplanation ? '<small class="watch-analysis-explanation">' + esc(indicatorExplanation) + '</small>' : '') + (levelNotes.length ? '<div class="watch-levels">' + esc(levelNotes.join(" · ")) + '</div>' : '') + (showSaleReason ? '<small class="watch-sale-reason">' + esc(saleDecision.reason) + '</small>' : '') + '<small>' + esc(exitRule) + '</small></div>';
       const priceFresh = item.price != null && item.price_is_cached === false;
       const freshnessLabel = priceFresh ? "داده تازه" : "داده کهنه یا ناموجود";
       return `<tr>
@@ -1780,11 +1780,11 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
         <td data-label="ارزش فعلی"><span class="watch-cell-primary">${money(marketValue)}</span></td>
         <td data-label="آخرین قیمت"><span class="watch-cell-primary">${money(item.price)}</span><small class="watch-cell-secondary ${priceTone}">${item.daily_return == null ? "—" : pct(item.daily_return)}</small></td>
         <td data-label="سود/زیان فعلی"><span class="watch-cell-primary ${profitTone}">${profit.total == null ? "—" : money(profit.total)}</span><small class="watch-cell-secondary ${profitTone}">${profit.pct == null ? "" : `(${pct(profit.pct)})`}</small></td>
-        <td data-label="حد خروج" title="${esc(exitState)}؛ حد خروج با بسته‌شدن کندل روزانه زیر ${esc(exitAverage)} تأیید می‌شود"><span class="watch-cell-primary ${exitTone}">${money(item.active_exit_price)}</span><small class="watch-cell-secondary">${esc(exitAverage)}</small></td>
-        <td data-label="امتیاز نماد"><span class="watch-score ${scoreTone}" title="${esc(item.technical_error || "امتیاز بر پایهٔ محاسبهٔ اندیکاتورها از نمودار روزانهٔ ره‌آورد")}">${scoreValue == null || !Number.isFinite(scoreValue) ? "—" : `${num(scoreValue, 0)}٪`}</span></td><td data-label="تحلیل خلاصه">${watchAnalysis}</td>
+        <td data-label="حد خروج" title="${esc(exitState)}؛ حد خروج اصلی با بسته‌شدن کندل روزانه زیر ${esc(exitAverage)} تأیید می‌شود"><span class="watch-cell-primary ${exitTone}">${money(item.active_exit_price)}</span><small class="watch-cell-secondary">حد اصلی · ${esc(exitAverage)}</small>${supportForExit != null ? `<small class="watch-near-exit ${item.near_exit_confirmed ? "negative" : "warning"}">${item.near_exit_confirmed ? "شکست تأییدشده" : "حمایت نزدیک"}: ${money(supportForExit)}</small>` : ""}</td>
+        <td data-label="امتیاز نماد"><span class="watch-score ${scoreTone}" title="${esc(scoreTooltip || item.technical_error || "امتیاز بر پایهٔ محاسبهٔ اندیکاتورها از نمودار روزانهٔ ره‌آورد")}">${scoreValue == null || !Number.isFinite(scoreValue) ? "—" : `${num(scoreValue, 0)}٪`}</span><small class="watch-score-band ${scoreTone}">${scoreBand}</small>${scoreDeltaHtml}</td><td data-label="تحلیل خلاصه">${watchAnalysis}</td>
       </tr>`;
     }).join("");
-    body.innerHTML = `<table class="watchlist-table"><thead><tr><th scope="col">نماد <small>(${nf.format(items.length)})</small></th><th scope="col">تعداد</th><th scope="col">قیمت سربه‌سر</th><th scope="col">ارزش فعلی</th><th scope="col">آخرین قیمت</th><th scope="col">سود/زیان فعلی</th><th scope="col">حد خروج</th><th scope="col">امتیاز نماد</th><th scope="col">تحلیل خلاصه</th></tr></thead><tbody>${rows}</tbody></table>`;
+    body.innerHTML = `<div class="watchlist-sort-toolbar"><label for="watchlist-sort">مرتب‌سازی</label><select id="watchlist-sort"><option value="default" ${sortMode === "default" ? "selected" : ""}>ترتیب پیش‌فرض</option><option value="exit" ${sortMode === "exit" ? "selected" : ""}>نزدیکی به حد خروج</option><option value="score" ${sortMode === "score" ? "selected" : ""}>بیشترین تغییر امتیاز روزانه</option></select></div><table class="watchlist-table"><thead><tr><th scope="col">نماد <small>(${nf.format(items.length)})</small></th><th scope="col">تعداد</th><th scope="col">قیمت سربه‌سر</th><th scope="col">ارزش فعلی</th><th scope="col">آخرین قیمت</th><th scope="col">سود/زیان فعلی</th><th scope="col">حد خروج</th><th scope="col">امتیاز نماد</th><th scope="col">تحلیل خلاصه</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   async function fillVisibleFundNavs(generation = fundNavGeneration) {
@@ -1869,9 +1869,16 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
             item.investment_horizon_label = analysis.investment_horizon_label || horizonLabel();
             item.last_daily_close = analysis.price;
             item.last_daily_close_timestamp = analysis.data_timestamp;
+            item.near_exit_confirmed = item.near_exit_price != null && Number(analysis.price) < Number(item.near_exit_price);
             item.technical_data_timestamp = analysis.data_timestamp;
             item.purchase_assessment = result.purchase_assessment;
             item.watchlist_indicators = analysis.watchlist_indicators || {};
+            item.family_scores = analysis.family_scores || {};
+            item.risk_rank = analysis.risk_rank || {};
+            item.score_change_1d = result.score_change_1d ?? analysis.score_change_1d;
+            item.volume_pressure = result.volume_pressure;
+            item.volume_ratio = result.volume_ratio;
+            item.near_exit_price = item.watchlist_indicators.nearest_support;
             const dailyClose = analysis.price == null ? null : Number(analysis.price);
             const activeExit = item.active_exit_price == null ? null : Number(item.active_exit_price);
             const technicalScore = item.technical_score == null ? null : Number(item.technical_score);
@@ -1912,6 +1919,9 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
             item.distance_to_exit = item.price != null && item.active_exit_price != null
               ? { value: Number(item.price) - Number(item.active_exit_price), pct: (Number(item.price) - Number(item.active_exit_price)) / Number(item.price) * 100 }
               : null;
+            if (item.volume_pressure === "selling" && item.add_position_decision?.tone !== "negative") {
+              item.add_position_decision = { label: "خیر · حجم فروش", tone: "negative", reason: `حجم معاملات ${item.volume_ratio == null ? "بالاست" : `حدود ${num(item.volume_ratio, 1)} برابر میانگین است`} و هم‌زمان قیمت افت کرده؛ افزایش حجم را فشار فروش در نظر بگیر.` };
+            }
           }
           renderPersonalWatchlist(state.watchlist, data.totals || {});
         } catch (error) {
