@@ -9,6 +9,26 @@
   let fundScoreFillRunning = false;
   let fundScoreGeneration = 0;
   const fundScoreAttemptedKeys = new Set();
+  const fundScoreCache = new Map();
+  const fundScoreFields = ["technical_score", "data_coverage_pct", "medium_term_exit_price", "purchase_assessment", "buy_suitability_rank", "risk_score", "score_change_5d", "score_change_20d", "technical_error", "fund_type_key", "fund_type_label"];
+  function rememberFundScore(fund) {
+    if (!fund || fund.technical_score == null) return;
+    const key = String(fund.fund_key || fund.symbol || "");
+    if (!key) return;
+    const cached = fundScoreCache.get(key) || {};
+    fundScoreFields.forEach((field) => { if (fund[field] !== undefined) cached[field] = fund[field]; });
+    fundScoreCache.set(key, cached);
+  }
+  function restoreFundScore(fund) {
+    const key = String(fund?.fund_key || fund?.symbol || "");
+    if (!key) return fund;
+    if (fund.technical_score != null) rememberFundScore(fund);
+    else {
+      const cached = fundScoreCache.get(key);
+      if (cached) Object.assign(fund, cached);
+    }
+    return fund;
+  }
   let fundNavFillRunning = false;
   let fundNavGeneration = 0;
   const fundNavAttemptedKeys = new Set();
@@ -1256,6 +1276,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     try { localStorage.setItem(horizonStorageKey, next); } catch {}
     fundScoreGeneration += 1;
     fundScoreAttemptedKeys.clear();
+    fundScoreCache.clear();
     syncInvestmentHorizonControl();
     toast(`امتیازدهی ${horizonLabel()} در حال به‌روزرسانی است…`);
     const reloads = [loadOverview()];
@@ -1339,6 +1360,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
   async function loadFunds(options = {}) {
     if (options.forceNav) fundNavAttemptedKeys.clear();
     const requestedNavGeneration = ++fundNavGeneration;
+    const requestedScoreGeneration = ++fundScoreGeneration;
     const requestedHorizon = state.investmentHorizon;
     try {
       const url = new URL("/api/funds", location.origin);
@@ -1347,8 +1369,8 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       const sort = options.sort ?? $("#fund-sort")?.value ?? "data_timestamp";
       url.searchParams.set("search", search); url.searchParams.set("category", category); url.searchParams.set("sort", sort);
       const data = await api(url.pathname + url.search);
-      if (requestedHorizon !== state.investmentHorizon) return;
-      state.funds = sortedFundItems(data.items);
+      if (requestedHorizon !== state.investmentHorizon || requestedNavGeneration !== fundNavGeneration || requestedScoreGeneration !== fundScoreGeneration) return;
+      state.funds = sortedFundItems((data.items || []).map(restoreFundScore));
       state.funds.forEach((fund) => {
         const cachedNav = fundNavValueCache.get(String(fund.fund_key || fund.symbol || ""));
         if (cachedNav) {
@@ -1535,6 +1557,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
               listed.risk_score = result.risk_score;
               listed.score_change_5d = result.score_change_5d;
               listed.score_change_20d = result.score_change_20d;
+              rememberFundScore(listed);
             }
           } else {
             unavailable += 1;
