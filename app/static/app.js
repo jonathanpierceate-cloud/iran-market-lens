@@ -1652,10 +1652,12 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     const sortMode = state.watchlistSortMode || "default";
     const sortedItems = [...items];
     if (sortMode === "exit") sortedItems.sort((a, b) => {
-      const av = Number(a.distance_to_exit?.pct), bv = Number(b.distance_to_exit?.pct);
+      const gap = (item) => item.near_exit_price != null && Number(item.price) > 0
+        ? (Number(item.price) - Number(item.near_exit_price)) / Number(item.price) * 100
+        : Number(item.distance_to_exit?.pct);
+      const av = gap(a), bv = gap(b);
       return (Number.isFinite(av) ? av : Infinity) - (Number.isFinite(bv) ? bv : Infinity);
-    });
-    if (sortMode === "score") sortedItems.sort((a, b) => {
+    });    if (sortMode === "score") sortedItems.sort((a, b) => {
       const av = Number(a.score_change_1d), bv = Number(b.score_change_1d);
       return (Number.isFinite(av) && av < 0 ? av : Infinity) - (Number.isFinite(bv) && bv < 0 ? bv : Infinity);
     });
