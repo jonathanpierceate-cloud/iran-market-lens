@@ -1162,6 +1162,22 @@ async def fund_score_batch(payload: FundScoreBatchInput,
                     preloaded_bars=client_bars)
                 _record_fund_score_history(analysis_result, fund["fund_key"],
                                            analysis_result.get("data_timestamp"), chart_bars)
+                volume_ratio = None
+                volume_pressure = None
+                bars = sorted((bar for bar in chart_bars if isinstance(bar, dict)), key=lambda bar: str(bar.get("timestamp") or ""))
+                if len(bars) >= 7:
+                    current_volume = _watchlist_number(bars[-1].get("volume"))
+                    prior_volumes = [_watchlist_number(bar.get("volume")) for bar in bars[max(0, len(bars) - 21):-1]]
+                    prior_volumes = [value for value in prior_volumes if value is not None and value > 0]
+                    previous_close = _watchlist_number(bars[-2].get("close"))
+                    current_close = _watchlist_number(bars[-1].get("close"))
+                    bar_return = ((current_close - previous_close) / previous_close * 100
+                                  if current_close is not None and previous_close else None)
+                    if current_volume is not None and current_volume > 0 and len(prior_volumes) >= 5:
+                        avg_volume = sum(prior_volumes) / len(prior_volumes)
+                        volume_ratio = current_volume / avg_volume if avg_volume > 0 else None
+                    if volume_ratio is not None and volume_ratio >= 1.2 and bar_return is not None:
+                        volume_pressure = "selling" if bar_return < -0.5 else "buying" if bar_return > 0.5 else "neutral"
                 purchase_assessment = _fund_purchase_assessment(current_price, analysis_result)
                 return {"fund_key": fund["fund_key"], "technical_score": analysis_result.get("technical_score"),
                         "technical_source": "Rahavard365",
@@ -1173,6 +1189,9 @@ async def fund_score_batch(payload: FundScoreBatchInput,
                         "buy_suitability_rank": purchase_assessment["rank"],
                         "data_coverage_pct": analysis_result.get("data_coverage_pct"),
                         "risk_score": (analysis_result.get("risk_rank") or {}).get("score"),
+                        "score_change_1d": analysis_result.get("score_change_1d"),
+                        "volume_pressure": volume_pressure,
+                        "volume_ratio": round(volume_ratio, 2) if volume_ratio is not None else None,
                         "score_change_5d": analysis_result.get("score_change_5d"),
                         "score_change_20d": analysis_result.get("score_change_20d"),
                         "fund_type_key": analysis_result.get("fund_type"),
