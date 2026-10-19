@@ -1919,7 +1919,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
             item.distance_to_exit = item.price != null && item.active_exit_price != null
               ? { value: Number(item.price) - Number(item.active_exit_price), pct: (Number(item.price) - Number(item.active_exit_price)) / Number(item.price) * 100 }
               : null;
-            if (item.volume_pressure === "selling" && item.add_position_decision?.tone !== "negative") {
+            if (item.volume_pressure === "selling") {
               item.add_position_decision = { label: "خیر · حجم فروش", tone: "negative", reason: `حجم معاملات ${item.volume_ratio == null ? "بالاست" : `حدود ${num(item.volume_ratio, 1)} برابر میانگین است`} و هم‌زمان قیمت افت کرده؛ افزایش حجم را فشار فروش در نظر بگیر.` };
             }
           }
