@@ -4,7 +4,7 @@
   const horizonStorageKey = "alivest.investmentHorizon";
   let savedHorizon = "long";
   try { savedHorizon = localStorage.getItem(horizonStorageKey) === "short" ? "short" : "long"; } catch {}
-  const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], watchlist: [], currentView: "overview", investmentHorizon: savedHorizon, watchlistRefreshTimer: null, watchlistRefreshSeconds: 900 };
+  const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], watchlist: [], watchlistSortMode: "default", watchlistTotals: {}, currentView: "overview", investmentHorizon: savedHorizon, watchlistRefreshTimer: null, watchlistRefreshSeconds: 900 };
   const fundSortState = { key: "data_timestamp", direction: -1 };
   let fundScoreFillRunning = false;
   let fundScoreGeneration = 0;
@@ -1648,6 +1648,17 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
 
   function renderPersonalWatchlist(items, totals = {}) {
     const body = $("#watchlist-items");
+    state.watchlistTotals = totals;
+    const sortMode = state.watchlistSortMode || "default";
+    const sortedItems = [...items];
+    if (sortMode === "exit") sortedItems.sort((a, b) => {
+      const av = Number(a.distance_to_exit?.pct), bv = Number(b.distance_to_exit?.pct);
+      return (Number.isFinite(av) ? av : Infinity) - (Number.isFinite(bv) ? bv : Infinity);
+    });
+    if (sortMode === "score") sortedItems.sort((a, b) => {
+      const av = Number(a.score_change_1d), bv = Number(b.score_change_1d);
+      return (Number.isFinite(bv) ? Math.abs(bv) : -1) - (Number.isFinite(av) ? Math.abs(av) : -1);
+    });
     const summary = $("#watchlist-summary-values");
     const pnlTone = totals.pnl == null ? "" : Number(totals.pnl) > 0 ? "positive" : Number(totals.pnl) < 0 ? "negative" : "neutral";
     const summaryValues = [
@@ -1663,14 +1674,22 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       body.innerHTML = `<div class="empty-state watchlist-empty"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b></div>`;
       return;
     }
-    const rows = items.map((item) => {
+    const rows = sortedItems.map((item) => {
       const custom = Boolean(item.is_custom_symbol);
       const openAttrs = custom ? "disabled aria-disabled=\"true\"" : `data-watch-open="${esc(item.fund_key)}"`;
       const profit = item.profit || {};
       const profitTone = Number(profit.total) > 0 ? "positive" : Number(profit.total) < 0 ? "negative" : "";
       const priceTone = Number(item.daily_return) > 0 ? "positive" : Number(item.daily_return) < 0 ? "negative" : "";
       const scoreValue = item.technical_score == null ? null : Number(item.technical_score);
-      const scoreTone = !Number.isFinite(scoreValue) ? "unknown" : Math.floor(scoreValue + 0.5) >= 70 ? "positive" : Math.floor(scoreValue + 0.5) <= 40 ? "negative" : "neutral";
+      const scoreTone = !Number.isFinite(scoreValue) ? "unknown" : scoreValue > 65 ? "positive" : scoreValue < 40 ? "negative" : "neutral";
+      const scoreBand = !Number.isFinite(scoreValue) ? "نامشخص" : scoreValue < 40 ? "ضعیف" : scoreValue <= 65 ? "خنثی" : "قوی";
+      const scoreDelta = item.score_change_1d == null ? null : Number(item.score_change_1d);
+      const scoreDeltaHtml = Number.isFinite(scoreDelta) ? `<small class="watch-score-delta ${scoreDelta > 0 ? "positive" : scoreDelta < 0 ? "negative" : "neutral"}" title="تغییر امتیاز نسبت به روز معاملاتی قبل">${scoreDelta > 0 ? "↑" : scoreDelta < 0 ? "↓" : "→"} ${num(Math.abs(scoreDelta), 1)}</small>` : "";
+      const familyScores = item.family_scores || {};
+      const familyScore = (key) => familyScores[key]?.score == null ? null : Number(familyScores[key].score);
+      const scoreParts = [["میانگین متحرک", familyScore("moving_averages")], ["نوسان‌گر", familyScore("oscillators")], ["روند/مومنتوم", familyScore("trend_momentum")], ["حمایت/مقاومت", familyScore("support_resistance")]].filter(([, value]) => Number.isFinite(value));
+      const riskScore = item.risk_rank?.score == null ? null : Number(item.risk_rank.score);
+      const scoreTooltip = [...scoreParts.map(([label, value]) => `${label}: ${num(value, 1)}`), riskScore == null ? "ریسک: ناموجود" : `ریسک: ${num(riskScore, 1)}`, "حجم در امتیاز فعلی وارد نمی‌شود"].join(" · ");
       const marketValue = item.price != null && item.units != null && Number.isFinite(Number(item.price)) && Number.isFinite(Number(item.units))
         ? Number(item.price) * Number(item.units) : null;
       const exitAverage = item.active_exit_average || (item.active_exit_horizon === "کوتاه‌مدت" ? "EMA(10)" : "SMA(30)");
@@ -1726,19 +1745,23 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       else if (scoreValue != null && scoreValue < 40) saleDecision = { label: "کاهش ریسک", reason: "امتیاز تکنیکال زیر ۴۰ است؛ کاهش بخشی از موقعیت را بررسی کن." };
       else if (profitPct != null && profitPct > 0) saleDecision = { label: "فعلاً سیو سود لازم نیست", reason: "سود باز است، اما نشانه‌های هم‌زمان کافی برای سیو سود دیده نمی‌شود." };
       else saleDecision = { label: "فروش تأیید نشده", reason: "حد خروج با بسته‌شدن زیر " + exitAverage + " تأیید نشده است." };
-      const indicatorNotes = [];
-      if (rsi != null) indicatorNotes.push("RSI " + num(rsi, 1) + " · " + (rsi >= 70 ? "اشباع خرید" : rsi <= 30 ? "اشباع فروش؛ نیازمند تأیید برگشت" : "خنثی"));
-      if (mfi != null) indicatorNotes.push("MFI " + num(mfi, 1) + " · " + (mfi >= 80 ? "خریدزدگی" : mfi <= 20 ? "فروش‌زدگی" : "میانی"));
-      if (stochRsi != null) indicatorNotes.push("StochRSI " + num(stochRsi, 2) + " · " + (stochRsi >= 0.8 ? "ناحیه فروش" : stochRsi <= 0.2 ? "ناحیه خرید" : "خنثی"));
-      if (macdLine != null && macdSignal != null) indicatorNotes.push("MACD " + (macdLine >= macdSignal ? "بالای" : "زیر") + " خط سیگنال");
-      if (adx != null) indicatorNotes.push("ADX " + num(adx, 1) + " · قدرت " + (adx >= 25 ? "بالا" : adx >= 20 ? "متوسط" : "پایین"));
-      const priceVsAverage = (average, name) => average == null || !Number.isFinite(currentPrice) || currentPrice <= 0
-        ? null : "قیمت " + (currentPrice >= average ? "بالای " : "زیر ") + name;
-      const emaNotes = [priceVsAverage(ema20, "EMA20"), priceVsAverage(ema50, "EMA50")].filter(Boolean);
-      if (emaNotes.length) indicatorNotes.push(emaNotes.join(" و "));
-      if (nearestSupport != null) indicatorNotes.push("حمایت " + money(nearestSupport));
-      if (nearestResistance != null) indicatorNotes.push("مقاومت " + money(nearestResistance));
-      const holding = item.holding_decision || {};      const basePositionLabel = holding.label || "داده کافی نیست";
+      const chip = (label, tone) => `<span class="watch-indicator-chip ${tone}">${esc(label)}</span>`;
+      const indicatorChips = [];
+      if (rsi != null) indicatorChips.push(chip(`RSI ${num(rsi, 1)}`, rsi >= 70 ? "negative" : rsi <= 30 ? "positive" : rsi >= 50 ? "positive" : "neutral"));
+      if (mfi != null) indicatorChips.push(chip(`MFI ${num(mfi, 1)}`, mfi >= 80 ? "negative" : mfi <= 20 ? "positive" : mfi >= 50 ? "positive" : "neutral"));
+      if (stochRsi != null) indicatorChips.push(chip(`StochRSI ${num(stochRsi, 2)}`, stochRsi <= 0.2 ? "positive" : stochRsi >= 0.8 ? "negative" : "neutral"));
+      if (macdLine != null && macdSignal != null) indicatorChips.push(chip(`MACD ${macdLine >= macdSignal ? "بالای سیگنال" : "زیر سیگنال"}`, macdLine >= macdSignal ? "positive" : "negative"));
+      if (adx != null) indicatorChips.push(chip(`ADX ${num(adx, 1)} · قدرت ${adx >= 25 ? "بالا" : adx >= 20 ? "متوسط" : "پایین"}`, "neutral"));
+      if (ema20 != null && Number.isFinite(currentPrice) && currentPrice > 0) indicatorChips.push(chip(currentPrice >= ema20 ? "بالای EMA20" : "زیر EMA20", currentPrice >= ema20 ? "positive" : "negative"));
+      if (ema50 != null && Number.isFinite(currentPrice) && currentPrice > 0) indicatorChips.push(chip(currentPrice >= ema50 ? "بالای EMA50" : "زیر EMA50", currentPrice >= ema50 ? "positive" : "negative"));
+      const indicatorExplanation = stochRsi != null && stochRsi <= 0.2 && macdLine != null && macdSignal != null && macdLine < macdSignal
+        ? "StochRSI در ناحیهٔ خرید، اشباع کوتاه‌مدت را نشان می‌دهد؛ MACD زیر خط سیگنال یعنی برگشت هنوز تأیید نشده است."
+        : "";
+      const supportForExit = item.near_exit_price ?? nearestSupport;
+      const levelNotes = [supportForExit != null ? `حمایت/خروج نزدیک: ${money(supportForExit)}` : null,
+        nearestResistance != null ? `مقاومت نزدیک: ${money(nearestResistance)}` : null].filter(Boolean);
+      const holding = item.holding_decision || {};
+      const basePositionLabel = holding.label || "داده کافی نیست";
       let positionLabel = basePositionLabel;
       if (saleDecision.label === "فروش / خروج") positionLabel = saleDecision.label;
       else if (saleDecision.label === "سیو سود پله‌ای") positionLabel = basePositionLabel + " · سیو سود پله‌ای";
