@@ -1743,7 +1743,11 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
         macdLine != null && macdSignal != null && macdLine < macdSignal,
         resistanceGapPct != null && resistanceGapPct >= 0 && resistanceGapPct <= 3,
       ].filter(Boolean).length;
-      let saleDecision;
+      const supportForExit = item.near_exit_price ?? nearestSupport;
+      const nearExitGapPct = supportForExit != null && Number.isFinite(currentPrice) && currentPrice > 0
+        ? (currentPrice - Number(supportForExit)) / currentPrice * 100 : null;
+      const nearExitBroken = item.near_exit_confirmed === true;
+      const nearExitWarning = nearExitBroken || (nearExitGapPct != null && nearExitGapPct >= 0 && nearExitGapPct < 2);      let saleDecision;
       if (custom) saleDecision = { label: "داده کافی نیست", reason: "برای این نماد دادهٔ تحلیلی در دسترس نیست." };
       else if (positionUnits <= 0) saleDecision = { label: "موقعیتی ثبت نشده", reason: "برای این نماد موقعیت فعالی ثبت نشده است." };
       else if (exitConfirmed) saleDecision = { label: "خروج کامل", reason: "آخرین کندل روزانه زیر " + exitAverage + " بسته شده؛ حد خروج تأیید است." };
@@ -1763,11 +1767,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       if (adx != null) indicatorChips.push(chip(`ADX ${num(adx, 1)} · قدرت ${adx >= 25 ? "بالا" : adx >= 20 ? "متوسط" : "پایین"}`, "neutral"));
       if (ema20 != null && Number.isFinite(currentPrice) && currentPrice > 0) indicatorChips.push(chip(currentPrice >= ema20 ? "بالای EMA20" : "زیر EMA20", currentPrice >= ema20 ? "positive" : "negative"));
       if (ema50 != null && Number.isFinite(currentPrice) && currentPrice > 0) indicatorChips.push(chip(currentPrice >= ema50 ? "بالای EMA50" : "زیر EMA50", currentPrice >= ema50 ? "positive" : "negative"));
-      const supportForExit = item.near_exit_price ?? nearestSupport;
-      const nearExitGapPct = supportForExit != null && Number.isFinite(currentPrice) && currentPrice > 0
-        ? (currentPrice - Number(supportForExit)) / currentPrice * 100 : null;
-      const nearExitBroken = item.near_exit_confirmed === true;
-      const nearExitWarning = nearExitBroken || (nearExitGapPct != null && nearExitGapPct >= 0 && nearExitGapPct < 2);
+
       const exitDisplayTone = nearExitBroken ? "negative" : nearExitWarning ? "warning" : exitTone;
       const nearExitDistanceText = nearExitGapPct == null ? "" : nearExitGapPct >= 0
         ? `−${num(nearExitGapPct, 1)}٪` : `زیر سطح ${num(Math.abs(nearExitGapPct), 1)}٪`;
