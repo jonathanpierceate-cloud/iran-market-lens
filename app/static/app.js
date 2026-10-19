@@ -1657,8 +1657,13 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     });
     if (sortMode === "score") sortedItems.sort((a, b) => {
       const av = Number(a.score_change_1d), bv = Number(b.score_change_1d);
-      return (Number.isFinite(bv) ? Math.abs(bv) : -1) - (Number.isFinite(av) ? Math.abs(av) : -1);
+      return (Number.isFinite(av) ? av : Infinity) - (Number.isFinite(bv) ? bv : Infinity);
     });
+    if (sortMode === "profit") sortedItems.sort((a, b) => {
+      const av = Number(a.profit?.total), bv = Number(b.profit?.total);
+      return (Number.isFinite(bv) ? bv : -Infinity) - (Number.isFinite(av) ? av : -Infinity);
+    });
+    const primaryExitLabel = state.investmentHorizon === "short" ? "EMA(10)" : "SMA(30)";
     const summary = $("#watchlist-summary-values");
     const pnlTone = totals.pnl == null ? "" : Number(totals.pnl) > 0 ? "positive" : Number(totals.pnl) < 0 ? "negative" : "neutral";
     const summaryValues = [
@@ -1745,46 +1750,53 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       else if (scoreValue != null && scoreValue < 40) saleDecision = { label: "کاهش ریسک", reason: "امتیاز تکنیکال زیر ۴۰ است؛ کاهش بخشی از موقعیت را بررسی کن." };
       else if (profitPct != null && profitPct > 0) saleDecision = { label: "فعلاً سیو سود لازم نیست", reason: "سود باز است، اما نشانه‌های هم‌زمان کافی برای سیو سود دیده نمی‌شود." };
       else saleDecision = { label: "فروش تأیید نشده", reason: "حد خروج با بسته‌شدن زیر " + exitAverage + " تأیید نشده است." };
-      const chip = (label, tone) => `<span class="watch-indicator-chip ${tone}">${esc(label)}</span>`;
+      const stochMacdExplanation = stochRsi != null && stochRsi <= 0.2 && macdLine != null && macdSignal != null && macdLine < macdSignal
+        ? "StochRSI در ناحیهٔ خرید است، اما MACD زیر خط سیگنال مانده؛ برگشت هنوز تأیید نشده است."
+        : "";
+      const chip = (label, tone, title = "") => `<span class="watch-indicator-chip ${tone}"${title ? ` title="${esc(title)}"` : ""}>${esc(label)}</span>`;
       const indicatorChips = [];
       if (rsi != null) indicatorChips.push(chip(`RSI ${num(rsi, 1)}`, rsi >= 70 ? "negative" : rsi <= 30 ? "positive" : rsi >= 50 ? "positive" : "neutral"));
       if (mfi != null) indicatorChips.push(chip(`MFI ${num(mfi, 1)}`, mfi >= 80 ? "negative" : mfi <= 20 ? "positive" : mfi >= 50 ? "positive" : "neutral"));
-      if (stochRsi != null) indicatorChips.push(chip(`StochRSI ${num(stochRsi, 2)}`, stochRsi <= 0.2 ? "positive" : stochRsi >= 0.8 ? "negative" : "neutral"));
+      if (stochRsi != null) indicatorChips.push(chip(`StochRSI ${num(stochRsi, 2)}`, stochRsi <= 0.2 ? "positive" : stochRsi >= 0.8 ? "negative" : "neutral", stochMacdExplanation));
       if (macdLine != null && macdSignal != null) indicatorChips.push(chip(`MACD ${macdLine >= macdSignal ? "بالای سیگنال" : "زیر سیگنال"}`, macdLine >= macdSignal ? "positive" : "negative"));
       if (adx != null) indicatorChips.push(chip(`ADX ${num(adx, 1)} · قدرت ${adx >= 25 ? "بالا" : adx >= 20 ? "متوسط" : "پایین"}`, "neutral"));
       if (ema20 != null && Number.isFinite(currentPrice) && currentPrice > 0) indicatorChips.push(chip(currentPrice >= ema20 ? "بالای EMA20" : "زیر EMA20", currentPrice >= ema20 ? "positive" : "negative"));
       if (ema50 != null && Number.isFinite(currentPrice) && currentPrice > 0) indicatorChips.push(chip(currentPrice >= ema50 ? "بالای EMA50" : "زیر EMA50", currentPrice >= ema50 ? "positive" : "negative"));
-      const indicatorExplanation = stochRsi != null && stochRsi <= 0.2 && macdLine != null && macdSignal != null && macdLine < macdSignal
-        ? "StochRSI در ناحیهٔ خرید، اشباع کوتاه‌مدت را نشان می‌دهد؛ MACD زیر خط سیگنال یعنی برگشت هنوز تأیید نشده است."
-        : "";
       const supportForExit = item.near_exit_price ?? nearestSupport;
-      const levelNotes = [supportForExit != null ? `حمایت/خروج نزدیک: ${money(supportForExit)}` : null,
-        nearestResistance != null ? `مقاومت نزدیک: ${money(nearestResistance)}` : null].filter(Boolean);
+      const nearExitGapPct = supportForExit != null && Number.isFinite(currentPrice) && currentPrice > 0
+        ? (currentPrice - Number(supportForExit)) / currentPrice * 100 : null;
+      const nearExitBroken = item.near_exit_confirmed === true;
+      const nearExitWarning = nearExitBroken || (nearExitGapPct != null && nearExitGapPct >= 0 && nearExitGapPct < 2);
+      const exitDisplayTone = nearExitBroken ? "negative" : nearExitWarning ? "warning" : exitTone;
+      const nearExitDistanceText = nearExitGapPct == null ? "" : nearExitGapPct >= 0
+        ? `−${num(nearExitGapPct, 1)}٪` : `زیر سطح ${num(Math.abs(nearExitGapPct), 1)}٪`;
+      const levelNotes = [nearestResistance != null ? `مقاومت نزدیک: ${money(nearestResistance)}` : null].filter(Boolean);
       const holding = item.holding_decision || {};
       const basePositionLabel = holding.label || "داده کافی نیست";
       let positionLabel = basePositionLabel;
       if (saleDecision.label === "فروش / خروج") positionLabel = saleDecision.label;
       else if (saleDecision.label === "سیو سود پله‌ای") positionLabel = basePositionLabel + " · سیو سود پله‌ای";
       else if (saleDecision.label === "سیو سود را زیر نظر بگیر") positionLabel = basePositionLabel + " · بررسی سیو سود";
-      const adding = item.add_position_decision || {};
-      const exitRule = "حد خروج اصلی فقط با بسته‌شدن کندل روزانه زیر " + exitAverage + " تأیید می‌شود.";
+      if (nearExitWarning && saleDecision.label !== "فروش / خروج") positionLabel = nearExitBroken ? "هشدار · حمایت شکسته" : "هشدار · نزدیک حمایت";
+      let adding = item.add_position_decision || {};
+      if (nearExitWarning) adding = { label: nearExitBroken ? "خیر · حمایت شکسته" : "صبر · نزدیک حمایت", reason: nearExitBroken ? "کندل روزانه زیر حمایت نزدیک بسته شده؛ تا بازپس‌گیری سطح، حجم اضافه نکن." : `فاصلهٔ قیمت تا حمایت نزدیک ${num(nearExitGapPct, 1)}٪ است؛ تا روشن‌شدن واکنش قیمت، حجم اضافه نکن.` };
       const showSaleReason = ["فروش / خروج", "سیو سود پله‌ای", "سیو سود را زیر نظر بگیر", "کاهش ریسک"].includes(saleDecision.label);
-      const analysisTitle = [holding.reason, adding.reason, saleDecision.reason, exitRule].filter(Boolean).join(" · ");
-      const watchAnalysis = '<div class="watch-analysis-summary" title="' + esc(analysisTitle) + '"><div class="watch-analysis-actions"><span>موقعیت: <b>' + esc(positionLabel) + '</b></span><span>افزایش حجم: <b>' + esc(adding.label || "صبر") + '</b></span></div><div class="watch-indicator-chips">' + (indicatorChips.join("") || `<span class="watch-analysis-empty">${esc(item.technical_error || "دادهٔ اندیکاتورهای اصلی در دسترس نیست.")}</span>`) + '</div>' + (indicatorExplanation ? '<small class="watch-analysis-explanation">' + esc(indicatorExplanation) + '</small>' : '') + (levelNotes.length ? '<div class="watch-levels">' + esc(levelNotes.join(" · ")) + '</div>' : '') + (showSaleReason ? '<small class="watch-sale-reason">' + esc(saleDecision.reason) + '</small>' : '') + '<small>' + esc(exitRule) + '</small></div>';
-      const priceFresh = item.price != null && item.price_is_cached === false;
+      const detailLines = [holding.reason, adding.reason, stochMacdExplanation, ...levelNotes, showSaleReason ? saleDecision.reason : null].filter(Boolean);
+      const detailsHtml = detailLines.map((line) => `<p>${esc(line)}</p>`).join("");
+      const watchAnalysis = '<div class="watch-analysis-summary"><div class="watch-analysis-actions"><span>موقعیت: <b class="' + (nearExitWarning ? 'warning' : '') + '">' + esc(positionLabel) + '</b></span><span>افزایش حجم: <b>' + esc(adding.label || "صبر") + '</b></span></div><div class="watch-indicator-chips">' + (indicatorChips.join("") || `<span class="watch-analysis-empty">${esc(item.technical_error || "دادهٔ اندیکاتورهای اصلی در دسترس نیست.")}</span>`) + '</div><details class="watch-analysis-details"><summary>جزئیات تحلیل</summary><div class="watch-analysis-details-body">' + (detailsHtml || '<p>جزئیات بیشتری برای این نماد در دسترس نیست.</p>') + '</div></details></div>';      const priceFresh = item.price != null && item.price_is_cached === false;
       const freshnessLabel = priceFresh ? "داده تازه" : "داده کهنه یا ناموجود";
-      return `<tr>
+      return `<tr class="${nearExitBroken ? "watchlist-row-danger" : nearExitWarning ? "watchlist-row-warning" : ""}">
         <td data-label="نماد"><div class="watchlist-symbol-cell"><button class="watch-fund-open${custom ? " watch-fund-open-unavailable" : ""}" type="button" ${openAttrs} aria-label="${custom ? "دادهٔ تحلیلی موجود نیست" : "مشاهده تحلیل"} ${esc(item.name)}"><i class="data-freshness-dot ${priceFresh ? "fresh" : "stale"}" role="img" aria-label="${freshnessLabel}" title="${freshnessLabel}"></i><strong>${esc(item.name || item.symbol || "—")}</strong></button></div></td>
         <td data-label="تعداد"><span class="watch-cell-primary">${num(item.units, 0)}</span></td>
         <td data-label="قیمت سربه‌سر"><span class="watch-cell-primary">${money(item.break_even_price)}</span></td>
         <td data-label="ارزش فعلی"><span class="watch-cell-primary">${money(marketValue)}</span></td>
         <td data-label="آخرین قیمت"><span class="watch-cell-primary">${money(item.price)}</span><small class="watch-cell-secondary ${priceTone}">${item.daily_return == null ? "—" : pct(item.daily_return)}</small></td>
         <td data-label="سود/زیان فعلی"><span class="watch-cell-primary ${profitTone}">${profit.total == null ? "—" : money(profit.total)}</span><small class="watch-cell-secondary ${profitTone}">${profit.pct == null ? "" : `(${pct(profit.pct)})`}</small></td>
-        <td data-label="حد خروج" title="${esc(exitState)}؛ حد خروج اصلی با بسته‌شدن کندل روزانه زیر ${esc(exitAverage)} تأیید می‌شود"><span class="watch-cell-primary ${exitTone}">${money(item.active_exit_price)}</span><small class="watch-cell-secondary">حد اصلی · ${esc(exitAverage)}</small>${supportForExit != null ? `<small class="watch-near-exit ${item.near_exit_confirmed ? "negative" : "warning"}">${item.near_exit_confirmed ? "شکست حمایت تأییدشده" : "حد خروج نزدیک · حمایت"}: ${money(supportForExit)}</small>` : ""}</td>
+        <td data-label="حد خروج" title="حد اصلی با بسته‌شدن کندل روزانه زیر ${esc(exitAverage)} تأیید می‌شود"><span class="watch-cell-primary ${exitDisplayTone}">${money(item.active_exit_price)}</span>${supportForExit != null ? `<small class="watch-near-exit ${nearExitBroken ? "negative" : nearExitWarning ? "warning" : ""}">نزدیک: ${money(supportForExit)} (${nearExitDistanceText})</small>` : ""}</td>
         <td data-label="امتیاز نماد"><span class="watch-score ${scoreTone}" title="${esc(scoreTooltip || item.technical_error || "امتیاز بر پایهٔ محاسبهٔ اندیکاتورها از نمودار روزانهٔ ره‌آورد")}">${scoreValue == null || !Number.isFinite(scoreValue) ? "—" : `${num(scoreValue, 0)}٪`}</span><small class="watch-score-band ${scoreTone}">${scoreBand}</small>${scoreDeltaHtml}</td><td data-label="تحلیل خلاصه">${watchAnalysis}</td>
       </tr>`;
     }).join("");
-    body.innerHTML = `<div class="watchlist-sort-toolbar"><label for="watchlist-sort">مرتب‌سازی</label><select id="watchlist-sort"><option value="default" ${sortMode === "default" ? "selected" : ""}>ترتیب پیش‌فرض</option><option value="exit" ${sortMode === "exit" ? "selected" : ""}>نزدیکی به حد خروج</option><option value="score" ${sortMode === "score" ? "selected" : ""}>بیشترین تغییر امتیاز روزانه</option></select></div><table class="watchlist-table"><thead><tr><th scope="col">نماد <small>(${nf.format(items.length)})</small></th><th scope="col">تعداد</th><th scope="col">قیمت سربه‌سر</th><th scope="col">ارزش فعلی</th><th scope="col">آخرین قیمت</th><th scope="col">سود/زیان فعلی</th><th scope="col">حد خروج</th><th scope="col">امتیاز نماد</th><th scope="col">تحلیل خلاصه</th></tr></thead><tbody>${rows}</tbody></table>`;
+    body.innerHTML = `<div class="watchlist-sort-toolbar"><div><label for="watchlist-sort">مرتب‌سازی</label><select id="watchlist-sort"><option value="default" ${sortMode === "default" ? "selected" : ""}>ترتیب پیش‌فرض</option><option value="exit" ${sortMode === "exit" ? "selected" : ""}>نزدیک‌ترین به حد خروج</option><option value="score" ${sortMode === "score" ? "selected" : ""}>بیشترین افت امتیاز</option><option value="profit" ${sortMode === "profit" ? "selected" : ""}>بیشترین سود</option></select></div><small>حد خروج اصلی (${primaryExitLabel}) با بسته‌شدن کندل روزانه زیر آن تأیید می‌شود؛ حمایت نزدیک در فاصلهٔ کمتر از ۲٪ هشدار دارد.</small></div><table class="watchlist-table"><thead><tr><th scope="col">نماد <small>(${nf.format(items.length)})</small></th><th scope="col">تعداد</th><th scope="col">قیمت سربه‌سر</th><th scope="col">ارزش فعلی</th><th scope="col">آخرین قیمت</th><th scope="col">سود/زیان فعلی</th><th scope="col">حد خروج</th><th scope="col">امتیاز نماد</th><th scope="col">تحلیل خلاصه</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   async function fillVisibleFundNavs(generation = fundNavGeneration) {
@@ -1876,8 +1888,12 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
             item.family_scores = analysis.family_scores || {};
             item.risk_rank = analysis.risk_rank || {};
             item.score_change_1d = result.score_change_1d ?? analysis.score_change_1d;
-            item.volume_pressure = result.volume_pressure;
             item.volume_ratio = result.volume_ratio;
+            const quoteDayChange = item.daily_return == null ? null : Number(item.daily_return);
+            item.volume_pressure = Number.isFinite(Number(item.volume_ratio)) && Number(item.volume_ratio) >= 1 && Number.isFinite(quoteDayChange) && quoteDayChange < -0.5
+              ? "selling"
+              : Number.isFinite(Number(item.volume_ratio)) && Number(item.volume_ratio) >= 1 && Number.isFinite(quoteDayChange) && quoteDayChange > 0.5
+                ? "buying" : null;
             item.near_exit_price = item.watchlist_indicators.nearest_support;
             const dailyClose = analysis.price == null ? null : Number(analysis.price);
             const activeExit = item.active_exit_price == null ? null : Number(item.active_exit_price);
