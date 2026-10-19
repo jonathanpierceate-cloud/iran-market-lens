@@ -1787,3 +1787,27 @@ body.light-mode #view-watchlist .watch-analysis-summary small { color: #657889; 
 body.light-mode #view-watchlist .watchlist-sort-toolbar select { color:#334253; background:#fff; border-color:#cbd6df; }
 body.light-mode #view-watchlist .watch-indicator-chip { color:#506477; background:#f3f6f8; }
 body.light-mode #view-watchlist .watch-levels { color:#526d7c; }
+/* Compact, expandable watchlist rows and near-support alerts */
+#view-watchlist .watchlist-sort-toolbar { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px 14px; }
+#view-watchlist .watchlist-sort-toolbar > div { display:flex; align-items:center; gap:8px; }
+#view-watchlist .watchlist-sort-toolbar > small { color:#91a0b1; font-size:10px; }
+#view-watchlist .watchlist-row-warning { outline:1px solid rgba(242,184,75,.72); outline-offset:-1px; }
+#view-watchlist .watchlist-row-warning td:first-child { box-shadow: inset -3px 0 #f2b84b; }
+#view-watchlist .watchlist-row-danger { outline:1px solid rgba(255,95,115,.8); outline-offset:-1px; }
+#view-watchlist .watchlist-row-danger td:first-child { box-shadow: inset -3px 0 #ff5f73; }
+#view-watchlist .watch-analysis-actions b.warning { color:#f2b84b; }
+#view-watchlist .watch-analysis-details { text-align:right; }
+#view-watchlist .watch-analysis-details summary { width:max-content; color:#91a0b1; font-size:10px; cursor:pointer; user-select:none; }
+#view-watchlist .watch-analysis-details[open] summary { color:#64cbb1; margin-bottom:4px; }
+#view-watchlist .watch-analysis-details-body { display:grid; gap:3px; }
+#view-watchlist .watch-analysis-details-body p { color:#aebdca; font-size:10px; line-height:1.5; }
+#view-watchlist .watch-near-exit { direction:rtl; white-space:nowrap; }
+body.light-mode #view-watchlist .watchlist-row-warning { outline-color:#c48619; }
+body.light-mode #view-watchlist .watchlist-row-danger { outline-color:#d43c4e; }
+body.light-mode #view-watchlist .watch-analysis-details summary { color:#5e7181; }
+body.light-mode #view-watchlist .watch-analysis-details-body p { color:#506477; }
+@media (max-width:720px) {
+  #view-watchlist .watchlist-sort-toolbar { align-items:flex-start; }
+  #view-watchlist .watchlist-sort-toolbar > small { width:100%; }
+  #view-watchlist .watch-indicator-chips { gap:4px; }
+}
