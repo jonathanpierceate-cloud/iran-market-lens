@@ -1165,12 +1165,15 @@ async def fund_score_batch(payload: FundScoreBatchInput,
                 volume_ratio = None
                 volume_pressure = None
                 bars = sorted((bar for bar in chart_bars if isinstance(bar, dict)), key=lambda bar: str(bar.get("timestamp") or ""))
-                if len(bars) >= 7:
-                    current_volume = _watchlist_number(bars[-1].get("volume"))
-                    prior_volumes = [_watchlist_number(bar.get("volume")) for bar in bars[max(0, len(bars) - 21):-1]]
+                confirmed_bar = _latest_confirmed_daily_bar(bars)
+                confirmed_stamp = str(confirmed_bar.get("timestamp") or "")[:10] if confirmed_bar else ""
+                confirmed_index = next((i for i, bar in enumerate(bars) if str(bar.get("timestamp") or "")[:10] == confirmed_stamp), None)
+                if confirmed_index is not None and confirmed_index >= 6:
+                    current_volume = _watchlist_number(bars[confirmed_index].get("volume"))
+                    prior_volumes = [_watchlist_number(bar.get("volume")) for bar in bars[max(0, confirmed_index - 20):confirmed_index]]
                     prior_volumes = [value for value in prior_volumes if value is not None and value > 0]
-                    previous_close = _watchlist_number(bars[-2].get("close"))
-                    current_close = _watchlist_number(bars[-1].get("close"))
+                    previous_close = _watchlist_number(bars[confirmed_index - 1].get("close"))
+                    current_close = _watchlist_number(bars[confirmed_index].get("close"))
                     bar_return = ((current_close - previous_close) / previous_close * 100
                                   if current_close is not None and previous_close else None)
                     if current_volume is not None and current_volume > 0 and len(prior_volumes) >= 5:
