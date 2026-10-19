@@ -2103,6 +2103,11 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     await openView("funds");
     await showFund(open.dataset.watchOpen);
   });
+  $("#watchlist-items").addEventListener("change", (event) => {
+    if (event.target.id !== "watchlist-sort") return;
+    state.watchlistSortMode = event.target.value;
+    renderPersonalWatchlist(state.watchlist, state.watchlistTotals || {});
+  });
   $("#watchlist-refresh").addEventListener("click", async (event) => {
     const button = event.currentTarget;
     button.disabled = true;
