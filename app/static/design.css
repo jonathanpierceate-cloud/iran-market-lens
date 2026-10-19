@@ -1767,3 +1767,23 @@ body.light-mode #view-watchlist .watch-analysis-summary small { color: #657889; 
   #view-watchlist .watchlist-table td:nth-child(8),
   #view-watchlist .watchlist-table td:nth-child(9) { grid-column: 1 / -1; }
 }
+
+/* Watchlist analysis chips, score context and sorting controls */
+#view-watchlist .watchlist-sort-toolbar { display:flex; align-items:center; justify-content:flex-start; gap:8px; margin:0 0 10px; color:#91a0b1; font-size:11px; }
+#view-watchlist .watchlist-sort-toolbar select { min-height:34px; padding:5px 28px 5px 10px; color:#d7e1eb; background:#13222d; border:1px solid #2b4654; border-radius:8px; font:inherit; }
+#view-watchlist .watch-indicator-chips { display:flex; flex-wrap:wrap; gap:5px; }
+#view-watchlist .watch-indicator-chip { display:inline-flex; align-items:center; padding:2px 7px; border:1px solid #344858; border-radius:999px; color:#b7c6d3; background:#172630; font-size:10px; line-height:1.55; white-space:nowrap; }
+#view-watchlist .watch-indicator-chip.positive { color:#58d6ae; border-color:#236b5e; background:rgba(22,199,154,.08); }
+#view-watchlist .watch-indicator-chip.negative { color:#ff8794; border-color:#74414d; background:rgba(255,95,115,.08); }
+#view-watchlist .watch-indicator-chip.neutral { color:#e2bd68; border-color:#675836; background:rgba(226,185,94,.07); }
+#view-watchlist .watch-analysis-explanation { color:#e2bd68; font-size:10px; }
+#view-watchlist .watch-levels { color:#a9c6d4; font-size:10px; }
+#view-watchlist .watch-sale-reason { color:#f2b84b; font-size:10px; }
+#view-watchlist .watch-analysis-empty { color:#91a0b1; font-size:10px; }
+#view-watchlist .watch-score-band, #view-watchlist .watch-score-delta, #view-watchlist .watch-near-exit { display:block; margin-top:3px; font-size:10px; }
+#view-watchlist .watch-score-band.positive, #view-watchlist .watch-score-delta.positive { color:#16c79a; }
+#view-watchlist .watch-score-band.negative, #view-watchlist .watch-score-delta.negative, #view-watchlist .watch-near-exit.negative { color:#ff7b89; }
+#view-watchlist .watch-score-band.neutral, #view-watchlist .watch-score-delta.neutral, #view-watchlist .watch-near-exit.warning { color:#e2b95e; }
+body.light-mode #view-watchlist .watchlist-sort-toolbar select { color:#334253; background:#fff; border-color:#cbd6df; }
+body.light-mode #view-watchlist .watch-indicator-chip { color:#506477; background:#f3f6f8; }
+body.light-mode #view-watchlist .watch-levels { color:#526d7c; }
