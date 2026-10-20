@@ -389,9 +389,12 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
 def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
                    trend_value: float | None = None,
                    trend_schema_type: str | None = None,
-                   trading_status: str | None = None,`r`n                   profiles: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
+                   trading_status: str | None = None,
+                   profiles: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
     """Score available indicators and redistribute missing weights in-group."""
-    horizon = normalize_horizon(horizon)`r`n    profiles = profiles or FUND_SCORING_PROFILES`r`n    profile = profiles[horizon]
+    horizon = normalize_horizon(horizon)
+    profiles = profiles or FUND_SCORING_PROFILES
+    profile = profiles[horizon]
     family_weights: dict[str, float] = profile["family_weights"]  # type: ignore[assignment]
     indicator_weights: dict[str, dict[str, float]] = profile["indicator_weights"]  # type: ignore[assignment]
     normalized: list[dict[str, Any]] = []
@@ -558,7 +561,9 @@ def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
 
 
 def _empty_result(horizon: str = "long", profiles: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
-    horizon = normalize_horizon(horizon)`r`n    profiles = profiles or FUND_SCORING_PROFILES`r`n    profile = profiles[horizon]
+    horizon = normalize_horizon(horizon)
+    profiles = profiles or FUND_SCORING_PROFILES
+    profile = profiles[horizon]
     family_weights: dict[str, float] = profile["family_weights"]  # type: ignore[assignment]
     indicator_weights: dict[str, dict[str, float]] = profile["indicator_weights"]  # type: ignore[assignment]
     groups = {

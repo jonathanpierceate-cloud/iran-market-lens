@@ -301,6 +301,13 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "near_resistance_count": sum(1 for item in resistances if current and (item["midpoint"]-current)/current <= .10),
     })
     dashboard_indicators = dict(indicators)
+    # Dashboard workbook 4.2 excludes the independent volume family.
+    for key in ("OBV(20)", "VRSI(14)", "VMACD(12,26)"):
+        dashboard_indicators.pop(key, None)
+    for period in (15, 30, 90):
+        historical = dashboard_indicators.pop(f"RV({period})", None)
+        if historical is not None:
+            dashboard_indicators[f"HV({period})"] = historical
     dashboard_tech = dict(tech)
     dashboard_tech["indicators"] = dashboard_indicators
     return {

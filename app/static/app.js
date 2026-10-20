@@ -729,7 +729,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     return "<section class=\"fund-recommendation " + scoreTone + " fund-model-recommendation dashboard-model-recommendation\">" +
       "<div class=\"fund-model-score-head\"><div><span class=\"recommendation-kicker\">مدل " + horizonName + " · امتیاز اختصاصی AliVest بر پایهٔ داده‌های ره‌آورد</span>" +
       "<h3>امتیاز تکنیکال: <strong>" + (scoreValue == null ? "داده کافی نیست" : num(scoreValue, 0) + " از ۱۰۰") + "</strong> · " + (bandLabels[a.score_band] || "نامشخص") + "</h3>" +
-      "<p>" + scoreWeightText + " · امتیاز اندیکاتورها طبق فایل امتیازدهی ۴.۳.۱ محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p></div>" +
+      "<p>" + scoreWeightText + " · امتیاز اندیکاتورها طبق فایل امتیازدهی ۴.۲ محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p></div>" +
       "<div class=\"fund-model-meta\"><span>قیمت فعلی <b>" + price + "</b></span><span>تغییر روزانه <b>" + daily + "</b></span>" +
       "<span>جمع‌بندی " + horizonName + " <b>" + trend + "</b></span><span>قدرت حرکت (ADX) <b>" + strength + "</b></span>" +
       "<span>ریسک نوسان <b>" + risk + (finite(a.risk_score) ? " · " + num(a.risk_score, 0) : "") + "</b></span>" +
@@ -1072,7 +1072,8 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       lowvolume: ["خنثی", "neutral"], unavailable: ["خنثی", "neutral"],
       bouncefromlower: ["صعودی", "positive"], nearupperuptrend: ["نزولی", "negative"]
     };
-    const groups = { ...(a.indicators || {}) };
+    const groups = { ...(a.indicators || {}), volumes: [] };
+    const volumeIndicator = (item) => /^(OBV|RV|VRSI|VMACD|SM)\s*\(/i.test(String(item?.short_name_en || item?.name_en || ""));
     const scoreMap = indicatorScoreMap(a);
     const hasModelScores = Object.keys(a.family_scores || {}).length > 0;
     const notes = new Map((a.indicator_notes || []).map((x) => [x.name, x]));
@@ -1089,7 +1090,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       r4: "مقاومت ۴", s1: "حمایت ۱", s2: "حمایت ۲", s3: "حمایت ۳", s4: "حمایت ۴",
       rv: "حجم نسبی", vrsi: "VRSI", vmacd: "VMACD", obv: "OBV"
     };
-    const cards = Object.entries(groups).flatMap(([group, items]) => group === "pivots" ? [] : (items || []).filter(hasIndicatorValue).map((item) => {
+    const cards = Object.entries(groups).flatMap(([group, items]) => group === "pivots" || group === "volumes" ? [] : (items || []).filter((item) => !volumeIndicator(item) && hasIndicatorValue(item)).map((item) => {
       const name = item.short_name_en || item.name_en || "شاخص ره‌آورد";
       const displayName = /^MACD\(/i.test(name) ? "MACD(12,26,9)" : name;
       const note = notes.get(name) || {};

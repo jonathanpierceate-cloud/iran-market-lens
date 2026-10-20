@@ -548,7 +548,11 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     horizon = normalize_horizon(horizon)
     kind = _type(context)
     rows = _group_items(groups)
-    profile_set = DASHBOARD_SCORING_PROFILES if dashboard_model else FUND_SCORING_PROFILES`r`n    engine = score_tse_bars(`r`n        context.get("fund_history"),`r`n        horizon=horizon,`r`n        profiles=profile_set,
+    profile_set = DASHBOARD_SCORING_PROFILES if dashboard_model else FUND_SCORING_PROFILES
+    engine = score_tse_bars(
+        context.get("fund_history"),
+        horizon=horizon,
+        profiles=profile_set,
         trend_value=context.get("trend_value"),
         trend_schema_type=context.get("trend_schema_type"),
         trading_status=context.get("trading_status"),
@@ -557,7 +561,8 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     family_weights = {key: float(value) / 100.0
                       for key, value in engine["score_weights"].items()}
     indicator_weights = engine["indicator_weights"]
-    model_version = "update_4_2" if dashboard_model else "update_4_3_1"`r`n    model_profile = f"{horizon}_{model_version}_indicators"
+    model_version = "update_4_2" if dashboard_model else "update_4_3_1"
+    model_profile = f"{horizon}_{model_version}_indicators"
     entry_quality = _entry_quality_score(rows, price, context)
     nav_assessment = _nav_score(price, context)
 
