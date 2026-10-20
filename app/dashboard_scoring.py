@@ -301,12 +301,6 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "near_resistance_count": sum(1 for item in resistances if current and (item["midpoint"]-current)/current <= .10),
     })
     dashboard_indicators = dict(indicators)
-    for key in ("OBV(20)", "VRSI(14)", "VMACD(12,26)"):
-        dashboard_indicators.pop(key, None)
-    for period in (15, 30, 90):
-        historical = dashboard_indicators.pop(f"RV({period})", None)
-        if historical is not None:
-            dashboard_indicators[f"HV({period})"] = historical
     dashboard_tech = dict(tech)
     dashboard_tech["indicators"] = dashboard_indicators
     return {
@@ -323,7 +317,7 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "trend_direction_score": round(total, 1) if total is not None else None,
         "trend_strength": strength, "technical_score": round(total, 1) if total is not None else None,
         "score_method": f"dashboard_rahavard_excel_weighted_update43_{horizon}",
-        "score_origin": "AliVest", "score_profile": f"{horizon}_update_4_indicators",
+        "score_origin": "AliVest", "score_profile": f"{horizon}_update_4_3_indicators",
         "investment_horizon": horizon, "investment_horizon_label": horizon_label(horizon),
         "score_weights": {key: round(value*100) for key, value in family_weights.items()},
         "indicator_weights": engine["indicator_weights"],
@@ -339,8 +333,8 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "confidence_label": {"high": "بالا", "medium": "متوسط", "low": "پایین",
                              "insufficient": "داده ناکافی"}[engine["confidence_level"]],
         "confidence_basis": "بر پایهٔ پوشش داده و هم‌جهتی اندیکاتورها؛ احتمال موفقیت معامله نیست.",
-        "breakout_confidence": "independent_volume_indicators_removed",
-        "breakout_confidence_label": "\u0627\u0646\u062f\u06cc\u06a9\u0627\u062a\u0648\u0631\u0647\u0627\u06cc \u062d\u062c\u0645 \u0627\u0632 \u0627\u0645\u062a\u06cc\u0627\u0632\u062f\u0647\u06cc \u062d\u0630\u0641 \u0634\u062f\u0647\u200c\u0627\u0646\u062f",
+        "breakout_confidence": "volume_indicators_included_in_update_4_3_score",
+        "breakout_confidence_label": "شاخص‌های حجم و نقدینگی در امتیاز نسخهٔ ۴.۳ لحاظ شده‌اند",
         "risk": risk, "risk_score": round(risk_value, 1) if risk_value is not None else None,
         "risk_label": {"low":"کم","medium":"متوسط","high":"بالا","unavailable":"نامشخص"}[risk],
         "risk_basis": "نوسان تاریخی RV(30)، و در نبود آن تخمین از ATR(14).",
@@ -358,5 +352,5 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "support_resistance": levels, "support_levels": supports, "resistance_levels": resistances,
         "nearest_support": near_support, "nearest_resistance": near_resistance,
         "structural_invalidation_level": near_support.get("midpoint") if near_support else None,
-        "decision_support": "\u0627\u0645\u062a\u06cc\u0627\u0632 \u0628\u0631\u0622\u06cc\u0646\u062f \u0686\u0647\u0627\u0631 \u06af\u0631\u0648\u0647 \u0645\u06cc\u0627\u0646\u06af\u06cc\u0646\u200c\u0647\u0627\u06cc \u0645\u062a\u062d\u0631\u06a9\u060c \u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628\u060c \u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a \u0648 \u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627 \u0627\u0633\u062a.",
+        "decision_support": "\u0627\u0645\u062a\u06cc\u0627\u0632 \u0628\u0631\u0622\u06cc\u0646\u062f \u0628\u0631 \u067e\u0627\u06cc\u0647\u0654 \u067e\u0646\u062c \u06af\u0631\u0648\u0647 \u0645\u06cc\u0627\u0646\u06af\u06cc\u0646\u200c\u0647\u0627\u06cc \u0645\u062a\u062d\u0631\u06a9\u060c \u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628\u060c \u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a\u060c \u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627 \u0648 \u062d\u062c\u0645 \u0648 \u062c\u0631\u06cc\u0627\u0646 \u0646\u0642\u062f\u06cc\u0646\u06af\u06cc \u0627\u0633\u062a.",
     }

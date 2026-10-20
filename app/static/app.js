@@ -542,7 +542,8 @@
       moving_averages: ["\u0645\u06cc\u0627\u0646\u06af\u06cc\u0646 \u0645\u062a\u062d\u0631\u06a9", "\u062c\u0627\u06cc\u06af\u0627\u0647 \u0642\u06cc\u0645\u062a \u0646\u0633\u0628\u062a \u0628\u0647 \u0645\u06cc\u0627\u0646\u06af\u06cc\u0646\u200c\u0647\u0627 \u0648 \u0628\u0627\u0646\u062f\u0647\u0627"],
       trend_momentum: ["\u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628", "MACD\u060c ADX\u060c AROON \u0648 AO"],
       support_resistance: ["\u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a", "\u067e\u06cc\u0648\u062a\u200c\u0647\u0627 \u0648 \u0641\u0627\u0635\u0644\u0647\u0654 \u0642\u06cc\u0645\u062a \u062a\u0627 \u0633\u0637\u0648\u062d"],
-      oscillators: ["\u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627", "RSI\u060c MFI\u060c CCI\u060c SO\u060c StochRSI\u060c WR \u0648 MTM"]
+      oscillators: ["\u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627", "RSI\u060c MFI\u060c CCI\u060c SO\u060c StochRSI\u060c WR \u0648 MTM"],
+      volume_flow: ["شاخص‌های حجم و جریان نقدینگی", "RV(90)، RV(30)، RV(15)، SM(15)، VRSI(14)، VMACD(26) و OBV(20)"]
     };
     const indicatorLabels = {
       ema50: "EMA(50)", ema20: "EMA(20)", ichimoku: "Ichimoku Cloud",
@@ -686,6 +687,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       { key: "trend_momentum", label: "\u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628", description: "MACD\u060c ADX\u060c AROON \u0648 AO" },
       { key: "support_resistance", label: "\u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a", description: "\u067e\u06cc\u0648\u062a\u200c\u0647\u0627\u06cc \u0641\u06cc\u0628\u0648\u0646\u0627\u0686\u06cc\u060c \u06a9\u0644\u0627\u0633\u06cc\u06a9\u060c \u06a9\u0627\u0645\u0627\u0631\u06cc\u0644\u0627\u060c \u0648\u0648\u062f\u06cc \u0648 \u062f\u06cc\u200c\u0645\u0627\u0631\u06a9" },
       { key: "oscillators", label: "\u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627", description: "RSI\u060c MFI\u060c CCI\u060c SO (%K\u061b WR \u0627\u062f\u063a\u0627\u0645 \u0634\u062f\u0647)\u060c StochRSI \u0648 MTM" },
+      { key: "volume_flow", label: "شاخص‌های حجم و جریان نقدینگی", description: "RV(90)، RV(30)، RV(15)، SM(15)، VRSI(14)، VMACD(26) و OBV(20)" },
     ];
     const familyCards = familyDefinitions.filter((factor) => finite(scores[factor.key]?.score)).map((factor) => {
       const family = scores[factor.key] || {};
@@ -1068,7 +1070,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       lowvolume: ["خنثی", "neutral"], unavailable: ["خنثی", "neutral"],
       bouncefromlower: ["صعودی", "positive"], nearupperuptrend: ["نزولی", "negative"]
     };
-    const groups = { ...(a.indicators || {}), volumes: [] };
+    const groups = { ...(a.indicators || {}) };
     const scoreMap = indicatorScoreMap(a);
     const hasModelScores = Object.keys(a.family_scores || {}).length > 0;
     const notes = new Map((a.indicator_notes || []).map((x) => [x.name, x]));
@@ -1085,8 +1087,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       r4: "مقاومت ۴", s1: "حمایت ۱", s2: "حمایت ۲", s3: "حمایت ۳", s4: "حمایت ۴",
       rv: "حجم نسبی", vrsi: "VRSI", vmacd: "VMACD", obv: "OBV"
     };
-    const volumeIndicator = (item) => /^(OBV|RV|VRSI|VMACD|SM)\s*\(/i.test(String(item?.short_name_en || item?.name_en || ""));
-    const cards = Object.entries(groups).flatMap(([group, items]) => group === "pivots" || group === "volumes" ? [] : (items || []).filter((item) => !volumeIndicator(item) && hasIndicatorValue(item)).map((item) => {
+    const cards = Object.entries(groups).flatMap(([group, items]) => group === "pivots" ? [] : (items || []).filter(hasIndicatorValue).map((item) => {
       const name = item.short_name_en || item.name_en || "شاخص ره‌آورد";
       const displayName = /^MACD\(/i.test(name) ? "MACD(12,26,9)" : name;
       const note = notes.get(name) || {};
