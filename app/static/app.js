@@ -1076,6 +1076,19 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     };
     const groups = { ...(a.indicators || {}), volumes: [] };
     const volumeIndicator = (item) => /^(OBV|RV|VRSI|VMACD|SM)\s*\(/i.test(String(item?.short_name_en || item?.name_en || ""));
+    const includeFundVolume = String(a.score_method || "").startsWith("fund_rahavard_excel_weighted_update431_");
+    if (includeFundVolume) {
+      groups.volumes = (a.family_scores?.volume_flow?.indicators || []).map((item) => {
+        const source = item.value || {};
+        const key = String(item.key || "");
+        let parts = [];
+        if (key.startsWith("RV(")) parts = [{ name: "rv", value: source.relative_volume }, { name: "period", value: source.period }, { name: "daily_return_pct", value: source.daily_return_pct }];
+        else if (key.startsWith("VRSI(")) parts = [{ name: "vrsi", value: source.value }];
+        else if (key.startsWith("VMACD(")) parts = [{ name: "vmacd", value: source.value }, { name: "signal", value: source.signal }, { name: "histogram", value: source.histogram }];
+        else if (key.startsWith("OBV(")) parts = [{ name: "obv", value: source.value }, { name: "sma20", value: source.sma20 }, { name: "deviation_pct", value: source.deviation_pct }];
+        return { short_name_en: key, name_en: key, signal: item.signal, score: item.score, value: parts.filter((part) => part.value != null && Number.isFinite(Number(part.value))) };
+      }).filter((item) => item.value.length);
+    }
     const scoreMap = indicatorScoreMap(a);
     const hasModelScores = Object.keys(a.family_scores || {}).length > 0;
     const notes = new Map((a.indicator_notes || []).map((x) => [x.name, x]));
@@ -1090,9 +1103,9 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       histogram: "هیستوگرام", mtm: "تغییر ۶ روزه (مومنتوم)", previous_value: "مقدار قبلی",
       dl: "فاصله قیمت تا کف (%)", distance: "فاصله قیمت تا سقف (%)", pivot: "نقطه پیوت", r1: "مقاومت ۱", r2: "مقاومت ۲", r3: "مقاومت ۳",
       r4: "مقاومت ۴", s1: "حمایت ۱", s2: "حمایت ۲", s3: "حمایت ۳", s4: "حمایت ۴",
-      rv: "حجم نسبی", vrsi: "VRSI", vmacd: "VMACD", obv: "OBV"
+      rv: "حجم نسبی", vrsi: "VRSI", vmacd: "VMACD", obv: "OBV", period: "دوره", daily_return_pct: "بازده روزانه", sma20: "میانگین ۲۰روزه", deviation_pct: "فاصله از میانگین (%)"
     };
-    const cards = Object.entries(groups).flatMap(([group, items]) => group === "pivots" || group === "volumes" ? [] : (items || []).filter((item) => !volumeIndicator(item) && hasIndicatorValue(item)).map((item) => {
+    const cards = Object.entries(groups).flatMap(([group, items]) => group === "pivots" || (group === "volumes" && !includeFundVolume) ? [] : (items || []).filter((item) => (group === "volumes" || !volumeIndicator(item)) && hasIndicatorValue(item)).map((item) => {
       const name = item.short_name_en || item.name_en || "شاخص ره‌آورد";
       const displayName = /^MACD\(/i.test(name) ? "MACD(12,26,9)" : name;
       const note = notes.get(name) || {};
@@ -1112,9 +1125,10 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
         if (!Number.isFinite(val)) return "";
         const key = String(part.name || "");
         const percentValue = /distance/i.test(key) || key === "dl";
+        const percentAlreadyScaled = key === "daily_return_pct" || key === "deviation_pct";
         const priceIndicator = /^(EMA|SMA|BB|KELTNER|Ichimoku|PivotPoint)/i.test(name) && !percentValue;
         const normalizedValue = /stochrsi/i.test(name) && /stochrsi/i.test(key) ? (val <= 1 ? val * 100 : val) : val;
-        const rendered = percentValue ? pct(val * 100) : num(normalizedValue, priceIndicator ? 0 : 2);
+        const rendered = percentValue ? pct(val * 100) : percentAlreadyScaled ? pct(val) : num(normalizedValue, priceIndicator ? 0 : 2);
         return `<div class="rahavard-indicator-value"><span>${esc(valueNames[key] || part.long_name_en || key)}</span><b>${rendered}</b></div>`;
       }).join("");
       const noValueNote = computedFromChart ? "دادهٔ کافی برای محاسبهٔ این شاخص موجود نیست." : "مقداری در پاسخ ره‌آورد نبود.";
