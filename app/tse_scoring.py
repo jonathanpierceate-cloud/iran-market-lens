@@ -350,6 +350,31 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
     put("volume_flow", "VMACD(26)", vmacd_z,
         {"value": vmacd, "signal": vmacd_signal, "histogram": vmacd - vmacd_signal if vmacd is not None and vmacd_signal is not None else None},
         "VMACD combines line position and histogram after scale-free normalization.")
+    # SM(15): apply the workbook's score formula only when a raw SM series is supplied.
+    smart_money = _at(series.get("sm15") or series.get("smart_money15"))
+    smart_money_previous = _at(series.get("sm15") or series.get("smart_money15"), -2)
+    if smart_money is None or smart_money_previous is None:
+        for key in ("SM(15)", "sm15", "smart_money15", "smart_money"):
+            values = [_num(row.get(key)) for row in bars]
+            if values and smart_money is None:
+                smart_money = values[-1]
+            if len(values) > 1 and smart_money_previous is None:
+                smart_money_previous = values[-2]
+            if smart_money is not None and smart_money_previous is not None:
+                break
+    smart_money_z = None
+    if smart_money is not None:
+        if smart_money_previous is None:
+            # Workbook parameter B45 = 50 for a single available SM value.
+            smart_money_z = _clip(smart_money / 50.0)
+        else:
+            denominator = abs(smart_money) + abs(smart_money_previous)
+            smart_money_z = (0.0 if denominator <= EPS else
+                             .7 * _clip(1.5 * smart_money / denominator)
+                             + .3 * _clip(2.0 * (smart_money - smart_money_previous) / denominator))
+    put("volume_flow", "SM(15)", smart_money_z,
+        {"value": smart_money, "previous": smart_money_previous},
+        "SM(15) scoring follows the workbook; the underlying series must be supplied by the source.")
     obv = _at(series.get("obv20"))
     obv_average = _at(series.get("obv_sma20"))
     obv_z = None
