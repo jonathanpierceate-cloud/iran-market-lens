@@ -1118,7 +1118,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
         ? (({ label, state }) => [label, state])(scoreBandAssessment(explicitScore))
         : (hasModelScores ? ["خنثی", "neutral"] : (siteSignals[signalKey] || ["خنثی", "neutral"]));
       const parts = Array.isArray(item.value) ? item.value : [];
-      const values = (parts.length === 1 && Number.isFinite(Number(modelScore)))
+      const values = (group !== "volumes" && parts.length === 1 && Number.isFinite(Number(modelScore)))
         ? `<div class="rahavard-indicator-value"><span>امتیاز شاخص (از ۱۰۰)</span><b>${num(modelScore, 1)}</b></div>`
         : parts.map((part) => {
         const val = Number(part.value);
