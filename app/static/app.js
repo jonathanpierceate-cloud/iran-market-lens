@@ -684,7 +684,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     const risk = riskLabels[a.risk] || "نامشخص";
     const entry = a.entry_quality?.label || entryLabels[a.entry_quality?.status] || "داده کافی نیست";
     const entryReason = [a.entry_quality?.score_method, a.entry_quality?.reason].filter(Boolean).join(" · ");
-    const scoreWeightText = "مدل " + horizonName + " · میانگین متحرک " + num(weights.moving_averages ?? 0, 0) + "٪ · روند و شتاب " + num(weights.trend_momentum ?? 0, 0) + "٪ · حمایت و مقاومت " + num(weights.support_resistance ?? 0, 0) + "٪ · نوسان‌گرها " + num(weights.oscillators ?? 0, 0) + "٪;
+    const scoreWeightText = "مدل " + horizonName + " · میانگین متحرک " + num(weights.moving_averages ?? 0, 0) + "٪ · روند و شتاب " + num(weights.trend_momentum ?? 0, 0) + "٪ · حمایت و مقاومت " + num(weights.support_resistance ?? 0, 0) + "٪ · نوسان‌گرها " + num(weights.oscillators ?? 0, 0) + "٪";
     const familyDefinitions = [
       { key: "moving_averages", label: "\u0645\u06cc\u0627\u0646\u06af\u06cc\u0646\u200c\u0647\u0627\u06cc \u0645\u062a\u062d\u0631\u06a9", description: "EMA\u060c SMA\u060c \u0627\u06cc\u0686\u06cc\u0645\u0648\u06a9\u0648 \u0648 \u0628\u0627\u0646\u062f\u0647\u0627" },
       { key: "trend_momentum", label: "\u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628", description: "MACD\u060c ADX\u060c AROON \u0648 AO" },
