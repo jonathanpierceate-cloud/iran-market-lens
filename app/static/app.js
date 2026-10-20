@@ -660,7 +660,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
           <span>ریسک نوسان (بالاتر = ریسک بیشتر) <b>${riskLabels[risk.level] || "نامشخص"}${Number.isFinite(riskScore) ? ` · ${num(riskScore, 0)}/100` : ""}</b></span>
         </div>
       </div>
-      <div class="fund-family-score-grid">${familyCards}</div>
+      <div class="fund-family-score-grid ${dashboardModel ? "dashboard-profile-grid" : ""}">${familyCards}</div>
       ${factorSummary}
       <div class="fund-model-context"><span>${navText}</span></div>
     </section>`;

@@ -510,7 +510,7 @@
 .fund-model-meta{display:grid;gap:6px;padding:10px 12px;border:1px solid rgba(110,145,165,.2);border-radius:10px;background:rgba(7,18,29,.36)}
 .fund-model-meta span{display:flex;justify-content:space-between;gap:12px;color:#91a7b5;font-size:11px;line-height:1.7}
 .fund-model-meta b{color:#dce9e6;font-size:12px}
-.fund-family-score-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}
+.fund-family-score-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px}.fund-family-score-grid.dashboard-profile-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
 .fund-family-score-card{position:relative;min-width:0;overflow:hidden;padding:11px 12px 13px;border:1px solid #2d435a;border-radius:11px;background:rgba(9,20,33,.48)}
 .fund-family-score-head{display:flex;justify-content:space-between;align-items:start;gap:8px;color:#a5b7ca;font-size:12px;line-height:1.6}
 .fund-family-score-head b{flex:none;color:#8397aa;font-size:10px;font-weight:600}
@@ -575,8 +575,8 @@
 .light-mode .fund-family-score-card.negative>strong{color:#bf4253}
 .light-mode .dashboard-model-recommendation .fund-model-factors>div{background:#fff;border-color:#d8e3ea;color:#64798b}
 .light-mode .dashboard-model-recommendation .fund-model-factors>div>b,.light-mode .dashboard-levels b{color:#263d52}
-@media(max-width:1050px){.fund-family-score-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.fund-model-score-head{grid-template-columns:minmax(0,1fr) minmax(220px,300px)}}
+@media(max-width:1050px){.fund-family-score-grid,.fund-family-score-grid.dashboard-profile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.fund-model-score-head{grid-template-columns:minmax(0,1fr) minmax(220px,300px)}}
 @media(max-width:1200px){.dashboard-model-recommendation .fund-family-score-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:780px){.dashboard-model-recommendation .fund-family-score-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:520px){.dashboard-model-recommendation .fund-family-score-grid{grid-template-columns:1fr}.dashboard-model-recommendation .fund-model-meta{grid-template-columns:1fr}}
-@media(max-width:650px){.fund-family-score-grid,.fund-model-factors{grid-template-columns:1fr}.fund-model-score-head{grid-template-columns:1fr;padding:12px}.fund-model-context,.fund-model-disclaimer{display:grid}.fund-model-disclaimer b{flex:auto}.fund-family-score-card>small{min-height:auto}.fund-score-changes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.fund-score-changes>b{grid-column:1/-1}.fund-score-change{min-width:0}}
+@media(max-width:650px){.fund-family-score-grid,.fund-family-score-grid.dashboard-profile-grid,.fund-model-factors{grid-template-columns:1fr}.fund-model-score-head{grid-template-columns:1fr;padding:12px}.fund-model-context,.fund-model-disclaimer{display:grid}.fund-model-disclaimer b{flex:auto}.fund-family-score-card>small{min-height:auto}.fund-score-changes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.fund-score-changes>b{grid-column:1/-1}.fund-score-change{min-width:0}}
