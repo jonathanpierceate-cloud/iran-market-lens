@@ -538,12 +538,14 @@
   }
 
   function fundModelRecommendationHtml(a) {
+    const dashboardModel = String(a.score_method || "").includes("update42");
+    const modelVersionLabel = dashboardModel ? "۴.۲" : "۴.۳.۱";
     const labels = {
       moving_averages: ["\u0645\u06cc\u0627\u0646\u06af\u06cc\u0646 \u0645\u062a\u062d\u0631\u06a9", "\u062c\u0627\u06cc\u06af\u0627\u0647 \u0642\u06cc\u0645\u062a \u0646\u0633\u0628\u062a \u0628\u0647 \u0645\u06cc\u0627\u0646\u06af\u06cc\u0646\u200c\u0647\u0627 \u0648 \u0628\u0627\u0646\u062f\u0647\u0627"],
       trend_momentum: ["\u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628", "MACD\u060c ADX\u060c AROON \u0648 AO"],
       support_resistance: ["\u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a", "\u067e\u06cc\u0648\u062a\u200c\u0647\u0627 \u0648 \u0641\u0627\u0635\u0644\u0647\u0654 \u0642\u06cc\u0645\u062a \u062a\u0627 \u0633\u0637\u0648\u062d"],
       oscillators: ["\u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627", "RSI\u060c MFI\u060c CCI\u060c SO\u060c StochRSI\u060c WR \u0648 MTM"],
-      volume_flow: ["شاخص‌های حجم و جریان نقدینگی", "RV(90)، RV(30)، RV(15)، VRSI(14)، VMACD(26) و OBV(20)"]
+      ...(dashboardModel ? {} : { volume_flow: ["شاخص‌های حجم و جریان نقدینگی", "RV(90)، RV(30)، RV(15)، VRSI(14)، VMACD(26) و OBV(20)"] })
     };
     const indicatorLabels = {
       ema50: "EMA(50)", ema20: "EMA(20)", ichimoku: "Ichimoku Cloud",
@@ -573,7 +575,7 @@
     const tone = !validScore ? "unknown" : a.score_band === "bullish" ? "positive" : a.score_band === "bearish" ? "negative" : "neutral";
     const scoreWeights = a.score_weights || {};
     const horizonName = a.investment_horizon_label || horizonLabel();
-    const scoreWeightText = `\u0645\u062f\u0644 ${horizonName} \u00b7 \u0645\u06cc\u0627\u0646\u06af\u06cc\u0646\u200c\u0647\u0627\u06cc \u0645\u062a\u062d\u0631\u06a9 ${num(scoreWeights.moving_averages ?? 0, 0)}\u066a \u00b7 \u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628 ${num(scoreWeights.trend_momentum ?? 0, 0)}\u066a \u00b7 \u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a ${num(scoreWeights.support_resistance ?? 0, 0)}\u066a \u00b7 \u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627 ${num(scoreWeights.oscillators ?? 0, 0)}\u066a · حجم و نقدینگی ${num(scoreWeights.volume_flow ?? 0, 0)}٪`;
+    const scoreWeightText = "مدل " + horizonName + " · میانگین‌های متحرک " + num(scoreWeights.moving_averages ?? 0, 0) + "٪ · روند و شتاب " + num(scoreWeights.trend_momentum ?? 0, 0) + "٪ · حمایت و مقاومت " + num(scoreWeights.support_resistance ?? 0, 0) + "٪ · اسیلاتورها " + num(scoreWeights.oscillators ?? 0, 0) + "٪" + (dashboardModel ? "" : " · حجم و نقدینگی " + num(scoreWeights.volume_flow ?? 0, 0) + "٪");
     const effectiveScoreWeights = a.effective_score_weights || {};
     const familyScores = a.family_scores || {};
     const familyCards = Object.entries(labels).filter(([key]) => {
@@ -645,7 +647,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       <div class="fund-model-score-head">
         <div><span class="recommendation-kicker">مدل ${horizonName} AliVest · محاسبه بر پایه داده‌های ره‌آورد</span>
           <h3>امتیاز تکنیکال ${a.dashboard_asset ? "دارایی" : "صندوق"}: <strong>${validScore ? `${num(score, 0)} از ۱۰۰` : "داده کافی نیست"}</strong></h3>
-          <p>${scoreWeightText}. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · امتیاز اندیکاتورها طبق فایل امتیازدهی ۴.۳.۱ محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود همچنان با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p>
+          <p>${scoreWeightText}. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · امتیاز اندیکاتورها طبق فایل امتیازدهی ${modelVersionLabel} محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود همچنان با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p>
           ${scoreHistoryHtml}
         </div>
         <div class="fund-model-meta">
