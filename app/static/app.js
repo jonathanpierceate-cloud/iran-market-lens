@@ -606,13 +606,14 @@
           : Number.isFinite(Number(item.value)) ? `مقدار ${num(item.value, 1)}` : "";
         return `<div class="dashboard-score-detail-row ${itemTone}" title="${esc(item.note || "")}"><span>${esc(itemName)} <small>وزن در گروه ${num(item.weight_pct, 1)}٪${raw ? ` · ${esc(raw)}` : ""}</small></span><b>${hasScore ? num(itemScore, 0) : "—"}</b></div>`;
       }).join("");
+      const missingRows = (family.missing_indicators || []).map((key) => `<div class="dashboard-score-detail-row unavailable"><span>${esc(key)} <small>دادهٔ لازم در منبع موجود نیست</small></span><b>—</b></div>`).join("");
       return `<article class="fund-family-score-card ${familyTone}">
         <div class="fund-family-score-head"><span>${label}</span><b>وزن ${num(weight, 0)}٪${Number.isFinite(effectiveWeight) && Math.abs(effectiveWeight - weight) >= 0.1 ? ` · مؤثر ${num(effectiveWeight, 1)}٪` : ""}</b></div>
         <strong>${available ? `${num(value, 0)} از ۱۰۰` : "—"}</strong>
         <small>${description}</small>
         ${extras.length ? `<div class="fund-family-extra">${extras.map((item) => `<span>${item}</span>`).join("")}</div>` : ""}
         <div class="fund-family-coverage"><span>پوشش ${Number.isFinite(coverage) ? `${num(coverage, 0)}٪` : "—"}</span><span>${countText}</span></div>
-        <details class="dashboard-score-details"><summary>جزئیات وزن و امتیاز شاخص‌ها (${details.length})</summary><div>${detailRows}</div></details>
+        <details class="dashboard-score-details"><summary>جزئیات وزن و امتیاز شاخص‌ها (${details.length + missingCount})</summary><div>${detailRows}${missingRows}</div></details>
         <i style="width:${available ? Math.max(0, Math.min(100, value)) : 0}%"></i>
       </article>`;
     }).join("");
@@ -704,14 +705,16 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
           : finite(item.value) ? "مقدار " + num(item.value, 1) : "";
         return "<div class=\"dashboard-score-detail-row " + itemTone + "\" title=\"" + esc(item.note || "") + "\"><span>" + esc(item.name || item.key || "شاخص") + " <small>وزن در گروه " + num(item.weight_pct, 1) + "٪" + (raw ? " · " + esc(raw) : "") + "</small></span><b>" + (hasScore ? num(item.score, 0) : "—") + "</b></div>";
       }).join("");
-      const missing = Array.isArray(family.missing_indicators) ? family.missing_indicators.length : 0;
+      const missingRows = missingKeys.map((key) => "<div class=\"dashboard-score-detail-row unavailable\"><span>" + esc(key) + " <small>دادهٔ لازم در منبع موجود نیست</small></span><b>—</b></div>").join("");
+      const missingKeys = Array.isArray(family.missing_indicators) ? family.missing_indicators : [];
+      const missing = missingKeys.length;
       const effective = finite(effectiveWeights[factor.key]) ? " · وزن مؤثر " + num(effectiveWeights[factor.key], 1) + "٪" : "";
       return "<article class=\"fund-family-score-card " + tone + "\">" +
         "<div class=\"fund-family-score-head\"><span>" + factor.label + "</span><b>وزن کل " + num(weight, 0) + "٪</b></div>" +
         "<strong>" + (value == null ? "—" : num(value, 0) + " از ۱۰۰") + "</strong>" +
         "<small>" + factor.description + "</small>" +
         "<div class=\"fund-family-coverage\"><span>پوشش " + coverage + "</span><span>" + (missing ? missing + " شاخص بی‌داده" : "همه شاخص‌ها محاسبه شد") + effective + "</span></div>" +
-        "<details class=\"dashboard-score-details\"><summary>جزئیات وزن و امتیاز اندیکاتورها (" + details.length + ")</summary><div>" + detailRows + "</div></details>" +
+        "<details class=\"dashboard-score-details\"><summary>جزئیات وزن و امتیاز اندیکاتورها (" + details.length + missing + ")</summary><div>" + detailRows + missingRows + "</div></details>" +
         "<i style=\"width:" + (value == null ? 0 : Math.max(0, Math.min(100, value))) + "%\"></i></article>";
     }).join("");
     const unitLabels = { GOLD: "دلار / اونس", USD_IR_FREE: "تومان", TEPIX: "واحد", GOLD_18K: "ریال / گرم" };
