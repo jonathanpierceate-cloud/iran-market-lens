@@ -578,7 +578,7 @@
     const familyScores = a.family_scores || {};
     const familyCards = Object.entries(labels).filter(([key]) => {
       const value = familyScores[key]?.score;
-      return value != null && Number.isFinite(Number(value));
+      return familyScores[key] != null && typeof familyScores[key] === "object";
     }).map(([key, [label, description]]) => {
       const family = familyScores[key] || {};
       const value = family.score == null ? NaN : Number(family.score);
@@ -690,7 +690,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       { key: "oscillators", label: "\u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627", description: "RSI\u060c MFI\u060c CCI\u060c SO (%K\u061b WR \u0627\u062f\u063a\u0627\u0645 \u0634\u062f\u0647)\u060c StochRSI \u0648 MTM" },
       { key: "volume_flow", label: "شاخص‌های حجم و جریان نقدینگی", description: "RV(90)، RV(30)، RV(15)، SM(15)، VRSI(14)، VMACD(26) و OBV(20)" },
     ];
-    const familyCards = familyDefinitions.filter((factor) => finite(scores[factor.key]?.score)).map((factor) => {
+    const familyCards = familyDefinitions.filter((factor) => scores[factor.key] != null && typeof scores[factor.key] === "object").map((factor) => {
       const family = scores[factor.key] || {};
       const value = finite(family.score) ? Number(family.score) : null;
       const weight = finite(weights[factor.key]) ? Number(weights[factor.key]) : 0;
@@ -705,9 +705,9 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
           : finite(item.value) ? "مقدار " + num(item.value, 1) : "";
         return "<div class=\"dashboard-score-detail-row " + itemTone + "\" title=\"" + esc(item.note || "") + "\"><span>" + esc(item.name || item.key || "شاخص") + " <small>وزن در گروه " + num(item.weight_pct, 1) + "٪" + (raw ? " · " + esc(raw) : "") + "</small></span><b>" + (hasScore ? num(item.score, 0) : "—") + "</b></div>";
       }).join("");
-      const missingRows = missingKeys.map((key) => "<div class=\"dashboard-score-detail-row unavailable\"><span>" + esc(key) + " <small>دادهٔ لازم در منبع موجود نیست</small></span><b>—</b></div>").join("");
       const missingKeys = Array.isArray(family.missing_indicators) ? family.missing_indicators : [];
       const missing = missingKeys.length;
+      const missingRows = missingKeys.map((key) => "<div class=\"dashboard-score-detail-row unavailable\"><span>" + esc(key) + " <small>دادهٔ لازم در منبع موجود نیست</small></span><b>—</b></div>").join("");
       const effective = finite(effectiveWeights[factor.key]) ? " · وزن مؤثر " + num(effectiveWeights[factor.key], 1) + "٪" : "";
       return "<article class=\"fund-family-score-card " + tone + "\">" +
         "<div class=\"fund-family-score-head\"><span>" + factor.label + "</span><b>وزن کل " + num(weight, 0) + "٪</b></div>" +
