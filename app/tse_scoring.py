@@ -1,4 +1,4 @@
-"""Update 4.2 chart-based technical scoring for funds and dashboard assets."""
+"""Update 4.3 chart-based technical scoring for funds and dashboard assets."""
 from __future__ import annotations
 
 import math
@@ -96,7 +96,7 @@ def _pivot_sets(high: float, low: float, close: float, previous_open: float
 
 def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
                       ) -> dict[str, dict[str, dict[str, Any]]]:
-    """Calculate Update 4.2 indicator scores as z values, then map to 0â€“100."""
+    """Calculate Update 4.3 indicator scores as z values, then map to 0â€“100."""
     results: dict[str, dict[str, dict[str, Any]]] = {
         family: {} for family in FUND_SCORING_PROFILES["long"]["indicator_weights"]
     }
@@ -313,6 +313,51 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
         {"change": mtm, "ATR": atr, "period": 6},
         "\u062a\u063a\u06cc\u06cc\u0631 \u0642\u06cc\u0645\u062a \u0637\u06cc \u06f6 \u06a9\u0646\u062f\u0644 \u0628\u0631 ATR \u00d7 \u221a6 \u0646\u0631\u0645\u0627\u0644 \u0634\u062f\u0647.")
 
+    # Volume and liquidity indicators; RV baselines exclude the current session.
+    volume_values = [_num(row.get("volume")) for row in bars]
+    volume_closes = [_num(row.get("close")) for row in bars]
+    daily_return = (volume_closes[-1] / volume_closes[-2] - 1.0
+                    if len(volume_closes) >= 2 and volume_closes[-1] is not None
+                    and volume_closes[-2] is not None and volume_closes[-2] > 0 else None)
+    for period in (90, 30, 15):
+        ratio = None
+        z = None
+        baseline = volume_values[-period-1:-1]
+        if (len(volume_values) > period and volume_values[-1] is not None
+                and all(value is not None for value in baseline)):
+            average = sum(float(value) for value in baseline) / period
+            if average > 0:
+                ratio = float(volume_values[-1]) / average
+                if ratio >= 1.0:
+                    z = _clip((ratio - 1.0) / 1.5)
+                    if daily_return is not None and daily_return < 0: z = -z
+                else:
+                    z = _clip((ratio - 1.0) / 0.8)
+        put("volume_flow", f"RV({period})", z,
+            {"relative_volume": ratio, "period": period, "daily_return_pct": daily_return * 100.0 if daily_return is not None else None},
+            "Relative volume is scored with the daily price direction.")
+    volume_rsi = _at(series.get("volume_rsi14"))
+    if volume_rsi is not None and volume_rsi <= 1.0: volume_rsi *= 100.0
+    vrsi_z = _linear(volume_rsi, [(30, -1), (40, -.4), (45, -.2), (50, 0), (55, .2), (60, .4), (70, 1)])
+    put("volume_flow", "VRSI(14)", vrsi_z, {"value": volume_rsi},
+        "Volume RSI uses the direct, trend-following scale from the 4.3 workbook.")
+    vmacd = _at(series.get("vmacd_line"))
+    vmacd_signal = _at(series.get("vmacd_signal"))
+    vmacd_z = None
+    if vmacd is not None and vmacd_signal is not None:
+        denominator = abs(vmacd) + abs(vmacd_signal)
+        vmacd_z = (0.0 if denominator <= EPS else .5 * _clip(1.5 * vmacd / denominator) + .5 * _clip(2.5 * (vmacd - vmacd_signal) / denominator))
+    put("volume_flow", "VMACD(26)", vmacd_z,
+        {"value": vmacd, "signal": vmacd_signal, "histogram": vmacd - vmacd_signal if vmacd is not None and vmacd_signal is not None else None},
+        "VMACD combines line position and histogram after scale-free normalization.")
+    obv = _at(series.get("obv20"))
+    obv_average = _at(series.get("obv_sma20"))
+    obv_z = None
+    if obv is not None and obv_average is not None and abs(obv_average) > EPS:
+        obv_z = _clip(((obv - obv_average) / abs(obv_average)) / .10)
+    put("volume_flow", "OBV(20)", obv_z,
+        {"value": obv, "sma20": obv_average, "deviation_pct": ((obv - obv_average) / abs(obv_average) * 100.0) if obv is not None and obv_average is not None and abs(obv_average) > EPS else None},
+        "OBV is compared with its 20-session average using relative deviation.")
     return results
 
 
