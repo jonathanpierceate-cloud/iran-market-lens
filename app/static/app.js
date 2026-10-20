@@ -630,13 +630,14 @@
     const negativeFactor = factors.negative;
     const historyScoreCard = (label, changeValue, title = "") => {
       const change = changeValue == null ? NaN : Number(changeValue);
-      const hasHistory = validScore && Number.isFinite(change);
-      const previousScore = hasHistory ? score - change : NaN;
-      const changeLabel = !hasHistory ? "دادهٔ تاریخی کافی نیست" : change < -0.05 ? `کاهش ${num(Math.abs(change), 1)} امتیاز تا امتیاز فعلی` : change > 0.05 ? `افزایش ${num(change, 1)} امتیاز تا امتیاز فعلی` : "بدون تغییر تا امتیاز فعلی";
-      const changeTone = !hasHistory || Math.abs(change) <= 0.05 ? "" : change < 0 ? "negative" : "positive";
-      return `<div class="fund-score-change ${changeTone}"${title ? ` title="${esc(title)}"` : ""}><small>${label}</small><b>${hasHistory ? `${num(previousScore, 1)} از ۱۰۰` : "—"}</b><small>${changeLabel}</small></div>`;
+      if (!validScore || !Number.isFinite(change)) return "";
+      const previousScore = score - change;
+      const changeLabel = change < -0.05 ? `کاهش ${num(Math.abs(change), 1)} امتیاز تا امتیاز فعلی` : change > 0.05 ? `افزایش ${num(change, 1)} امتیاز تا امتیاز فعلی` : "بدون تغییر تا امتیاز فعلی";
+      const changeTone = Math.abs(change) <= 0.05 ? "" : change < 0 ? "negative" : "positive";
+      return `<div class="fund-score-change ${changeTone}"${title ? ` title="${esc(title)}"` : ""}><small>${label}</small><b>${num(previousScore, 1)} از ۱۰۰</b><small>${changeLabel}</small></div>`;
     };
-    const scoreHistoryHtml = `<div class="fund-score-changes"><b>تغییر امتیاز</b>${historyScoreCard("امتیاز دیروز", a.score_change_1d)}${historyScoreCard("امتیاز ماه قبل", a.score_change_20d, "مقایسه بر پایهٔ ۲۰ جلسهٔ معاملاتی قبل")}</div>`;
+    const scoreHistoryItems = [historyScoreCard("امتیاز دیروز", a.score_change_1d), historyScoreCard("امتیاز ماه قبل", a.score_change_20d, "مقایسه بر پایهٔ ۲۰ جلسهٔ معاملاتی قبل")].filter(Boolean);
+    const scoreHistoryHtml = scoreHistoryItems.length ? `<div class="fund-score-changes"><b>تغییر امتیاز</b>${scoreHistoryItems.join("")}</div>` : "";
     const factorSummary = `<div class="fund-model-factors"><span class="positive">نقطه قوت: ${positiveFactor ? `${familyNames[positiveFactor.family] || "عامل تکنیکال"} · ${num(positiveFactor.score, 0)}/100` : "عامل مثبت برجسته‌ای از داده‌های موجود به دست نیامد"}</span><span class="negative">نیازمند توجه: ${negativeFactor ? `${familyNames[negativeFactor.family] || "عامل تکنیکال"} · ${num(negativeFactor.score, 0)}/100` : "عامل منفی برجسته‌ای از داده‌های موجود به دست نیامد"}</span></div>`;
 return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       <div class="fund-model-score-head">
