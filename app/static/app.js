@@ -1823,9 +1823,8 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       if (ema20 != null && Number.isFinite(currentPrice) && currentPrice > 0) indicatorChips.push(chip(currentPrice >= ema20 ? "بالای EMA20" : "زیر EMA20", currentPrice >= ema20 ? "positive" : "negative"));
       if (ema50 != null && Number.isFinite(currentPrice) && currentPrice > 0) indicatorChips.push(chip(currentPrice >= ema50 ? "بالای EMA50" : "زیر EMA50", currentPrice >= ema50 ? "positive" : "negative"));
 
-      const exitDisplayTone = nearExitBroken ? "negative" : nearExitWarning ? "warning" : exitTone;
-      const nearExitDistanceText = nearExitGapPct == null ? "" : nearExitGapPct >= 0
-        ? `−${num(nearExitGapPct, 1)}٪` : `زیر سطح ${num(Math.abs(nearExitGapPct), 1)}٪`;
+      const exitDisplayTone = exitTone;
+
       const levelNotes = [nearestResistance != null ? `مقاومت نزدیک: ${money(nearestResistance)}` : null].filter(Boolean);
       const holding = item.holding_decision || {};
       const basePositionLabel = holding.label || "داده کافی نیست";
@@ -1844,7 +1843,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
         <td data-label="ارزش فعلی"><span class="watch-cell-primary">${money(marketValue)}</span></td>
         <td data-label="آخرین قیمت"><span class="watch-cell-primary">${money(item.price)}</span><small class="watch-cell-secondary ${priceTone}">${item.daily_return == null ? "—" : pct(item.daily_return)}</small></td>
         <td data-label="سود/زیان فعلی"><span class="watch-cell-primary ${profitTone}">${profit.total == null ? "—" : money(profit.total)}</span><small class="watch-cell-secondary ${profitTone}">${profit.pct == null ? "" : `(${pct(profit.pct)})`}</small></td>
-        <td data-label="حد خروج" title="حد اصلی با بسته‌شدن کندل روزانه زیر ${esc(exitAverage)} تأیید می‌شود"><span class="watch-cell-primary ${exitDisplayTone}">${money(item.active_exit_price)}</span>${supportForExit != null ? `<small class="watch-near-exit ${nearExitBroken ? "negative" : nearExitWarning ? "warning" : ""}">نزدیک: ${money(supportForExit)} (${nearExitDistanceText})</small>` : ""}</td>
+        <td data-label="حد خروج" title="حد اصلی با بسته‌شدن کندل روزانه زیر ${esc(exitAverage)} تأیید می‌شود"><span class="watch-cell-primary ${exitDisplayTone}">${money(item.active_exit_price)}</span></td>
         <td data-label="امتیاز نماد"><span class="watch-score ${scoreTone}" title="${esc(scoreTooltip || item.technical_error || "امتیاز بر پایهٔ محاسبهٔ اندیکاتورها از نمودار روزانهٔ ره‌آورد")}">${scoreValue == null || !Number.isFinite(scoreValue) ? "—" : `${num(scoreValue, 0)}٪`}</span><small class="watch-score-band ${scoreTone}">${scoreBand}</small>${scoreDeltaHtml}</td><td data-label="تحلیل خلاصه">${watchAnalysis}</td>
       </tr>`;
     }).join("");
