@@ -1706,8 +1706,8 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     const sortMode = state.watchlistSortMode || "default";
     const sortedItems = [...items];
     if (sortMode === "exit") sortedItems.sort((a, b) => {
-      const gap = (item) => item.near_exit_price != null && Number(item.price) > 0
-        ? (Number(item.price) - Number(item.near_exit_price)) / Number(item.price) * 100
+      const gap = (item) => Number.isFinite(Number(item.active_exit_price)) && Number(item.price) > 0
+        ? (Number(item.price) - Number(item.active_exit_price)) / Number(item.price) * 100
         : Number(item.distance_to_exit?.pct);
       const av = gap(a), bv = gap(b);
       return (Number.isFinite(av) ? av : Infinity) - (Number.isFinite(bv) ? bv : Infinity);
@@ -1798,16 +1798,15 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
         macdLine != null && macdSignal != null && macdLine < macdSignal,
         resistanceGapPct != null && resistanceGapPct >= 0 && resistanceGapPct <= 3,
       ].filter(Boolean).length;
-      const supportForExit = item.near_exit_price ?? nearestSupport;
-      const nearExitGapPct = supportForExit != null && Number.isFinite(currentPrice) && currentPrice > 0
-        ? (currentPrice - Number(supportForExit)) / currentPrice * 100 : null;
-      const nearExitBroken = item.near_exit_confirmed === true;
-      const nearExitWarning = nearExitBroken || (nearExitGapPct != null && nearExitGapPct >= 0 && nearExitGapPct < 2);      let saleDecision;
+      const mainExitGapPct = Number.isFinite(activeExitPrice) && Number.isFinite(currentPrice) && currentPrice > 0
+        ? (currentPrice - activeExitPrice) / currentPrice * 100 : null;
+      const nearExitBroken = exitConfirmed;
+      const nearExitWarning = !exitConfirmed && mainExitGapPct != null && mainExitGapPct >= 0 && mainExitGapPct < 2;      let saleDecision;
       if (custom) saleDecision = { label: "داده کافی نیست", reason: "برای این نماد دادهٔ تحلیلی در دسترس نیست." };
       else if (positionUnits <= 0) saleDecision = { label: "موقعیتی ثبت نشده", reason: "برای این نماد موقعیت فعالی ثبت نشده است." };
       else if (exitConfirmed) saleDecision = { label: "خروج کامل", reason: "آخرین کندل روزانه زیر " + exitAverage + " بسته شده؛ حد خروج تأیید است." };
       else if (nearExitWarning || (scoreValue != null && scoreValue < 40) || profitTakingSignals > 0) {
-        const watchReason = nearExitWarning ? (nearExitBroken ? "قیمت به زیر حمایت نزدیک رفته؛ برای تصمیم خروج کامل منتظر تأیید بسته‌شدن کندل زیر حد خروج باش." : "قیمت به حمایت نزدیک است؛ تا روشن‌شدن جهت حرکت، موقعیت را زیر نظر بگیر.") : scoreValue != null && scoreValue < 40 ? "امتیاز تکنیکال ضعیف است؛ موقعیت را زیر نظر بگیر و حد خروج را دنبال کن." : "نشانهٔ احتیاط دیده می‌شود؛ موقعیت را زیر نظر بگیر و تا تأیید حد خروج نگه‌دار.";
+        const watchReason = nearExitWarning ? "قیمت به حد خروج اصلی نزدیک است؛ تا تأیید بسته‌شدن کندل زیر میانگین، موقعیت را زیر نظر بگیر." : scoreValue != null && scoreValue < 40 ? "امتیاز تکنیکال ضعیف است؛ موقعیت را زیر نظر بگیر و حد خروج را دنبال کن." : "نشانهٔ احتیاط دیده می‌شود؛ موقعیت را زیر نظر بگیر و تا تأیید حد خروج نگه‌دار.";
         saleDecision = { label: "نگهداری تحت نظر", reason: watchReason };
       } else saleDecision = { label: "نگهداری", reason: "حد خروج با بسته‌شدن روزانه زیر " + exitAverage + " تأیید نشده و نشانهٔ هشدار فعالی دیده نمی‌شود." };
       const stochMacdExplanation = stochRsi != null && stochRsi <= 0.2 && macdLine != null && macdSignal != null && macdLine < macdSignal
@@ -1830,7 +1829,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       const basePositionLabel = holding.label || "داده کافی نیست";
       const positionLabel = saleDecision.label === "موقعیتی ثبت نشده" || saleDecision.label === "داده کافی نیست" ? basePositionLabel : saleDecision.label;
       let adding = item.add_position_decision || {};
-      if (nearExitWarning) adding = { label: nearExitBroken ? "خیر · حمایت شکسته" : "صبر · نزدیک حمایت", reason: nearExitBroken ? "کندل روزانه زیر حمایت نزدیک بسته شده؛ تا بازپس‌گیری سطح، حجم اضافه نکن." : `فاصلهٔ قیمت تا حمایت نزدیک ${num(nearExitGapPct, 1)}٪ است؛ تا روشن‌شدن واکنش قیمت، حجم اضافه نکن.` };
+      if (nearExitWarning) adding = { label: "صبر · نزدیک حد خروج", reason: `فاصلهٔ قیمت تا حد خروج اصلی ${num(mainExitGapPct, 1)}٪ است؛ تا تأیید روزانه، حجم اضافه نکن.` };
       const showSaleReason = ["خروج کامل", "نگهداری تحت نظر"].includes(saleDecision.label);
       const detailLines = [holding.reason, adding.reason, stochMacdExplanation, ...levelNotes, showSaleReason ? saleDecision.reason : null].filter(Boolean);
       const detailsHtml = detailLines.map((line) => `<p>${esc(line)}</p>`).join("");
