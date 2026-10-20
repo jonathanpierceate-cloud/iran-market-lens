@@ -5,7 +5,7 @@ import math
 from typing import Any
 
 from .indicators import compute_indicators
-from .scoring_profiles import FUND_SCORING_PROFILES, normalize_horizon
+from .scoring_profiles import DASHBOARD_SCORING_PROFILES, FUND_SCORING_PROFILES, normalize_horizon
 from .scoring_rules import band_position_score
 
 EPS = 1e-9
@@ -389,10 +389,9 @@ def _indicator_scores(bars: list[dict[str, Any]], series: dict[str, Any]
 def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
                    trend_value: float | None = None,
                    trend_schema_type: str | None = None,
-                   trading_status: str | None = None) -> dict[str, Any]:
+                   trading_status: str | None = None,`r`n                   profiles: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
     """Score available indicators and redistribute missing weights in-group."""
-    horizon = normalize_horizon(horizon)
-    profile = FUND_SCORING_PROFILES[horizon]
+    horizon = normalize_horizon(horizon)`r`n    profiles = profiles or FUND_SCORING_PROFILES`r`n    profile = profiles[horizon]
     family_weights: dict[str, float] = profile["family_weights"]  # type: ignore[assignment]
     indicator_weights: dict[str, dict[str, float]] = profile["indicator_weights"]  # type: ignore[assignment]
     normalized: list[dict[str, Any]] = []
@@ -411,7 +410,7 @@ def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
             "volume": _num(row.get("volume")),
         })
     if not normalized:
-        return _empty_result(horizon)
+        return _empty_result(horizon, profiles)
 
     calculated = compute_indicators(normalized, include_series=True)
     series = calculated.get("indicator_series") or {}
@@ -558,9 +557,8 @@ def score_tse_bars(bars: list[dict[str, Any]] | None, *, horizon: str = "long",
     }
 
 
-def _empty_result(horizon: str = "long") -> dict[str, Any]:
-    horizon = normalize_horizon(horizon)
-    profile = FUND_SCORING_PROFILES[horizon]
+def _empty_result(horizon: str = "long", profiles: dict[str, dict[str, Any]] | None = None) -> dict[str, Any]:
+    horizon = normalize_horizon(horizon)`r`n    profiles = profiles or FUND_SCORING_PROFILES`r`n    profile = profiles[horizon]
     family_weights: dict[str, float] = profile["family_weights"]  # type: ignore[assignment]
     indicator_weights: dict[str, dict[str, float]] = profile["indicator_weights"]  # type: ignore[assignment]
     groups = {

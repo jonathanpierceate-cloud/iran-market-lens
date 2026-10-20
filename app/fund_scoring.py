@@ -10,7 +10,7 @@ import math
 import re
 from typing import Any
 
-from .scoring_profiles import normalize_horizon, horizon_label
+from .scoring_profiles import DASHBOARD_SCORING_PROFILES, FUND_SCORING_PROFILES, horizon_label, normalize_horizon
 from .scoring_rules import (adx_directional_score, band_position_score,
                             ichimoku_cloud_score, inverted_linear_score,
                             macd_histogram_score, moving_average_score,
@@ -548,9 +548,7 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     horizon = normalize_horizon(horizon)
     kind = _type(context)
     rows = _group_items(groups)
-    engine = score_tse_bars(
-        context.get("fund_history"),
-        horizon=horizon,
+    profile_set = DASHBOARD_SCORING_PROFILES if dashboard_model else FUND_SCORING_PROFILES`r`n    engine = score_tse_bars(`r`n        context.get("fund_history"),`r`n        horizon=horizon,`r`n        profiles=profile_set,
         trend_value=context.get("trend_value"),
         trend_schema_type=context.get("trend_schema_type"),
         trading_status=context.get("trading_status"),
@@ -559,7 +557,7 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     family_weights = {key: float(value) / 100.0
                       for key, value in engine["score_weights"].items()}
     indicator_weights = engine["indicator_weights"]
-    model_profile = f"{horizon}_update_4_3_indicators"
+    model_version = "update_4_2" if dashboard_model else "update_4_3_1"`r`n    model_profile = f"{horizon}_{model_version}_indicators"
     entry_quality = _entry_quality_score(rows, price, context)
     nav_assessment = _nav_score(price, context)
 
@@ -590,9 +588,9 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     top_negative = min(scored_families, key=lambda row: row[1]) if scored_families else None
     return {
         "technical_score": round(final_score, 1) if final_score is not None else None,
-        "score_method": (f"dashboard_rahavard_excel_weighted_update43_{horizon}"
+        "score_method": (f"dashboard_rahavard_excel_weighted_update42_{horizon}"
                           if dashboard_model else
-                          f"fund_rahavard_excel_weighted_update43_{horizon}"),
+                          f"fund_rahavard_excel_weighted_update431_{horizon}"),
         "score_weights": {key: round(weight * 100) for key, weight in family_weights.items()},
         "indicator_weights": {
             family_key: {key: round(float(weight), 1) for key, weight in weights.items()}

@@ -543,7 +543,7 @@
       trend_momentum: ["\u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628", "MACD\u060c ADX\u060c AROON \u0648 AO"],
       support_resistance: ["\u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a", "\u067e\u06cc\u0648\u062a\u200c\u0647\u0627 \u0648 \u0641\u0627\u0635\u0644\u0647\u0654 \u0642\u06cc\u0645\u062a \u062a\u0627 \u0633\u0637\u0648\u062d"],
       oscillators: ["\u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627", "RSI\u060c MFI\u060c CCI\u060c SO\u060c StochRSI\u060c WR \u0648 MTM"],
-      volume_flow: ["شاخص‌های حجم و جریان نقدینگی", "RV(90)، RV(30)، RV(15)، SM(15)، VRSI(14)، VMACD(26) و OBV(20)"]
+      volume_flow: ["شاخص‌های حجم و جریان نقدینگی", "RV(90)، RV(30)، RV(15)، VRSI(14)، VMACD(26) و OBV(20)"]
     };
     const indicatorLabels = {
       ema50: "EMA(50)", ema20: "EMA(20)", ichimoku: "Ichimoku Cloud",
@@ -645,7 +645,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       <div class="fund-model-score-head">
         <div><span class="recommendation-kicker">مدل ${horizonName} AliVest · محاسبه بر پایه داده‌های ره‌آورد</span>
           <h3>امتیاز تکنیکال ${a.dashboard_asset ? "دارایی" : "صندوق"}: <strong>${validScore ? `${num(score, 0)} از ۱۰۰` : "داده کافی نیست"}</strong></h3>
-          <p>${scoreWeightText}. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · امتیاز اندیکاتورها طبق منحنی‌های آپدیت ۴.۳ محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود همچنان با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p>
+          <p>${scoreWeightText}. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · امتیاز اندیکاتورها طبق فایل امتیازدهی ۴.۳.۱ محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود همچنان با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p>
           ${scoreHistoryHtml}
         </div>
         <div class="fund-model-meta">
@@ -682,13 +682,12 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     const risk = riskLabels[a.risk] || "نامشخص";
     const entry = a.entry_quality?.label || entryLabels[a.entry_quality?.status] || "داده کافی نیست";
     const entryReason = [a.entry_quality?.score_method, a.entry_quality?.reason].filter(Boolean).join(" · ");
-    const scoreWeightText = "مدل " + horizonName + " · میانگین متحرک " + num(weights.moving_averages ?? 0, 0) + "٪ · روند و شتاب " + num(weights.trend_momentum ?? 0, 0) + "٪ · حمایت و مقاومت " + num(weights.support_resistance ?? 0, 0) + "٪ · نوسان‌گرها " + num(weights.oscillators ?? 0, 0) + "٪ · حجم و نقدینگی " + num(weights.volume_flow ?? 0, 0) + "٪";
+    const scoreWeightText = "مدل " + horizonName + " · میانگین متحرک " + num(weights.moving_averages ?? 0, 0) + "٪ · روند و شتاب " + num(weights.trend_momentum ?? 0, 0) + "٪ · حمایت و مقاومت " + num(weights.support_resistance ?? 0, 0) + "٪ · نوسان‌گرها " + num(weights.oscillators ?? 0, 0) + "٪;
     const familyDefinitions = [
       { key: "moving_averages", label: "\u0645\u06cc\u0627\u0646\u06af\u06cc\u0646\u200c\u0647\u0627\u06cc \u0645\u062a\u062d\u0631\u06a9", description: "EMA\u060c SMA\u060c \u0627\u06cc\u0686\u06cc\u0645\u0648\u06a9\u0648 \u0648 \u0628\u0627\u0646\u062f\u0647\u0627" },
       { key: "trend_momentum", label: "\u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628", description: "MACD\u060c ADX\u060c AROON \u0648 AO" },
       { key: "support_resistance", label: "\u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a", description: "\u067e\u06cc\u0648\u062a\u200c\u0647\u0627\u06cc \u0641\u06cc\u0628\u0648\u0646\u0627\u0686\u06cc\u060c \u06a9\u0644\u0627\u0633\u06cc\u06a9\u060c \u06a9\u0627\u0645\u0627\u0631\u06cc\u0644\u0627\u060c \u0648\u0648\u062f\u06cc \u0648 \u062f\u06cc\u200c\u0645\u0627\u0631\u06a9" },
       { key: "oscillators", label: "\u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627", description: "RSI\u060c MFI\u060c CCI\u060c SO (%K\u061b WR \u0627\u062f\u063a\u0627\u0645 \u0634\u062f\u0647)\u060c StochRSI \u0648 MTM" },
-      { key: "volume_flow", label: "شاخص‌های حجم و جریان نقدینگی", description: "RV(90)، RV(30)، RV(15)، SM(15)، VRSI(14)، VMACD(26) و OBV(20)" },
     ];
     const familyCards = familyDefinitions.filter((factor) => scores[factor.key] != null && typeof scores[factor.key] === "object").map((factor) => {
       const family = scores[factor.key] || {};
@@ -730,7 +729,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     return "<section class=\"fund-recommendation " + scoreTone + " fund-model-recommendation dashboard-model-recommendation\">" +
       "<div class=\"fund-model-score-head\"><div><span class=\"recommendation-kicker\">مدل " + horizonName + " · امتیاز اختصاصی AliVest بر پایهٔ داده‌های ره‌آورد</span>" +
       "<h3>امتیاز تکنیکال: <strong>" + (scoreValue == null ? "داده کافی نیست" : num(scoreValue, 0) + " از ۱۰۰") + "</strong> · " + (bandLabels[a.score_band] || "نامشخص") + "</h3>" +
-      "<p>" + scoreWeightText + " · امتیاز اندیکاتورها طبق منحنی‌های آپدیت ۴.۳ محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p></div>" +
+      "<p>" + scoreWeightText + " · امتیاز اندیکاتورها طبق فایل امتیازدهی ۴.۳.۱ محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p></div>" +
       "<div class=\"fund-model-meta\"><span>قیمت فعلی <b>" + price + "</b></span><span>تغییر روزانه <b>" + daily + "</b></span>" +
       "<span>جمع‌بندی " + horizonName + " <b>" + trend + "</b></span><span>قدرت حرکت (ADX) <b>" + strength + "</b></span>" +
       "<span>ریسک نوسان <b>" + risk + (finite(a.risk_score) ? " · " + num(a.risk_score, 0) : "") + "</b></span>" +
@@ -745,7 +744,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       "<div class=\"fund-model-context dashboard-levels\">" + levelText("حمایت نزدیک", a.nearest_support?.midpoint, a.score_breakdown?.support_distance_pct) +
       levelText("مقاومت پیش‌رو", a.nearest_resistance?.midpoint, a.score_breakdown?.resistance_distance_pct) +
       levelText("سطح ساختاری", a.structural_invalidation_level, null) + "</div>" +
-      "<div class=\"fund-model-disclaimer\"><b>روش و محدودیت محاسبه</b><span>امتیاز کل از میانگین‌های متحرک، روند و شتاب، حمایت و مقاومت، اسیلاتورها و حجم و جریان نقدینگی به‌دست می‌آید. اندیکاتورهای بدون مقدار نمایش داده نمی‌شوند و وزنشان در همان گروه بین اندیکاتورهای موجود تقسیم می‌شود؛ اگر یک گروه کامل داده نداشته باشد، وزن آن بین گروه‌های قابل‌محاسبه بازتوزیع می‌شود. حجم و جریان نقدینگی در امتیاز کلی مدل ۴.۳ اثر دارند؛ برای حفظ سادگی، کارت جداگانهٔ حجم نمایش داده نمی‌شود. " +
+      "<div class=\"fund-model-disclaimer\"><b>روش و محدودیت محاسبه</b><span>امتیاز کل بر پایهٔ چهار گروه میانگین‌های متحرک، روند و شتاب، حمایت و مقاومت و اسیلاتورها محاسبه می‌شود. اندیکاتورهای بدون مقدار نمایش داده نمی‌شوند و وزنشان در همان گروه بین اندیکاتورهای موجود تقسیم می‌شود؛ اگر یک گروه کامل داده نداشته باشد، وزن آن بین گروه‌های قابل‌محاسبه بازتوزیع می‌شود. این نمایش مطابق وزن‌دهی نسخهٔ ۴.۲ است. " +
       limitations.map(esc).join(" ") + "</span></div></section>";
   }
 

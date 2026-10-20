@@ -110,7 +110,7 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
     })
     bars = bars or []
     tech = compute_indicators(bars)
-    engine = score_tse_bars(bars, horizon=horizon)
+    engine = score_tse_bars(bars, horizon=horizon, profiles=DASHBOARD_SCORING_PROFILES)
     indicators = tech.get("indicators", {})
     current = _number(tech.get("latest"))
     closes = [_number(row.get("close")) for row in bars]
@@ -316,13 +316,13 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "long_term_trend": "unavailable" if current is None or ema100 is None else "bullish" if current > ema100 else "bearish" if current < ema100 else "neutral",
         "trend_direction_score": round(total, 1) if total is not None else None,
         "trend_strength": strength, "technical_score": round(total, 1) if total is not None else None,
-        "score_method": f"dashboard_rahavard_excel_weighted_update43_{horizon}",
-        "score_origin": "AliVest", "score_profile": f"{horizon}_update_4_3_indicators",
+        "score_method": f"dashboard_rahavard_excel_weighted_update42_{horizon}",
+        "score_origin": "AliVest", "score_profile": f"{horizon}_update_4_2_indicators",
         "investment_horizon": horizon, "investment_horizon_label": horizon_label(horizon),
         "score_weights": {key: round(value*100) for key, value in family_weights.items()},
         "indicator_weights": engine["indicator_weights"],
         "effective_score_weights": effective, "family_scores": family_scores, "score_band": band,
-        "score_validation": "update_4_3_indicator_model_unbacktested", "score_breakdown": breakdown,
+        "score_validation": "update_4_2_indicator_model_unbacktested", "score_breakdown": breakdown,
         "data_coverage_pct": round(coverage, 1), "available_family_weight_pct": round(available_weight*100, 1),
         "confidence": engine["confidence"], "confidence_score": engine["confidence"],
         "inter_group_dispersion": engine["inter_group_dispersion"],
@@ -333,8 +333,8 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "confidence_label": {"high": "بالا", "medium": "متوسط", "low": "پایین",
                              "insufficient": "داده ناکافی"}[engine["confidence_level"]],
         "confidence_basis": "بر پایهٔ پوشش داده و هم‌جهتی اندیکاتورها؛ احتمال موفقیت معامله نیست.",
-        "breakout_confidence": "volume_indicators_included_in_update_4_3_score",
-        "breakout_confidence_label": "شاخص‌های حجم و نقدینگی در امتیاز نسخهٔ ۴.۳ لحاظ شده‌اند",
+        "breakout_confidence": "volume_indicators_excluded_by_update_4_2_profile",
+        "breakout_confidence_label": "نسخهٔ ۴.۲ گروه مستقل حجم و جریان نقدینگی ندارد",
         "risk": risk, "risk_score": round(risk_value, 1) if risk_value is not None else None,
         "risk_label": {"low":"کم","medium":"متوسط","high":"بالا","unavailable":"نامشخص"}[risk],
         "risk_basis": "نوسان تاریخی RV(30)، و در نبود آن تخمین از ATR(14).",
@@ -352,5 +352,5 @@ def analyze_dashboard_asset(symbol: str, bars: list[dict[str, Any]],
         "support_resistance": levels, "support_levels": supports, "resistance_levels": resistances,
         "nearest_support": near_support, "nearest_resistance": near_resistance,
         "structural_invalidation_level": near_support.get("midpoint") if near_support else None,
-        "decision_support": "\u0627\u0645\u062a\u06cc\u0627\u0632 \u0628\u0631\u0622\u06cc\u0646\u062f \u0628\u0631 \u067e\u0627\u06cc\u0647\u0654 \u067e\u0646\u062c \u06af\u0631\u0648\u0647 \u0645\u06cc\u0627\u0646\u06af\u06cc\u0646\u200c\u0647\u0627\u06cc \u0645\u062a\u062d\u0631\u06a9\u060c \u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628\u060c \u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a\u060c \u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627 \u0648 \u062d\u062c\u0645 \u0648 \u062c\u0631\u06cc\u0627\u0646 \u0646\u0642\u062f\u06cc\u0646\u06af\u06cc \u0627\u0633\u062a.",
+        "decision_support": "امتیاز برآیند چهار گروه میانگین‌های متحرک، روند و شتاب، حمایت و مقاومت و اسیلاتورها است.",
     }
