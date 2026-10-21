@@ -1445,7 +1445,13 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
         void fillVisibleFundNavs(requestedNavGeneration);
       }
     } catch (err) {
-      if (!options.quiet) toast(`فهرست صندوق‌ها در دسترس نیست: ${err.message}`, true);
+      if (options.searchOnly) {
+        const target = $("#global-search-results");
+        if (target) {
+          target.innerHTML = '<div class="global-search-empty">جست‌وجوی نماد ناموفق بود: ' + esc(err.message) + '</div>';
+          target.classList.remove("hidden");
+        }
+      } else if (!options.quiet) toast("فهرست صندوق‌ها در دسترس نیست: " + err.message, true);
       $("#funds-freshness") && freshness($("#funds-freshness"), "unavailable", null);
     }
   }
