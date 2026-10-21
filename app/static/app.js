@@ -1707,12 +1707,20 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
         ["ارزش معامله (ریال)", f.value], ["حجم معامله", f.volume],
         ["زمان داده", f.data_timestamp]
       ];
-      const propsHtml = props.map(([label, value]) => {
+      const renderProperty = ([label, value], className) => {
         const rendered = typeof value === "number" ? money(value) : text(value);
-        return `<div class="property"><span>${label}</span><b>${esc(rendered)}</b></div>`;
-      }).join("");
-      const technicalHtml = a ? analysisHtml(a) : `<div class="empty-state compact"><b>دادهٔ تحلیل نمودار ره‌آورد دریافت نشد</b><small>${esc(technicalError || "دریافت کندل‌های نمودار ناموفق بود. لطفاً کمی بعد دوباره تلاش کنید.")}</small></div>`;
-      section.innerHTML = `<div class="fund-detail-head"><div><span class="panel-kicker">نمایه صندوق · ${esc(displaySymbol)}</span><h2>${esc(f.name || displaySymbol)}</h2><p>فهرست، قیمت و NAV از ره‌آورد۳۶۵ · داده تا ${esc(formatDate(f.data_timestamp))}</p></div><button class="icon-button" data-close-fund aria-label="بستن">×</button></div><div class="fund-detail-body"><div><div class="fund-properties">${propsHtml}</div></div><div><h3>داده‌های تکمیلی</h3><p class="fund-chart-caption">کندل‌های نمودار ره‌آورد دریافت می‌شوند و مقدار اندیکاتورها داخل سامانه از روی آن‌ها محاسبه می‌شود.</p><div class="source-line">قیمت، NAV و کندل‌های تکنیکال: ره‌آورد۳۶۵ · ${nf.format(data.history?.length || 0)} مشاهده قیمت · ${nf.format(data.nav_history?.length || 0)} مشاهدهٔ NAV · محاسبهٔ اندیکاتورها: داخلی</div><a class="button button-quiet" href="/api/funds/${encodeURIComponent(symbol)}/history" target="_blank" rel="noopener">مشاهدهٔ دادهٔ خام قیمت و NAV</a></div></div><div class="fund-analysis-full"><h3>تحلیل تکنیکال از روی نمودار ره‌آورد</h3>${technicalHtml}</div>`;
+        return '<div class="property ' + (className || "") + '"><span>' + esc(label) + '</span><b>' + esc(rendered) + '</b></div>';
+      };
+      const headlineProps = props.slice(5, 8);
+      const supportingProps = props.filter((_, index) => ![5, 6, 7].includes(index));
+      const headlineHtml = headlineProps.map((prop, index) => renderProperty(prop, "fund-detail-metric fund-detail-metric-" + (index + 1))).join("");
+      const propsHtml = supportingProps.map((prop) => renderProperty(prop, "fund-detail-property")).join("");
+      const technicalHtml = a ? analysisHtml(a) : '<div class="empty-state compact"><b>دادهٔ تحلیل نمودار ره‌آورد دریافت نشد</b><small>' + esc(technicalError || "دریافت کندل‌های نمودار ناموفق بود. لطفاً کمی بعد دوباره تلاش کنید.") + '</small></div>';
+      section.innerHTML =
+        '<div class="fund-detail-head"><div class="fund-detail-heading"><span class="panel-kicker">نمایهٔ صندوق <i></i> ' + esc(displaySymbol) + '</span><h2>' + esc(f.name || displaySymbol) + '</h2><p>قیمت و NAV از ره‌آورد۳۶۵ <span>·</span> داده تا ' + esc(formatDate(f.data_timestamp)) + '</p></div><button class="icon-button fund-detail-close" data-close-fund aria-label="بستن">×</button></div>' +
+        '<div class="fund-detail-body"><div class="fund-detail-overview"><div class="fund-detail-metrics">' + headlineHtml + '</div><div class="fund-detail-properties"><div class="fund-detail-section-title"><span>مشخصات صندوق</span><small>اطلاعات نماد و معاملات</small></div><div class="fund-properties">' + propsHtml + '</div></div></div>' +
+        '<aside class="fund-detail-data"><div class="fund-detail-section-title"><span>داده‌های تکمیلی</span><small>منبع و پوشش تاریخچه</small></div><p class="fund-chart-caption">کندل‌های نمودار ره‌آورد دریافت می‌شوند و مقدار اندیکاتورها داخل سامانه از روی آن‌ها محاسبه می‌شود.</p><div class="source-line">قیمت، NAV و کندل‌های تکنیکال: ره‌آورد۳۶۵<br>' + nf.format(data.history?.length || 0) + ' مشاهدهٔ قیمت · ' + nf.format(data.nav_history?.length || 0) + ' مشاهدهٔ NAV<br>محاسبهٔ اندیکاتورها: داخلی</div><a class="button button-quiet" href="/api/funds/' + encodeURIComponent(symbol) + '/history" target="_blank" rel="noopener">مشاهدهٔ دادهٔ خام قیمت و NAV <span>↗</span></a></aside></div>' +
+        '<div class="fund-analysis-full"><div class="fund-detail-section-title"><span>تحلیل تکنیکال</span><small>محاسبه‌شده از داده‌های نمودار ره‌آورد</small></div>' + technicalHtml + '</div>';
       section.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
       toast(`نمایه صندوق باز نشد: ${err.message}`, true);
