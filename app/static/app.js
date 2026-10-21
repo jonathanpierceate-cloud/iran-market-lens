@@ -5,6 +5,7 @@
   let savedHorizon = "long";
   try { savedHorizon = localStorage.getItem(horizonStorageKey) === "short" ? "short" : "long"; } catch {}
   const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], watchlist: [], watchlistSortMode: "default", watchlistTotals: {}, currentView: "overview", investmentHorizon: savedHorizon, watchlistRefreshTimer: null, watchlistRefreshSeconds: 900 };
+  let globalSearchTimer = null;
   const fundSortState = { key: "data_timestamp", direction: -1 };
   let fundScoreFillRunning = false;
   let fundScoreGeneration = 0;
@@ -1388,6 +1389,17 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     if (list) list.innerHTML = items.map((n) => `<div class="news-row"><div><strong>${esc(n.title)}</strong><small>${esc(n.source || "")} ${n.url ? `· <a href="${esc(n.url)}" target="_blank" rel="noopener">مشاهده منبع ↗</a>` : ""}</small></div><span class="news-state">${esc(n.category || "تحلیل‌نشده")}</span><span class="news-state">${esc(n.sentiment || "تحلیل نشده")} / ${esc(n.impact || "نامشخص")}</span><span>${esc(formatDate(n.published_at))}</span></div>`).join("");
   }
 
+  function renderGlobalFundSearch(items, query = "") {
+    const target = $("#global-search-results");
+    if (!target) return;
+    const rows = (items || []).slice(0, 8);
+    target.innerHTML = rows.length ? rows.map((fund) => {
+      const key = fund.fund_key || fund.symbol || fund.rahavard_asset_id;
+      const symbol = fund.display_symbol || fund.symbol || ("شناسه " + (fund.rahavard_asset_id || ""));
+      return '<button class="global-search-result" type="button" role="option" data-global-fund-open="' + esc(key) + '"><span><strong>' + esc(fund.name || symbol) + '</strong><small>' + esc(symbol) + ' · ' + esc(fund.fund_type_label || fund.category || "صندوق") + '</small></span><span class="global-search-result-price">' + (fund.market_price == null ? "" : money(fund.market_price)) + '</span></button>';
+    }).join("") : '<div class="global-search-empty">' + (query ? "نمادی با این نام پیدا نشد" : "نام یا نماد صندوق را وارد کنید") + '</div>';
+    target.classList.remove("hidden");
+  }
   async function loadFunds(options = {}) {
     if (options.forceNav) fundNavAttemptedKeys.clear();
     const requestedNavGeneration = ++fundNavGeneration;
@@ -1412,6 +1424,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
             ? (price / nav - 1) * 100 : null;
         }
       });
+      if (options.searchOnly) { renderGlobalFundSearch(state.funds, search); return; }
       const resultCount = $("#fund-result-count");
       if (resultCount) resultCount.textContent = `${nf.format(data.count)} صندوق`;
       renderFundTable(state.funds);
@@ -2170,7 +2183,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
   $("#watchlist-items").addEventListener("click", async (event) => {
     const open = event.target.closest("[data-watch-open]");
     if (!open) return;
-    await openView("funds");
+    await openView("watchlist");
     await showFund(open.dataset.watchOpen);
   });
   $("#watchlist-items").addEventListener("change", (event) => {
@@ -2237,13 +2250,29 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
   });
   $("#global-search").addEventListener("input", (event) => {
     const value = event.target.value.trim();
-    if (value.length >= 2) { openView("funds"); $("#fund-search").value = value; loadFunds({ search: value }); }
+    clearTimeout(globalSearchTimer);
+    const target = $("#global-search-results");
+    if (value.length < 2) { target?.classList.add("hidden"); return; }
+    if (target) { target.innerHTML = '<div class="global-search-empty">در حال جست‌وجو…</div>'; target.classList.remove("hidden"); }
+    globalSearchTimer = setTimeout(() => loadFunds({ search: value, searchOnly: true, quiet: true }), 240);
+  });
+  $("#global-search-results").addEventListener("click", async (event) => {
+    const result = event.target.closest("[data-global-fund-open]");
+    if (!result) return;
+    const key = result.dataset.globalFundOpen;
+    $("#global-search-results").classList.add("hidden");
+    $("#global-search").blur();
+    await openView("watchlist");
+    await showFund(key);
+  });
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".global-search-wrap")) $("#global-search-results").classList.add("hidden");
   });
   document.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); $("#global-search").focus(); }
     if (event.key === "Escape") { $("#global-search").value = ""; }
   });
-  $("#global-search").addEventListener("search", () => { if (!$("#global-search").value) openView("overview"); });
+  $("#global-search").addEventListener("search", () => { if (!$("#global-search").value) $("#global-search-results").classList.add("hidden"); });
  scheduleWatchlistRefresh();
  document.addEventListener("visibilitychange", () => {
    if (!document.hidden && state.currentView === "watchlist") loadWatchlist();
