@@ -10,7 +10,7 @@
   <link rel="apple-touch-icon" href="/static/assets/alivest-icon-192.png">
   <link rel="manifest" href="/static/manifest.webmanifest">
   <title>AliVest | تحلیل سرمایه‌گذاری</title>
-  <link rel="stylesheet" href="/static/app.css?v=market-summary-period-20261011">
+  <link rel="stylesheet" href="/static/app.css?v=experimental-v5-search-20261021">
   <link rel="stylesheet" href="/static/analysis.css?v=update44-five-fund-cards-20261020">
   <link rel="stylesheet" href="/static/design.css?v=watchlist-analysis-20261019b">
 </head>
@@ -24,7 +24,7 @@
       <nav class="nav-list" aria-label="ناوبری اصلی">
         <button class="nav-item active" data-view="overview"><span class="nav-icon">◫</span>داشبورد</button>
         <button class="nav-item" data-view="watchlist"><span class="nav-icon">◎</span>دیده‌بان</button>
-        <button class="nav-item" data-view="funds"><span class="nav-icon">▤</span>صندوق‌ها</button>
+
       </nav>
       <div class="workspace-label second-label">مدیریت</div>
       <nav class="nav-list">
@@ -49,7 +49,7 @@
               <option value="long" selected>میان‌مدت</option>
             </select>
           </div>
-          <label class="global-search"><span>⌕</span><input id="global-search" type="search" placeholder="جستجوی صندوق یا نماد…" autocomplete="off"><kbd>⌘ K</kbd></label>
+          <div class="global-search-wrap"><label class="global-search"><span>⌕</span><input id="global-search" type="search" placeholder="جستجوی صندوق یا نماد…" autocomplete="off"><kbd>⌘ K</kbd></label><div id="global-search-results" class="global-search-results hidden" role="listbox" aria-label="نتایج جستجوی صندوق"></div></div>
           <button class="icon-button" id="theme-toggle" title="تغییر تم" aria-label="تغییر تم">◐</button>
           <button class="icon-button" id="refresh-button" title="به‌روزرسانی داده‌ها" aria-label="به‌روزرسانی">⟳</button>
           <div class="clock-block"><span class="clock-pulse"></span><span id="clock">—</span></div>
@@ -131,7 +131,7 @@
 <th scope="col" tabindex="0" data-fund-sort="market_price">آخرین قیمت <span class="sort-indicator" aria-hidden="true">⇅</span></th>
 <th scope="col" tabindex="0" data-fund-sort="data_timestamp">زمان داده <span class="sort-indicator" aria-hidden="true">⇅</span></th>
 </tr></thead><tbody id="fund-table"><tr><td colspan="11"><div class="empty-state"><span>▤</span><b>هنوز صندوقی از ره‌آورد۳۶۵ دریافت نشده</b><small>آخرین وضعیت اتصال را در صفحه وضعیت سامانه ببینید.</small></div></td></tr></tbody></table></div><div class="table-footer"><span id="fund-table-source">فهرست صندوق‌ها و قیمت از ره‌آورد۳۶۵ · جزئیات کامل در نمایهٔ هر صندوق</span><span id="fund-score-model-note">امتیاز با مدل دید انتخاب‌شده محاسبه می‌شود.</span></div></div>
-        <div id="fund-detail" class="panel fund-detail hidden"></div>
+        
       </section>
 
       <section class="view" id="view-watchlist">
@@ -148,6 +148,7 @@
         <div class="panel watchlist-panel">
           <div id="watchlist-items" class="watchlist-table-wrap" aria-live="polite"><div class="empty-state"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b></div></div>
         </div>
+        <div id="fund-detail" class="panel fund-detail hidden"></div>
       </section>
 
       <section class="view" id="view-settings">
@@ -160,9 +161,9 @@
         <div class="page-heading"><div><div class="eyebrow"><span class="eyebrow-line"></span>مرکز سلامت</div><h1>وضعیت سامانه</h1><p>اتصال منابع، تازه‌ترین همگام‌سازی و خطاهای اخیر.</p></div><div class="heading-actions"><button class="button button-primary" data-refresh><span>⟳</span> بررسی دوباره منابع</button></div></div>
         <div class="admin-stats" id="admin-stats"></div><div class="content-grid two-col admin-content-grid"><article class="panel admin-panel admin-sources-panel"><div class="panel-heading"><div><span class="panel-kicker">درگاه‌ها</span><h3>منابع داده</h3><small>وضعیت اتصال و تازه‌ترین داده‌های دریافتی</small></div><span class="panel-heading-mark">◉</span></div><div class="source-table" id="admin-sources"></div></article><article class="panel admin-panel admin-logs-panel"><div class="panel-heading"><div><span class="panel-kicker">عملیات اخیر</span><h3>گزارش همگام‌سازی</h3><small>آخرین فعالیت‌های ثبت‌شده در سامانه</small></div><span class="panel-heading-mark">↻</span></div><div class="log-list" id="admin-logs"></div></article></div>
       </section>
-      <footer class="page-footer"><span>AliVest</span><span>پشتیبان تصمیم‌گیری با داده‌های قابل ردیابی</span><span id="app-update-version">آپدیت 4.4</span></footer>
+      <footer class="page-footer"><span>AliVest</span><span>پشتیبان تصمیم‌گیری با داده‌های قابل ردیابی</span><span id="app-update-version">آپدیت آزمایشی 5</span></footer>
     </main>
   </div>
-  <script src="/static/app.js?v=update44-fund-volume-indicator-cards-2-20261020"></script>
+  <script src="/static/app.js?v=experimental-v5-search-20261021"></script>
 </body>
 </html>
