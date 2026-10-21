@@ -1811,3 +1811,57 @@ body.light-mode #view-watchlist .watch-analysis-details-body p { color:#506477; 
   #view-watchlist .watchlist-sort-toolbar > small { width:100%; }
   #view-watchlist .watch-indicator-chips { gap:4px; }
 }
+/* Version 5 fund profile: clear hierarchy for key quote, metadata and analysis. */
+.fund-detail{margin:20px 0 28px;padding:0;overflow:hidden;border:1px solid rgba(104,171,161,.32);border-radius:20px;background:radial-gradient(ellipse at 90% 0%,rgba(64,151,132,.14),transparent 38%),linear-gradient(145deg,#172b33,#12232b);box-shadow:0 18px 48px rgba(0,0,0,.18)}
+.fund-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:26px 30px 22px;background:linear-gradient(115deg,rgba(50,130,116,.2),rgba(17,35,43,.08) 62%);border-bottom:1px solid rgba(112,166,157,.2)}
+.fund-detail-heading{min-width:0}
+.fund-detail-heading .panel-kicker{display:inline-flex;align-items:center;gap:9px;color:#a8c5be;font-size:12px;letter-spacing:.15px}
+.fund-detail-heading .panel-kicker i{width:7px;height:7px;border-radius:50%;background:#53d5ae;box-shadow:0 0 10px rgba(83,213,174,.55)}
+.fund-detail-head h2{margin:10px 0 5px;color:#eff8f5;font-size:25px;font-weight:780;line-height:1.5}
+.fund-detail-head p{margin:0;color:#9db5b1;font-size:12px;line-height:1.8}
+.fund-detail-head p span{color:#5ec3a6;padding:0 4px}
+.fund-detail-close{flex:0 0 40px;width:40px;height:40px;margin-top:2px;border-color:rgba(112,166,157,.3);background:rgba(12,28,34,.35);font-size:18px}
+.fund-detail-body{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(260px,.7fr);align-items:stretch;gap:18px;padding:20px 24px 23px}
+.fund-detail-overview{min-width:0}
+.fund-detail-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;margin-bottom:17px}
+.fund-detail .property{min-width:0;padding:13px 15px;border:1px solid rgba(103,151,151,.22);border-radius:14px;background:rgba(8,24,30,.42)}
+.fund-detail .property span{display:block;color:#91aaa7;font-size:11px;line-height:1.6}
+.fund-detail .property b{display:block;margin-top:6px;color:#edf7f3;font-size:15px;font-weight:720;line-height:1.65;overflow-wrap:anywhere}
+.fund-detail .fund-detail-metric{position:relative;min-height:88px;padding:14px 16px;background:linear-gradient(145deg,rgba(39,79,78,.46),rgba(11,29,35,.52));border-color:rgba(102,177,157,.29)}
+.fund-detail .fund-detail-metric::before{content:"";position:absolute;top:13px;right:0;width:3px;height:24px;border-radius:3px 0 0 3px;background:#55cba9}
+.fund-detail .fund-detail-metric b{font-size:19px;direction:ltr;unicode-bidi:isolate}
+.fund-detail .fund-detail-metric-2 b{color:#8fdcc8}
+.fund-detail .fund-detail-metric-3{background:linear-gradient(145deg,rgba(91,74,39,.25),rgba(11,29,35,.5));border-color:rgba(202,163,86,.28)}
+.fund-detail .fund-detail-metric-3::before{background:#d8ad57}
+.fund-detail .fund-detail-metric-3 b{color:#f0c875}
+.fund-detail-properties{padding:15px;border:1px solid rgba(103,151,151,.17);border-radius:15px;background:rgba(11,27,33,.24)}
+.fund-detail-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px}
+.fund-detail-section-title>span{color:#e2efeb;font-size:14px;font-weight:750}
+.fund-detail-section-title>small{color:#829e99;font-size:10px}
+.fund-properties{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.fund-detail .fund-detail-property{padding:10px 12px;border-color:rgba(103,151,151,.15);border-radius:11px;background:rgba(17,38,44,.42)}
+.fund-detail .fund-detail-property b{font-size:12px}
+.fund-detail-data{align-self:stretch;padding:17px 18px;border:1px solid rgba(103,151,151,.22);border-radius:15px;background:linear-gradient(150deg,rgba(22,49,53,.72),rgba(10,26,32,.42))}
+.fund-detail-data .fund-chart-caption{margin:0;color:#9bb1ac;font-size:12px;line-height:1.9}
+.fund-detail-data .source-line{margin:14px 0;padding:13px 0;border-top:1px solid rgba(112,166,157,.17);border-bottom:1px solid rgba(112,166,157,.17);color:#a9c0ba;font-size:11px;line-height:2}
+.fund-detail-data .button{width:100%;justify-content:center;gap:8px;border-color:rgba(100,170,155,.26);background:rgba(49,91,88,.22);color:#d5ebe4}
+.fund-analysis-full{margin:0;padding:22px 24px 26px;border-top:1px solid rgba(112,166,157,.2);background:rgba(8,23,29,.2)}
+.fund-analysis-full>.fund-detail-section-title{margin-bottom:15px}
+.fund-analysis-full>.fund-detail-section-title>span{font-size:19px}
+.fund-analysis-full>.fund-detail-section-title>small{font-size:11px}
+.fund-analysis-full .indicator-workbench{margin:12px 0 0;padding:16px}
+body.light-mode .fund-detail{border-color:#d0e2db;background:radial-gradient(ellipse at 90% 0%,rgba(71,165,137,.1),transparent 38%),linear-gradient(145deg,#fff,#f3f8f5)}
+body.light-mode .fund-detail-head{background:linear-gradient(115deg,rgba(50,148,121,.09),transparent 65%);border-color:#e0ebe5}
+body.light-mode .fund-detail-head h2,body.light-mode .fund-detail .property b,body.light-mode .fund-detail-section-title>span{color:#274239}
+body.light-mode .fund-detail-head p,body.light-mode .fund-detail .property span,body.light-mode .fund-detail-section-title>small,body.light-mode .fund-detail-data .fund-chart-caption{color:#647d74}
+body.light-mode .fund-detail .property,body.light-mode .fund-detail-properties,body.light-mode .fund-detail-data{background:#f6faf7;border-color:#dce9e2}
+body.light-mode .fund-detail .fund-detail-metric{background:linear-gradient(145deg,#f0f8f3,#f8fbf9);border-color:#d4e8df}
+body.light-mode .fund-detail .fund-detail-metric b{color:#25765f}
+body.light-mode .fund-detail .fund-detail-metric-3{background:linear-gradient(145deg,#fbf7eb,#fffdf8);border-color:#eadfbe}
+body.light-mode .fund-detail .fund-detail-metric-3 b{color:#987126}
+body.light-mode .fund-detail .fund-detail-property{background:#fff;border-color:#e2ebe6}
+body.light-mode .fund-detail-data .source-line{color:#607a71;border-color:#dce8e2}
+body.light-mode .fund-detail-data .button{background:#edf6f1;color:#366c5c;border-color:#d7e8df}
+body.light-mode .fund-analysis-full{background:rgba(237,246,240,.55);border-color:#dce9e2}
+@media(max-width:900px){.fund-detail-body{grid-template-columns:1fr}.fund-detail-data{min-height:0}}
+@media(max-width:600px){.fund-detail{border-radius:15px}.fund-detail-head{padding:19px 16px 16px}.fund-detail-head h2{font-size:20px}.fund-detail-body{gap:13px;padding:14px}.fund-detail-metrics{grid-template-columns:1fr;gap:8px;margin-bottom:12px}.fund-detail .fund-detail-metric{min-height:0}.fund-detail .fund-detail-metric b{font-size:17px}.fund-detail-properties,.fund-detail-data{padding:13px}.fund-properties{grid-template-columns:1fr}.fund-analysis-full{padding:17px 14px 20px}.fund-analysis-full>.fund-detail-section-title{align-items:flex-start;flex-direction:column;gap:3px}}
