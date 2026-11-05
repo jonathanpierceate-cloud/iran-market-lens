@@ -27,6 +27,7 @@ from .db import db, utc_now
 
 YAHOO_CHART = "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
 RAHAVARD_URL = "https://rahavard365.com"
+RAHAVARD_STOCKS_URL = f"{RAHAVARD_API_BASE_URL}/market-data/stocks"
 TABDEAL_USDT_HISTORY_URL = "https://api-web.tabdeal.org/r/plots/history/"
 TABDEAL_USDT_CHART_PAGE_URL = "https://tabdeal.org/buy-usdt"
 
@@ -401,6 +402,35 @@ def rahavard_etf_funds() -> list[dict[str, Any]]:
     return funds
 
 
+def rahavard_stocks() -> list[dict[str, Any]]:
+    """Map Rahavard's public all-stocks directory into the common instrument schema."""
+    payload = _json(RAHAVARD_STOCKS_URL, referer=f"{RAHAVARD_URL}/stock")
+    rows = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(rows, list):
+        raise SourceError("ساختار فهرست سهام ره‌آورد قابل شناسایی نیست")
+    items = []
+    for row in rows:
+        asset_id = str(row.get("asset_id") or "").strip()
+        if not asset_id.isdigit():
+            continue
+        name = str(row.get("name") or asset_id).strip()
+        close = _num(row.get("real_close_price"))
+        change = _num(row.get("real_close_price_change_percent"))
+        items.append({
+            "fund_key": f"rahavard-stock:{asset_id}", "symbol": name,
+            "registration_no": asset_id, "name": name,
+            "category": str(row.get("exchange_name") or "سهام"),
+            "category_id": "rahavard-stock", "market_price": close,
+            "volume": _num(row.get("volume")), "value": _num(row.get("value")),
+            "daily_return": change * 100 if change is not None else None,
+            "data_timestamp": row.get("trade_date_time"),
+            "raw": {**row, "rahavard_asset_id": asset_id},
+        })
+    if not items:
+        raise SourceError("فهرست سهام ره‌آورد خالی است")
+    return items
+
+
 def rahavard_etf_fund_asset_ids(category_id: str) -> set[str]:
     """Return ETF asset IDs that belong to one Rahavard fund category."""
     category_id = str(category_id).strip()
@@ -613,6 +643,25 @@ async def refresh_all() -> dict[str, Any]:
             db.log_fetch("rahavard_funds", started_at, "failed", 0, message, _elapsed_ms(tick))
             summary["sources"].append({"name": "rahavard_funds", "status": "failed", "error": message})
 
+    async def stocks_from_rahavard():
+        started_at, tick = utc_now(), time.monotonic()
+        try:
+            stocks = await asyncio.to_thread(rahavard_stocks)
+            db.save_funds(stocks, "Rahavard365Stock", RAHAVARD_STOCKS_URL)
+            latest = max((str(x.get("data_timestamp") or "") for x in stocks), default=None)
+            db.save_source("rahavard_stocks", "سهام / ره‌آورد۳۶۵", "connected", RAHAVARD_STOCKS_URL,
+                           latest, None, _elapsed_ms(tick))
+            db.log_fetch("rahavard_stocks", started_at, "success", len(stocks),
+                         "فهرست سهام از ره‌آورد۳۶۵ دریافت شد", _elapsed_ms(tick))
+            summary["records"] += len(stocks)
+            summary["sources"].append({"name": "rahavard_stocks", "status": "connected", "records": len(stocks)})
+        except Exception as exc:
+            message = str(exc)[:400]
+            db.save_source("rahavard_stocks", "سهام / ره‌آورد۳۶۵", "failed", RAHAVARD_STOCKS_URL,
+                           None, message, _elapsed_ms(tick))
+            db.log_fetch("rahavard_stocks", started_at, "failed", 0, message, _elapsed_ms(tick))
+            summary["sources"].append({"name": "rahavard_stocks", "status": "failed", "error": message})
+
     tasks = [
         run_source("rahavard_gold", "طلای جهانی / ره‌آورد۳۶۵", RAHAVARD_GOLD_PAGE_URL,
                    rahavard_gold_history, apply_gold),
@@ -633,6 +682,7 @@ async def refresh_all() -> dict[str, Any]:
                        RAHAVARD_TEPIX_PAGE_URL, "شاخص کل بورس"),
                    apply_tepix),
         funds_from_rahavard(),
+        stocks_from_rahavard(),
     ]
     await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -681,7 +731,7 @@ async def fetch_fund_price_history(symbol: str) -> list[dict[str, Any]]:
     fund = db.get_fund(symbol)
     if not fund or fund.get("ambiguous"):
         raise SourceError("صندوق ره‌آورد در پایگاه داده پیدا نشد")
-    if fund.get("source") != "Rahavard365":
+    if fund.get("source") not in {"Rahavard365", "Rahavard365Stock"}:
         raise SourceError("این صندوق در فهرست ره‌آورد۳۶۵ نیست")
     fund_key = fund["fund_key"]
     asset_id = _rahavard_asset_id(fund)
@@ -690,12 +740,15 @@ async def fetch_fund_price_history(symbol: str) -> list[dict[str, Any]]:
     tick = time.monotonic()
     try:
         bars = await asyncio.to_thread(rahavard_fund_history, asset_id)
-        db.save_bars(fund_key, fund["name"], "fund", "IRR", "ریال/واحد",
+        is_stock = fund.get("source") == "Rahavard365Stock"
+        chart_source = "rahavard_stock_charts" if is_stock else "rahavard_fund_charts"
+        db.save_bars(fund_key, fund["name"], "stock" if is_stock else "fund", "IRR", "ریال/واحد",
                      "Rahavard365", url, bars)
-        db.save_source("rahavard_fund_charts", "نمودار و محاسبهٔ تکنیکال صندوق / ره‌آورد۳۶۵", "connected", url,
+        db.save_source(chart_source, "نمودار و محاسبهٔ تکنیکال / ره‌آورد۳۶۵", "connected", url,
                        bars[-1]["timestamp"], None, int((time.monotonic() - tick) * 1000))
         return bars
     except Exception as exc:
-        db.save_source("rahavard_fund_charts", "نمودار و محاسبهٔ تکنیکال صندوق / ره‌آورد۳۶۵", "failed",
+        db.save_source("rahavard_stock_charts" if fund.get("source") == "Rahavard365Stock" else "rahavard_fund_charts",
+                       "نمودار و محاسبهٔ تکنیکال / ره‌آورد۳۶۵", "failed",
                        url, None, str(exc)[:400], int((time.monotonic() - tick) * 1000))
         raise
