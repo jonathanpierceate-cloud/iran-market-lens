@@ -29,7 +29,6 @@ from .config import (MAX_STALE_HOURS, RAHAVARD_GOLD_18K_PAGE_URL,
                      REFRESH_INTERVAL_SECONDS, ROOT)
 from .db import db, utc_now
 from .fund_scoring import FUND_TYPE_BY_CATEGORY_ID, FUND_TYPE_LABELS, resolve_fund_type
-from .tse_scoring import score_tse_bars
 from .indicators import fund_chart_indicator_groups
 from .scoring_profiles import normalize_horizon, horizon_label
 from .scoring_rules import entry_recommendation
@@ -689,55 +688,20 @@ def _record_fund_score_history(result: dict[str, Any] | None, fund_key: str,
     if not isinstance(result, dict) or result.get("technical_score") is None:
         return
     score_date = str(data_timestamp or result.get("score_timestamp") or "")
-    date_key = score_date[:10]
     method = str(result.get("score_method") or "")
-    bars = price_history if isinstance(price_history, list) else []
-    if not bars:
-        try:
-            bars = db.history(fund_key, 500, source="Rahavard365")
-        except Exception:
-            bars = []
-
     try:
         db.save_fund_score_snapshot(
             fund_key, score_date, float(result["technical_score"]),
             result.get("data_coverage_pct"), method)
+        bars = price_history if price_history is not None else db.history(
+            fund_key, 60, source="Rahavard365")
         sessions = [str(row.get("timestamp") or "")[:10] for row in bars]
         result.update(db.fund_score_changes(fund_key, score_date, method, sessions))
     except Exception:
+        # Some serverless deployments do not provide durable writable storage.
         result["score_change_5d"] = None
         result["score_change_20d"] = None
 
-    # Rebuild missing prior scores from historical OHLCV bars. This works on
-    # serverless deployments where database snapshots are not durable and also
-    # backfills periods before the current scoring method was introduced.
-    if len(date_key) != 10 or not bars:
-        return
-    bars_by_date: dict[str, dict[str, Any]] = {}
-    for row in bars:
-        if not isinstance(row, dict):
-            continue
-        bar_date = str(row.get("timestamp") or "")[:10]
-        if len(bar_date) == 10 and bar_date <= date_key:
-            bars_by_date[bar_date] = row
-    sessions = sorted(bars_by_date)
-    if date_key not in bars_by_date:
-        return
-    current_index = sessions.index(date_key)
-    horizon = normalize_horizon(result.get("investment_horizon") or "long")
-    current_score = _watchlist_number(result.get("technical_score"))
-    if current_score is None:
-        return
-    for lookback, key in ((1, "score_change_1d"), (5, "score_change_5d"), (20, "score_change_20d")):
-        if result.get(key) is not None or current_index < lookback:
-            continue
-        historical_bars = [bars_by_date[day] for day in sessions[:current_index - lookback + 1]]
-        try:
-            prior_score = score_tse_bars(historical_bars, horizon=horizon).get("technical_score")
-            if prior_score is not None:
-                result[key] = round(current_score - float(prior_score), 1)
-        except (TypeError, ValueError, ArithmeticError):
-            continue
 
 def _fund_model_context(fund: dict[str, Any], *, category_id: str | None = None,
                         category: Any = None, price_history: list[dict[str, Any]] | None = None,
@@ -1042,6 +1006,36 @@ def funds(search: str = "", category: str = "", sort: str = "data_timestamp",
             "data_status": "available" if items else "unavailable"}
 
 
+@app.get("/api/stocks")
+def stocks(search: str = "", sort: str = "data_timestamp"):
+    items = db.funds(search=search, sort=sort, source="Rahavard365Stock")
+    for item in items:
+        raw = item.get("raw") if isinstance(item.get("raw"), dict) else {}
+        item.update({"rahavard_asset_id": str(raw.get("asset_id") or item.get("registration_no") or ""),
+                     "updated_at": item.get("data_timestamp"),
+                     "price_is_cached": _timestamp_is_cached(item.get("data_timestamp")),
+                     "real_close_price_change_percent": raw.get("real_close_price_change_percent")})
+    return {"items": items, "count": len(items), "source": "Rahavard365Stock",
+            "data_status": "available" if items else "unavailable"}
+
+
+def _stock_or_error(identifier: str) -> dict[str, Any]:
+    stock = db.get_fund(identifier)
+    if not stock or stock.get("ambiguous") or stock.get("source") != "Rahavard365Stock":
+        raise HTTPException(status_code=404, detail="نماد در فهرست سهام ره‌آورد پیدا نشد")
+    return stock
+
+
+@app.get("/api/stocks/{symbol}/technical")
+async def stock_technical(symbol: str, horizon: str = Query(default="long")):
+    stock = _stock_or_error(symbol)
+    try:
+        result, bars, _ = await _analyze_fund_chart(stock, horizon=normalize_horizon(horizon))
+    except SourceError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return result
+
+
 def _fund_or_error(identifier: str) -> dict[str, Any]:
     fund = db.get_fund(identifier)
     if fund and fund.get("ambiguous"):
@@ -1162,25 +1156,6 @@ async def fund_score_batch(payload: FundScoreBatchInput,
                     preloaded_bars=client_bars)
                 _record_fund_score_history(analysis_result, fund["fund_key"],
                                            analysis_result.get("data_timestamp"), chart_bars)
-                volume_ratio = None
-                volume_pressure = None
-                bars = sorted((bar for bar in chart_bars if isinstance(bar, dict)), key=lambda bar: str(bar.get("timestamp") or ""))
-                confirmed_bar = _latest_confirmed_daily_bar(bars)
-                confirmed_stamp = str(confirmed_bar.get("timestamp") or "")[:10] if confirmed_bar else ""
-                confirmed_index = next((i for i, bar in enumerate(bars) if str(bar.get("timestamp") or "")[:10] == confirmed_stamp), None)
-                if confirmed_index is not None and confirmed_index >= 6:
-                    current_volume = _watchlist_number(bars[confirmed_index].get("volume"))
-                    prior_volumes = [_watchlist_number(bar.get("volume")) for bar in bars[max(0, confirmed_index - 20):confirmed_index]]
-                    prior_volumes = [value for value in prior_volumes if value is not None and value > 0]
-                    previous_close = _watchlist_number(bars[confirmed_index - 1].get("close"))
-                    current_close = _watchlist_number(bars[confirmed_index].get("close"))
-                    bar_return = ((current_close - previous_close) / previous_close * 100
-                                  if current_close is not None and previous_close else None)
-                    if current_volume is not None and current_volume > 0 and len(prior_volumes) >= 5:
-                        avg_volume = sum(prior_volumes) / len(prior_volumes)
-                        volume_ratio = current_volume / avg_volume if avg_volume > 0 else None
-                    if volume_ratio is not None and volume_ratio >= 1.0 and bar_return is not None:
-                        volume_pressure = "selling" if bar_return < -0.5 else "buying" if bar_return > 0.5 else "neutral"
                 purchase_assessment = _fund_purchase_assessment(current_price, analysis_result)
                 return {"fund_key": fund["fund_key"], "technical_score": analysis_result.get("technical_score"),
                         "technical_source": "Rahavard365",
@@ -1192,9 +1167,6 @@ async def fund_score_batch(payload: FundScoreBatchInput,
                         "buy_suitability_rank": purchase_assessment["rank"],
                         "data_coverage_pct": analysis_result.get("data_coverage_pct"),
                         "risk_score": (analysis_result.get("risk_rank") or {}).get("score"),
-                        "score_change_1d": analysis_result.get("score_change_1d"),
-                        "volume_pressure": volume_pressure,
-                        "volume_ratio": round(volume_ratio, 2) if volume_ratio is not None else None,
                         "score_change_5d": analysis_result.get("score_change_5d"),
                         "score_change_20d": analysis_result.get("score_change_20d"),
                         "fund_type_key": analysis_result.get("fund_type"),
@@ -1292,16 +1264,7 @@ def _fund_purchase_assessment(price: Any, analysis: dict[str, Any] | None) -> di
             "overall_score": score, "horizon": score_horizon}
 
 
-def _add_position_from_assessment(assessment: dict[str, Any], *, volume_pressure: str | None = None,
-                                  volume_ratio: float | None = None, daily_return: float | None = None) -> dict[str, str]:
-    if volume_pressure == "selling":
-        ratio_text = f"حجم معاملات حدود {volume_ratio:.1f} برابر میانگین ۲۰ روزه است" if volume_ratio is not None else "حجم معاملات بالاتر از میانگین است"
-        return {"label": "خیر · حجم فروش", "tone": "negative",
-                "reason": f"{ratio_text} و قیمت روز {daily_return:.2f}٪ افت کرده؛ افزایش حجم را فشار فروش در نظر بگیر."}
-    if volume_pressure == "buying" and assessment.get("status") == "suitable":
-        ratio_text = f"حدود {volume_ratio:.1f} برابر میانگین ۲۰ روزه" if volume_ratio is not None else "بالاتر از میانگین"
-        return {"label": "بله · فشار خرید", "tone": "positive",
-                "reason": f"حجم {ratio_text} است و کندل روزانه صعودی بسته شده؛ جهت حجم و قیمت همسو است. ورود را پله‌ای انجام بده."}
+def _add_position_from_assessment(assessment: dict[str, Any]) -> dict[str, str]:
     if assessment.get("status") == "suitable":
         return {"label": "بله · پله‌ای", "tone": "positive", "reason": assessment.get("reason", "شرایط RSI و میانگین‌ها مناسب است؛ مرحله‌ای اضافه کن.")}
     if assessment.get("status") == "unsuitable":
@@ -1351,9 +1314,9 @@ _DEFAULT_WATCHLIST_ITEMS = [
     ("سینرژی", 1000, 63651),
     ("آگاس", 100, 460104),
     ("متال", 2000, 40915),
-
+    ("اهرم", 1500, 76341),
 ]
-_LEGACY_WATCHLIST_SYMBOLS = {"سبزآبنوس", "تکپاد", "اهرم"}
+_LEGACY_WATCHLIST_SYMBOLS = {"سبزآبنوس", "تکپاد"}
 _WATCHLIST_DISPLAY_BY_ASSET_ID = {
     "22820": "آلتون",
     "35665": "دارونو",
@@ -1568,37 +1531,11 @@ async def get_watchlist(horizon: str = Query(default="long"),
                 pass
         confirmed_daily_bar = _latest_confirmed_daily_bar(chart_bars)
         last_daily_close = _watchlist_number(confirmed_daily_bar.get("close")) if confirmed_daily_bar else None
-        volume_ratio = None
-        confirmed_bar_return = daily_return
-        if confirmed_daily_bar and chart_bars:
-            confirmed_stamp = str(confirmed_daily_bar.get("timestamp") or "")[:10]
-            ordered_bars = sorted((bar for bar in chart_bars if isinstance(bar, dict)), key=lambda bar: str(bar.get("timestamp") or ""))
-            confirmed_index = next((i for i, bar in enumerate(ordered_bars) if str(bar.get("timestamp") or "")[:10] == confirmed_stamp), None)
-            if confirmed_index is not None:
-                confirmed_volume = _watchlist_number(ordered_bars[confirmed_index].get("volume"))
-                prior_volumes = [_watchlist_number(bar.get("volume")) for bar in ordered_bars[max(0, confirmed_index - 20):confirmed_index]]
-                prior_volumes = [value for value in prior_volumes if value is not None and value > 0]
-                if confirmed_volume is not None and confirmed_volume > 0 and len(prior_volumes) >= 5:
-                    average_volume = sum(prior_volumes) / len(prior_volumes)
-                    if average_volume > 0:
-                        volume_ratio = confirmed_volume / average_volume
-                if confirmed_index > 0:
-                    prior_close = _watchlist_number(ordered_bars[confirmed_index - 1].get("close"))
-                    if last_daily_close is not None and prior_close:
-                        confirmed_bar_return = (last_daily_close - prior_close) / prior_close * 100
-        volume_direction_return = daily_return if daily_return is not None else confirmed_bar_return
-        volume_pressure = ("selling" if volume_ratio is not None and volume_ratio >= 1.0 and volume_direction_return is not None and volume_direction_return < -0.5
-                           else "buying" if volume_ratio is not None and volume_ratio >= 1.0 and volume_direction_return is not None and volume_direction_return > 0.5
-                           else "neutral" if volume_ratio is not None else None)
         stamp = (trade.get("end_date_time") if live_price is not None else None) \
             or ((cached_history[-1].get("timestamp") if cached_history else None)) \
             or fund.get("data_timestamp")
         technical_price = _watchlist_number(analysis_result.get("price")) if analysis_result else None
         levels = _watchlist_levels(indicator_data, technical_price or price)
-        nearest_support_level = levels["supports"][0] if levels["supports"] else None
-        near_exit_price = _watchlist_number(nearest_support_level.get("price")) if nearest_support_level else None
-        near_exit_confirmed = last_daily_close is not None and near_exit_price is not None and last_daily_close < near_exit_price
-        near_exit_distance_pct = ((price - near_exit_price) / price * 100 if price and near_exit_price is not None else None)
         signal = analysis_result.get("signal") if analysis_result else None
         trend = analysis_result.get("trend") if analysis_result else None
         short_term_exit_price = _watchlist_number(analysis_result.get("short_term_exit_price")) if analysis_result else None
@@ -1643,13 +1580,13 @@ async def get_watchlist(horizon: str = Query(default="long"),
             add_position_decision = {"label": "خیر · حد خروج تأیید شد", "tone": "negative", "reason": f"تا زمانی که کندل روزانه بالای {active_exit_average} تثبیت نشده، حجم اضافه نکن."}
         elif (units or 0) <= 0:
             holding_decision = {"label": "موقعیتی ثبت نشده", "tone": "neutral", "reason": "برای این نماد تعداد واحدی در دیده‌بان ثبت نشده است."}
-            add_position_decision = _add_position_from_assessment(purchase_assessment, volume_pressure=volume_pressure, volume_ratio=volume_ratio, daily_return=confirmed_bar_return)
+            add_position_decision = _add_position_from_assessment(purchase_assessment)
         elif technical_score < 40:
             holding_decision = {"label": "کاهش ریسک", "tone": "negative", "reason": f"امتیاز تکنیکال {score_horizon} ضعیف است؛ نگهداری کامل ریسک بالاتری دارد."}
             add_position_decision = {"label": "خیر · فعلاً", "tone": "negative", "reason": f"امتیاز {score_horizon} ضعیف است."}
         else:
             holding_decision = {"label": "نگهداری", "tone": "positive", "reason": f"آخرین کندل روزانه بالای {active_exit_average} بسته شده؛ حد خروج فقط با بسته‌شدن روزانه زیر آن فعال می‌شود."}
-            add_position_decision = _add_position_from_assessment(purchase_assessment, volume_pressure=volume_pressure, volume_ratio=volume_ratio, daily_return=confirmed_bar_return)
+            add_position_decision = _add_position_from_assessment(purchase_assessment)
         asset_id = str(raw.get("rahavard_asset_id") or fund.get("registration_no") or fund["symbol"])
         display_symbol = _WATCHLIST_DISPLAY_BY_ASSET_ID.get(asset_id) or asset.get("trade_symbol") or fund["symbol"]
         return {
@@ -1666,22 +1603,11 @@ async def get_watchlist(horizon: str = Query(default="long"),
             "data_timestamp": stamp,
             "supports": levels["supports"],
             "resistances": levels["resistances"],
-            "near_exit_price": near_exit_price,
-            "near_exit_label": nearest_support_level.get("label") if nearest_support_level else None,
-            "near_exit_confirmed": near_exit_confirmed if near_exit_price is not None else None,
-            "near_exit_distance_pct": near_exit_distance_pct,
-            "volume_pressure": volume_pressure,
-            "volume_ratio": round(volume_ratio, 2) if volume_ratio is not None else None,
-            "volume_pressure_daily_return": confirmed_bar_return,
-            "family_scores": analysis_result.get("family_scores", {}) if analysis_result else {},
-            "risk_rank": analysis_result.get("risk_rank", {}) if analysis_result else {},
-            "score_change_1d": analysis_result.get("score_change_1d") if analysis_result else None,
             "profit": {"per_unit": profit_per_unit, "pct": profit_pct, "total": profit_total},
             "signal": signal,
             "signal_fa": signal_fa,
             "trend": trend,
             "technical_score": technical_score,
-            "watchlist_indicators": analysis_result.get("watchlist_indicators", {}) if analysis_result else {},
             "investment_horizon": analysis_result.get("investment_horizon") if analysis_result else horizon,
             "investment_horizon_label": score_horizon,
             "short_term_exit_price": short_term_exit_price,
