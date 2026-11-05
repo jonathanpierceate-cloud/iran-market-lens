@@ -4,32 +4,11 @@
   const horizonStorageKey = "alivest.investmentHorizon";
   let savedHorizon = "long";
   try { savedHorizon = localStorage.getItem(horizonStorageKey) === "short" ? "short" : "long"; } catch {}
-  const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], watchlist: [], watchlistSortMode: "default", watchlistTotals: {}, currentView: "overview", investmentHorizon: savedHorizon, watchlistRefreshTimer: null, watchlistRefreshSeconds: 900 };
-  let globalSearchTimer = null;
+  const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], stocks: [], stockScores: {}, watchlist: [], currentView: "overview", investmentHorizon: savedHorizon, watchlistRefreshTimer: null, watchlistRefreshSeconds: 900 };
   const fundSortState = { key: "data_timestamp", direction: -1 };
   let fundScoreFillRunning = false;
   let fundScoreGeneration = 0;
   const fundScoreAttemptedKeys = new Set();
-  const fundScoreCache = new Map();
-  const fundScoreFields = ["technical_score", "data_coverage_pct", "medium_term_exit_price", "purchase_assessment", "buy_suitability_rank", "risk_score", "score_change_5d", "score_change_20d", "technical_error", "fund_type_key", "fund_type_label"];
-  function rememberFundScore(fund) {
-    if (!fund || fund.technical_score == null) return;
-    const key = String(fund.fund_key || fund.symbol || "");
-    if (!key) return;
-    const cached = fundScoreCache.get(key) || {};
-    fundScoreFields.forEach((field) => { if (fund[field] !== undefined) cached[field] = fund[field]; });
-    fundScoreCache.set(key, cached);
-  }
-  function restoreFundScore(fund) {
-    const key = String(fund?.fund_key || fund?.symbol || "");
-    if (!key) return fund;
-    if (fund.technical_score != null) rememberFundScore(fund);
-    else {
-      const cached = fundScoreCache.get(key);
-      if (cached) Object.assign(fund, cached);
-    }
-    return fund;
-  }
   let fundNavFillRunning = false;
   let fundNavGeneration = 0;
   const fundNavAttemptedKeys = new Set();
@@ -539,14 +518,11 @@
   }
 
   function fundModelRecommendationHtml(a) {
-    const dashboardModel = String(a.score_method || "").includes("update42");
-    const modelVersionLabel = dashboardModel ? "۴.۲" : "۴.۳.۱";
     const labels = {
       moving_averages: ["\u0645\u06cc\u0627\u0646\u06af\u06cc\u0646 \u0645\u062a\u062d\u0631\u06a9", "\u062c\u0627\u06cc\u06af\u0627\u0647 \u0642\u06cc\u0645\u062a \u0646\u0633\u0628\u062a \u0628\u0647 \u0645\u06cc\u0627\u0646\u06af\u06cc\u0646\u200c\u0647\u0627 \u0648 \u0628\u0627\u0646\u062f\u0647\u0627"],
       trend_momentum: ["\u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628", "MACD\u060c ADX\u060c AROON \u0648 AO"],
       support_resistance: ["\u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a", "\u067e\u06cc\u0648\u062a\u200c\u0647\u0627 \u0648 \u0641\u0627\u0635\u0644\u0647\u0654 \u0642\u06cc\u0645\u062a \u062a\u0627 \u0633\u0637\u0648\u062d"],
-      oscillators: ["\u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627", "RSI\u060c MFI\u060c CCI\u060c SO\u060c StochRSI\u060c WR \u0648 MTM"],
-      ...(dashboardModel ? {} : { volume_flow: ["شاخص‌های حجم و جریان نقدینگی", "RV(90)، RV(30)، RV(15)، VRSI(14)، VMACD(26) و OBV(20)"] })
+      oscillators: ["\u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627", "RSI\u060c MFI\u060c CCI\u060c SO\u060c StochRSI\u060c WR \u0648 MTM"]
     };
     const indicatorLabels = {
       ema50: "EMA(50)", ema20: "EMA(20)", ichimoku: "Ichimoku Cloud",
@@ -576,12 +552,12 @@
     const tone = !validScore ? "unknown" : a.score_band === "bullish" ? "positive" : a.score_band === "bearish" ? "negative" : "neutral";
     const scoreWeights = a.score_weights || {};
     const horizonName = a.investment_horizon_label || horizonLabel();
-    const scoreWeightText = "مدل " + horizonName + " · میانگین‌های متحرک " + num(scoreWeights.moving_averages ?? 0, 0) + "٪ · روند و شتاب " + num(scoreWeights.trend_momentum ?? 0, 0) + "٪ · حمایت و مقاومت " + num(scoreWeights.support_resistance ?? 0, 0) + "٪ · اسیلاتورها " + num(scoreWeights.oscillators ?? 0, 0) + "٪" + (dashboardModel ? "" : " · حجم و نقدینگی " + num(scoreWeights.volume_flow ?? 0, 0) + "٪");
+    const scoreWeightText = `\u0645\u062f\u0644 ${horizonName} \u00b7 \u0645\u06cc\u0627\u0646\u06af\u06cc\u0646\u200c\u0647\u0627\u06cc \u0645\u062a\u062d\u0631\u06a9 ${num(scoreWeights.moving_averages ?? 0, 0)}\u066a \u00b7 \u0631\u0648\u0646\u062f \u0648 \u0634\u062a\u0627\u0628 ${num(scoreWeights.trend_momentum ?? 0, 0)}\u066a \u00b7 \u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a ${num(scoreWeights.support_resistance ?? 0, 0)}\u066a \u00b7 \u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627 ${num(scoreWeights.oscillators ?? 0, 0)}\u066a`;
     const effectiveScoreWeights = a.effective_score_weights || {};
     const familyScores = a.family_scores || {};
     const familyCards = Object.entries(labels).filter(([key]) => {
       const value = familyScores[key]?.score;
-      return familyScores[key] != null && typeof familyScores[key] === "object";
+      return value != null && Number.isFinite(Number(value));
     }).map(([key, [label, description]]) => {
       const family = familyScores[key] || {};
       const value = family.score == null ? NaN : Number(family.score);
@@ -609,14 +585,13 @@
           : Number.isFinite(Number(item.value)) ? `مقدار ${num(item.value, 1)}` : "";
         return `<div class="dashboard-score-detail-row ${itemTone}" title="${esc(item.note || "")}"><span>${esc(itemName)} <small>وزن در گروه ${num(item.weight_pct, 1)}٪${raw ? ` · ${esc(raw)}` : ""}</small></span><b>${hasScore ? num(itemScore, 0) : "—"}</b></div>`;
       }).join("");
-      const missingRows = (family.missing_indicators || []).map((key) => `<div class="dashboard-score-detail-row unavailable"><span>${esc(key)} <small>دادهٔ لازم در منبع موجود نیست</small></span><b>—</b></div>`).join("");
       return `<article class="fund-family-score-card ${familyTone}">
         <div class="fund-family-score-head"><span>${label}</span><b>وزن ${num(weight, 0)}٪${Number.isFinite(effectiveWeight) && Math.abs(effectiveWeight - weight) >= 0.1 ? ` · مؤثر ${num(effectiveWeight, 1)}٪` : ""}</b></div>
         <strong>${available ? `${num(value, 0)} از ۱۰۰` : "—"}</strong>
         <small>${description}</small>
         ${extras.length ? `<div class="fund-family-extra">${extras.map((item) => `<span>${item}</span>`).join("")}</div>` : ""}
         <div class="fund-family-coverage"><span>پوشش ${Number.isFinite(coverage) ? `${num(coverage, 0)}٪` : "—"}</span><span>${countText}</span></div>
-        <details class="dashboard-score-details"><summary>جزئیات وزن و امتیاز شاخص‌ها (${details.length + missingCount})</summary><div>${detailRows}${missingRows}</div></details>
+        <details class="dashboard-score-details"><summary>جزئیات وزن و امتیاز شاخص‌ها (${details.length})</summary><div>${detailRows}</div></details>
         <i style="width:${available ? Math.max(0, Math.min(100, value)) : 0}%"></i>
       </article>`;
     }).join("");
@@ -633,23 +608,23 @@
     const factors = a.top_factors || {};
     const positiveFactor = factors.positive;
     const negativeFactor = factors.negative;
-    const historyScoreCard = (label, changeValue, title = "") => {
-      const change = changeValue == null ? NaN : Number(changeValue);
-      if (!validScore || !Number.isFinite(change)) return "";
-      const previousScore = score - change;
-      const changeLabel = change < -0.05 ? `کاهش ${num(Math.abs(change), 1)} امتیاز تا امتیاز فعلی` : change > 0.05 ? `افزایش ${num(change, 1)} امتیاز تا امتیاز فعلی` : "بدون تغییر تا امتیاز فعلی";
-      const changeTone = Math.abs(change) <= 0.05 ? "" : change < 0 ? "negative" : "positive";
-      return `<div class="fund-score-change ${changeTone}"${title ? ` title="${esc(title)}"` : ""}><small>${label}</small><b>${num(previousScore, 1)} از ۱۰۰</b><small>${changeLabel}</small></div>`;
-    };
-    const scoreHistoryItems = [historyScoreCard("امتیاز دیروز", a.score_change_1d), historyScoreCard("امتیاز ماه قبل", a.score_change_20d, "مقایسه بر پایهٔ ۲۰ جلسهٔ معاملاتی قبل")].filter(Boolean);
-    const scoreHistoryHtml = scoreHistoryItems.length ? `<div class="fund-score-changes"><b>تغییر امتیاز</b>${scoreHistoryItems.join("")}</div>` : "";
     const factorSummary = `<div class="fund-model-factors"><span class="positive">نقطه قوت: ${positiveFactor ? `${familyNames[positiveFactor.family] || "عامل تکنیکال"} · ${num(positiveFactor.score, 0)}/100` : "عامل مثبت برجسته‌ای از داده‌های موجود به دست نیامد"}</span><span class="negative">نیازمند توجه: ${negativeFactor ? `${familyNames[negativeFactor.family] || "عامل تکنیکال"} · ${num(negativeFactor.score, 0)}/100` : "عامل منفی برجسته‌ای از داده‌های موجود به دست نیامد"}</span></div>`;
-return `<section class="fund-recommendation ${tone} fund-model-recommendation">
+    const unverified = (Array.isArray(a.missing_data) ? a.missing_data : [])
+      .some((row) => row?.status === "formula_unverified");
+    const modelNote = unverified
+      ? "شاخص‌های فاقد داده یا فرمول قابل اتکا از نمایش و امتیازدهی کنار گذاشته شده‌اند."
+      : "شاخص‌های بدون مقدار نمایش داده نمی‌شوند؛ وزنشان در همان گروه بازتوزیع می‌شود و وزن گروهِ بدون داده بین گروه‌های موجود تقسیم می‌شود.";
+    const changeChip = (label, value) => {
+      const delta = value == null || !Number.isFinite(Number(value)) ? null : Number(value);
+      const klass = delta == null || delta === 0 ? "neutral" : delta > 0 ? "positive" : "negative";
+      const shown = delta == null ? "سابقه کافی نیست" : `${delta > 0 ? "+" : ""}${num(delta, 1)} امتیاز`;
+      return `<span class="fund-score-change ${klass}"><small>${label}</small><b>${shown}</b></span>`;
+    };
+    return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       <div class="fund-model-score-head">
         <div><span class="recommendation-kicker">مدل ${horizonName} AliVest · محاسبه بر پایه داده‌های ره‌آورد</span>
           <h3>امتیاز تکنیکال ${a.dashboard_asset ? "دارایی" : "صندوق"}: <strong>${validScore ? `${num(score, 0)} از ۱۰۰` : "داده کافی نیست"}</strong></h3>
-          <p>${scoreWeightText}. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · امتیاز اندیکاتورها طبق فایل امتیازدهی ${modelVersionLabel} محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود همچنان با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p>
-          ${scoreHistoryHtml}
+          <p>${scoreWeightText}. ارزیابی مدل: <b>${bandLabels[a.score_band] || "نامشخص"}</b> · امتیاز اندیکاتورها طبق منحنی‌های آپدیت ۴.۲ محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود همچنان با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p>
         </div>
         <div class="fund-model-meta">
           <span>پوشش کل داده‌ها <b>${Number.isFinite(coverage) ? `${num(coverage, 0)}٪` : "—"}</b></span>
@@ -661,9 +636,11 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
           <span>ریسک نوسان (بالاتر = ریسک بیشتر) <b>${riskLabels[risk.level] || "نامشخص"}${Number.isFinite(riskScore) ? ` · ${num(riskScore, 0)}/100` : ""}</b></span>
         </div>
       </div>
-      <div class="fund-family-score-grid ${dashboardModel ? "dashboard-profile-grid" : ""}">${familyCards}</div>
+      <div class="fund-family-score-grid">${familyCards}</div>
       ${factorSummary}
       <div class="fund-model-context"><span>${navText}</span></div>
+      <div class="fund-score-changes"><b>تغییر امتیاز در روزهای معاملاتی گذشته</b>${changeChip("۵ روز", a.score_change_5d)}${changeChip("۲۰ روز", a.score_change_20d)}</div>
+      <div class="fund-model-disclaimer"><b>نحوهٔ خواندن امتیاز</b><span>${modelNote} اندیکاتورهای بدون مقدار نمایش داده نمی‌شوند و وزنشان بین اندیکاتورهای قابل‌محاسبهٔ همان گروه تقسیم می‌شود؛ اگر یک گروه کامل داده نداشته باشد، وزنش بین گروه‌های قابل‌محاسبه بازتوزیع می‌شود. امتیاز کل از میانگین متحرک، روند و شتاب، حمایت و مقاومت و اسیلاتورها ساخته می‌شود. اندیکاتورهای مستقل حجم در مدل نیستند؛ NAV و ریسک جداگانه نمایش داده می‌شوند.</span></div>
     </section>`;
   }
 
@@ -692,7 +669,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       { key: "support_resistance", label: "\u062d\u0645\u0627\u06cc\u062a \u0648 \u0645\u0642\u0627\u0648\u0645\u062a", description: "\u067e\u06cc\u0648\u062a\u200c\u0647\u0627\u06cc \u0641\u06cc\u0628\u0648\u0646\u0627\u0686\u06cc\u060c \u06a9\u0644\u0627\u0633\u06cc\u06a9\u060c \u06a9\u0627\u0645\u0627\u0631\u06cc\u0644\u0627\u060c \u0648\u0648\u062f\u06cc \u0648 \u062f\u06cc\u200c\u0645\u0627\u0631\u06a9" },
       { key: "oscillators", label: "\u0627\u0633\u06cc\u0644\u0627\u062a\u0648\u0631\u0647\u0627", description: "RSI\u060c MFI\u060c CCI\u060c SO (%K\u061b WR \u0627\u062f\u063a\u0627\u0645 \u0634\u062f\u0647)\u060c StochRSI \u0648 MTM" },
     ];
-    const familyCards = familyDefinitions.filter((factor) => scores[factor.key] != null && typeof scores[factor.key] === "object").map((factor) => {
+    const familyCards = familyDefinitions.filter((factor) => finite(scores[factor.key]?.score)).map((factor) => {
       const family = scores[factor.key] || {};
       const value = finite(family.score) ? Number(family.score) : null;
       const weight = finite(weights[factor.key]) ? Number(weights[factor.key]) : 0;
@@ -707,16 +684,14 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
           : finite(item.value) ? "مقدار " + num(item.value, 1) : "";
         return "<div class=\"dashboard-score-detail-row " + itemTone + "\" title=\"" + esc(item.note || "") + "\"><span>" + esc(item.name || item.key || "شاخص") + " <small>وزن در گروه " + num(item.weight_pct, 1) + "٪" + (raw ? " · " + esc(raw) : "") + "</small></span><b>" + (hasScore ? num(item.score, 0) : "—") + "</b></div>";
       }).join("");
-      const missingKeys = Array.isArray(family.missing_indicators) ? family.missing_indicators : [];
-      const missing = missingKeys.length;
-      const missingRows = missingKeys.map((key) => "<div class=\"dashboard-score-detail-row unavailable\"><span>" + esc(key) + " <small>دادهٔ لازم در منبع موجود نیست</small></span><b>—</b></div>").join("");
+      const missing = Array.isArray(family.missing_indicators) ? family.missing_indicators.length : 0;
       const effective = finite(effectiveWeights[factor.key]) ? " · وزن مؤثر " + num(effectiveWeights[factor.key], 1) + "٪" : "";
       return "<article class=\"fund-family-score-card " + tone + "\">" +
         "<div class=\"fund-family-score-head\"><span>" + factor.label + "</span><b>وزن کل " + num(weight, 0) + "٪</b></div>" +
         "<strong>" + (value == null ? "—" : num(value, 0) + " از ۱۰۰") + "</strong>" +
         "<small>" + factor.description + "</small>" +
         "<div class=\"fund-family-coverage\"><span>پوشش " + coverage + "</span><span>" + (missing ? missing + " شاخص بی‌داده" : "همه شاخص‌ها محاسبه شد") + effective + "</span></div>" +
-        "<details class=\"dashboard-score-details\"><summary>جزئیات وزن و امتیاز اندیکاتورها (" + details.length + missing + ")</summary><div>" + detailRows + missingRows + "</div></details>" +
+        "<details class=\"dashboard-score-details\"><summary>جزئیات وزن و امتیاز اندیکاتورها (" + details.length + ")</summary><div>" + detailRows + "</div></details>" +
         "<i style=\"width:" + (value == null ? 0 : Math.max(0, Math.min(100, value))) + "%\"></i></article>";
     }).join("");
     const unitLabels = { GOLD: "دلار / اونس", USD_IR_FREE: "تومان", TEPIX: "واحد", GOLD_18K: "ریال / گرم" };
@@ -732,7 +707,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     return "<section class=\"fund-recommendation " + scoreTone + " fund-model-recommendation dashboard-model-recommendation\">" +
       "<div class=\"fund-model-score-head\"><div><span class=\"recommendation-kicker\">مدل " + horizonName + " · امتیاز اختصاصی AliVest بر پایهٔ داده‌های ره‌آورد</span>" +
       "<h3>امتیاز تکنیکال: <strong>" + (scoreValue == null ? "داده کافی نیست" : num(scoreValue, 0) + " از ۱۰۰") + "</strong> · " + (bandLabels[a.score_band] || "نامشخص") + "</h3>" +
-      "<p>" + scoreWeightText + " · امتیاز اندیکاتورها طبق فایل امتیازدهی ۴.۲ محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p></div>" +
+      "<p>" + scoreWeightText + " · امتیاز اندیکاتورها طبق منحنی‌های آپدیت ۴.۲ محاسبه می‌شود؛ در روند قوی، اثر سیگنال خلاف روندِ اسیلاتورها و باندها نصف می‌شود. ورود با امتیاز میانگین‌ها و امتیاز کل سنجیده می‌شود؛ ADX قدرت روند را می‌سنجد و جهتش از DI یا میانگین‌ها می‌آید.</p></div>" +
       "<div class=\"fund-model-meta\"><span>قیمت فعلی <b>" + price + "</b></span><span>تغییر روزانه <b>" + daily + "</b></span>" +
       "<span>جمع‌بندی " + horizonName + " <b>" + trend + "</b></span><span>قدرت حرکت (ADX) <b>" + strength + "</b></span>" +
       "<span>ریسک نوسان <b>" + risk + (finite(a.risk_score) ? " · " + num(a.risk_score, 0) : "") + "</b></span>" +
@@ -747,7 +722,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       "<div class=\"fund-model-context dashboard-levels\">" + levelText("حمایت نزدیک", a.nearest_support?.midpoint, a.score_breakdown?.support_distance_pct) +
       levelText("مقاومت پیش‌رو", a.nearest_resistance?.midpoint, a.score_breakdown?.resistance_distance_pct) +
       levelText("سطح ساختاری", a.structural_invalidation_level, null) + "</div>" +
-      "<div class=\"fund-model-disclaimer\"><b>روش و محدودیت محاسبه</b><span>امتیاز کل بر پایهٔ چهار گروه میانگین‌های متحرک، روند و شتاب، حمایت و مقاومت و اسیلاتورها محاسبه می‌شود. اندیکاتورهای بدون مقدار نمایش داده نمی‌شوند و وزنشان در همان گروه بین اندیکاتورهای موجود تقسیم می‌شود؛ اگر یک گروه کامل داده نداشته باشد، وزن آن بین گروه‌های قابل‌محاسبه بازتوزیع می‌شود. این نمایش مطابق وزن‌دهی نسخهٔ ۴.۲ است. " +
+      "<div class=\"fund-model-disclaimer\"><b>روش و محدودیت محاسبه</b><span>امتیاز کل از گروه‌های میانگین‌های متحرک، روند و شتاب، حمایت و مقاومت و اسیلاتورها به‌دست می‌آید. اندیکاتورهای بدون مقدار نمایش داده نمی‌شوند و وزنشان در همان گروه بین اندیکاتورهای موجود تقسیم می‌شود؛ اگر یک گروه کامل داده نداشته باشد، وزن آن بین گروه‌های قابل‌محاسبه بازتوزیع می‌شود. اندیکاتورهای مستقل حجم و کارت حجم حذف شده‌اند؛ MFI طبق اکسل در گروه اسیلاتورها باقی است. " +
       limitations.map(esc).join(" ") + "</span></div></section>";
   }
 
@@ -828,7 +803,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       : direction < 0 ? `سیگنال کلی ${verdict} است و احتمال ادامهٔ روند نزولی ${num(bearishProbability, 0)}٪ برآورد شده است.`
         : "سیگنال‌ها هم‌جهت نیستند؛ برای ورود، تثبیت قیمت و کاهش ریسک اصلاح را بررسی کن.";
     const scoreWeights = a.score_weights || {};
-    const scoreWeightText = `مدل ${horizonLabel()} · میانگین متحرک ${num(scoreWeights.moving_averages ?? 0, 0)}٪ · روند و شتاب ${num(scoreWeights.trend_momentum ?? 0, 0)}٪ · حمایت و مقاومت ${num(scoreWeights.support_resistance ?? 0, 0)}٪ · اسیلاتورها ${num(scoreWeights.oscillators ?? 0, 0)}٪ · حجم و نقدینگی ${num(scoreWeights.volume_flow ?? 0, 0)}٪`;
+    const scoreWeightText = `مدل ${horizonLabel()} · میانگین متحرک ${num(scoreWeights.moving_averages ?? 0, 0)}٪ · روند و شتاب ${num(scoreWeights.trend_momentum ?? 0, 0)}٪ · حمایت و مقاومت ${num(scoreWeights.support_resistance ?? 0, 0)}٪ · اسیلاتورها ${num(scoreWeights.oscillators ?? 0, 0)}٪`;
     const scoreCard = (label, value, detail, tone = "neutral") => value == null ? "" : `<article class="analysis-score-card ${tone}"><span>${label}</span><strong>${num(value, 0)}٪</strong><small>${detail}</small><i style="width:${Math.max(0, Math.min(100, value))}%"></i></article>`;
     const stats = countsAvailable ? `<div class="recommendation-stats">${buy != null ? `<span class="recommendation-count buy">خرید <b>${num(buy, 0)}</b></span>` : ""}${neutral != null ? `<span class="recommendation-count neutral">خنثی <b>${num(neutral, 0)}</b></span>` : ""}${sell != null ? `<span class="recommendation-count sell">فروش <b>${num(sell, 0)}</b></span>` : ""}</div>` : "";
     return `<section class="fund-recommendation ${tone}"><div class="fund-recommendation-main"><div><span class="recommendation-kicker">${a.source === "Rahavard365" ? "شاخص‌های ره‌آورد · امتیاز مدل AliVest" : `مدل ${horizonLabel()} AliVest`} · ${esc(a.symbol || "این دارایی")}</span><h3>${a.source === "Rahavard365" ? "سیگنال ره‌آورد" : "برآورد مدل AliVest"}: <strong>${verdict}</strong></h3></div><div class="recommendation-context"><p>${esc(rationale)}</p><div class="recommendation-trend ${trendTone}"><span>روند فعلی</span><b>${trendLabel}</b></div></div></div><div class="analysis-score-grid"><div class="analysis-score-card primary ${tone}"><span>امتیاز کلی تکنیکال</span><strong>${a.technical_score == null ? "—" : `${num(a.technical_score, 0)}٪`}</strong><small>${scoreWeightText}</small><i style="width:${a.technical_score == null ? 0 : Math.max(0, Math.min(100, Number(a.technical_score)))}%"></i></div>${scoreCard("میانگین‌های متحرک", movingAverageScore, "جایگاه قیمت نسبت به EMA / SMA", Math.floor(movingAverageScore + 0.5) >= 70 ? "positive" : Math.floor(movingAverageScore + 0.5) <= 40 ? "negative" : "neutral")}${scoreCard("روند و شتاب", trendMomentumScore, "MACD · ADX · AROON · AO", Math.floor(trendMomentumScore + 0.5) >= 70 ? "positive" : Math.floor(trendMomentumScore + 0.5) <= 40 ? "negative" : "neutral")}${scoreCard("نوسان‌گرها", oscillatorScore, oscillatorDetail, Math.floor(oscillatorScore + 0.5) >= 70 ? "positive" : Math.floor(oscillatorScore + 0.5) <= 40 ? "negative" : "neutral")}${scoreCard("حمایت و مقاومت", resistanceScore, `${num(nearResistanceCount, 0)} سطح نزدیک · ${num(Number(scores.front_resistance_count ?? resistanceLevels.length), 0)} سطح جلو`, resistanceScore != null && Math.floor(resistanceScore + 0.5) <= 40 ? "negative" : "neutral")}</div><div class="analysis-probability-grid"><article class="analysis-probability bullish"><div><span>ادامهٔ روند صعودی</span><strong>${num(bullishProbability, 0)}٪</strong></div><i style="width:${Math.max(0, Math.min(100, bullishProbability))}%"></i></article><article class="analysis-probability bearish"><div><span>ادامهٔ روند نزولی</span><strong>${num(bearishProbability, 0)}٪</strong></div><i style="width:${Math.max(0, Math.min(100, bearishProbability))}%"></i></article><article class="analysis-probability correction"><div><span>ریسک اصلاح</span><strong>${num(correctionProbability, 0)}٪</strong></div><small>سطح ریسک: ${esc(correctionLabel)}</small><i style="width:${Math.max(0, Math.min(100, correctionProbability))}%"></i></article></div>${stats}</section>`;
@@ -1076,20 +1051,6 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       bouncefromlower: ["صعودی", "positive"], nearupperuptrend: ["نزولی", "negative"]
     };
     const groups = { ...(a.indicators || {}), volumes: [] };
-    const volumeIndicator = (item) => /^(OBV|RV|VRSI|VMACD|SM)\s*\(/i.test(String(item?.short_name_en || item?.name_en || ""));
-    const includeFundVolume = String(a.score_method || "").startsWith("fund_rahavard_excel_weighted_update431_");
-    if (includeFundVolume) {
-      groups.volumes = (a.family_scores?.volume_flow?.indicators || []).map((item) => {
-        const source = item.value || {};
-        const key = String(item.key || "");
-        let parts = [];
-        if (key.startsWith("RV(")) parts = [{ name: "rv", value: source.relative_volume }, { name: "period", value: source.period }, { name: "daily_return_pct", value: source.daily_return_pct }];
-        else if (key.startsWith("VRSI(")) parts = [{ name: "vrsi", value: source.value }];
-        else if (key.startsWith("VMACD(")) parts = [{ name: "vmacd", value: source.value }, { name: "signal", value: source.signal }, { name: "histogram", value: source.histogram }];
-        else if (key.startsWith("OBV(")) parts = [{ name: "obv", value: source.value }, { name: "sma20", value: source.sma20 }, { name: "deviation_pct", value: source.deviation_pct }];
-        return { short_name_en: key, name_en: key, signal: item.signal, score: item.score, value: parts.filter((part) => part.value != null && Number.isFinite(Number(part.value))) };
-      }).filter((item) => item.value.length);
-    }
     const scoreMap = indicatorScoreMap(a);
     const hasModelScores = Object.keys(a.family_scores || {}).length > 0;
     const notes = new Map((a.indicator_notes || []).map((x) => [x.name, x]));
@@ -1104,9 +1065,10 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       histogram: "هیستوگرام", mtm: "تغییر ۶ روزه (مومنتوم)", previous_value: "مقدار قبلی",
       dl: "فاصله قیمت تا کف (%)", distance: "فاصله قیمت تا سقف (%)", pivot: "نقطه پیوت", r1: "مقاومت ۱", r2: "مقاومت ۲", r3: "مقاومت ۳",
       r4: "مقاومت ۴", s1: "حمایت ۱", s2: "حمایت ۲", s3: "حمایت ۳", s4: "حمایت ۴",
-      rv: "حجم نسبی", vrsi: "VRSI", vmacd: "VMACD", obv: "OBV", period: "دوره", daily_return_pct: "بازده روزانه", sma20: "میانگین ۲۰روزه", deviation_pct: "فاصله از میانگین (%)"
+      rv: "حجم نسبی", vrsi: "VRSI", vmacd: "VMACD", obv: "OBV"
     };
-    const cards = Object.entries(groups).flatMap(([group, items]) => group === "pivots" || (group === "volumes" && !includeFundVolume) ? [] : (items || []).filter((item) => (group === "volumes" || !volumeIndicator(item)) && hasIndicatorValue(item)).map((item) => {
+    const volumeIndicator = (item) => /^(OBV|RV|VRSI|VMACD|SM)\s*\(/i.test(String(item?.short_name_en || item?.name_en || ""));
+    const cards = Object.entries(groups).flatMap(([group, items]) => group === "pivots" || group === "volumes" ? [] : (items || []).filter((item) => !volumeIndicator(item) && hasIndicatorValue(item)).map((item) => {
       const name = item.short_name_en || item.name_en || "شاخص ره‌آورد";
       const displayName = /^MACD\(/i.test(name) ? "MACD(12,26,9)" : name;
       const note = notes.get(name) || {};
@@ -1119,17 +1081,16 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
         ? (({ label, state }) => [label, state])(scoreBandAssessment(explicitScore))
         : (hasModelScores ? ["خنثی", "neutral"] : (siteSignals[signalKey] || ["خنثی", "neutral"]));
       const parts = Array.isArray(item.value) ? item.value : [];
-      const values = (group !== "volumes" && parts.length === 1 && Number.isFinite(Number(modelScore)))
+      const values = (parts.length === 1 && Number.isFinite(Number(modelScore)))
         ? `<div class="rahavard-indicator-value"><span>امتیاز شاخص (از ۱۰۰)</span><b>${num(modelScore, 1)}</b></div>`
         : parts.map((part) => {
         const val = Number(part.value);
         if (!Number.isFinite(val)) return "";
         const key = String(part.name || "");
         const percentValue = /distance/i.test(key) || key === "dl";
-        const percentAlreadyScaled = key === "daily_return_pct" || key === "deviation_pct";
         const priceIndicator = /^(EMA|SMA|BB|KELTNER|Ichimoku|PivotPoint)/i.test(name) && !percentValue;
         const normalizedValue = /stochrsi/i.test(name) && /stochrsi/i.test(key) ? (val <= 1 ? val * 100 : val) : val;
-        const rendered = percentValue ? pct(val * 100) : percentAlreadyScaled ? pct(val) : num(normalizedValue, priceIndicator ? 0 : 2);
+        const rendered = percentValue ? pct(val * 100) : num(normalizedValue, priceIndicator ? 0 : 2);
         return `<div class="rahavard-indicator-value"><span>${esc(valueNames[key] || part.long_name_en || key)}</span><b>${rendered}</b></div>`;
       }).join("");
       const noValueNote = computedFromChart ? "دادهٔ کافی برای محاسبهٔ این شاخص موجود نیست." : "مقداری در پاسخ ره‌آورد نبود.";
@@ -1308,7 +1269,6 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     try { localStorage.setItem(horizonStorageKey, next); } catch {}
     fundScoreGeneration += 1;
     fundScoreAttemptedKeys.clear();
-    fundScoreCache.clear();
     syncInvestmentHorizonControl();
     toast(`امتیازدهی ${horizonLabel()} در حال به‌روزرسانی است…`);
     const reloads = [loadOverview()];
@@ -1389,21 +1349,9 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     if (list) list.innerHTML = items.map((n) => `<div class="news-row"><div><strong>${esc(n.title)}</strong><small>${esc(n.source || "")} ${n.url ? `· <a href="${esc(n.url)}" target="_blank" rel="noopener">مشاهده منبع ↗</a>` : ""}</small></div><span class="news-state">${esc(n.category || "تحلیل‌نشده")}</span><span class="news-state">${esc(n.sentiment || "تحلیل نشده")} / ${esc(n.impact || "نامشخص")}</span><span>${esc(formatDate(n.published_at))}</span></div>`).join("");
   }
 
-  function renderGlobalFundSearch(items, query = "") {
-    const target = $("#global-search-results");
-    if (!target) return;
-    const rows = (items || []).slice(0, 8);
-    target.innerHTML = rows.length ? rows.map((fund) => {
-      const key = fund.fund_key || fund.symbol || fund.rahavard_asset_id;
-      const symbol = fund.display_symbol || fund.symbol || ("شناسه " + (fund.rahavard_asset_id || ""));
-      return '<button class="global-search-result" type="button" role="option" data-global-fund-open="' + esc(key) + '"><span><strong>' + esc(fund.name || symbol) + '</strong><small>' + esc(symbol) + ' · ' + esc(fund.fund_type_label || fund.category || "صندوق") + '</small></span><span class="global-search-result-price">' + (fund.market_price == null ? "" : money(fund.market_price)) + '</span></button>';
-    }).join("") : '<div class="global-search-empty">' + (query ? "نمادی با این نام پیدا نشد" : "نام یا نماد صندوق را وارد کنید") + '</div>';
-    target.classList.remove("hidden");
-  }
   async function loadFunds(options = {}) {
     if (options.forceNav) fundNavAttemptedKeys.clear();
     const requestedNavGeneration = ++fundNavGeneration;
-    const requestedScoreGeneration = ++fundScoreGeneration;
     const requestedHorizon = state.investmentHorizon;
     try {
       const url = new URL("/api/funds", location.origin);
@@ -1412,8 +1360,8 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       const sort = options.sort ?? $("#fund-sort")?.value ?? "data_timestamp";
       url.searchParams.set("search", search); url.searchParams.set("category", category); url.searchParams.set("sort", sort);
       const data = await api(url.pathname + url.search);
-      if (requestedHorizon !== state.investmentHorizon || requestedNavGeneration !== fundNavGeneration || requestedScoreGeneration !== fundScoreGeneration) return;
-      state.funds = sortedFundItems((data.items || []).map(restoreFundScore));
+      if (requestedHorizon !== state.investmentHorizon) return;
+      state.funds = sortedFundItems(data.items);
       state.funds.forEach((fund) => {
         const cachedNav = fundNavValueCache.get(String(fund.fund_key || fund.symbol || ""));
         if (cachedNav) {
@@ -1424,7 +1372,6 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
             ? (price / nav - 1) * 100 : null;
         }
       });
-      if (options.searchOnly) { renderGlobalFundSearch(state.funds, search); return; }
       const resultCount = $("#fund-result-count");
       if (resultCount) resultCount.textContent = `${nf.format(data.count)} صندوق`;
       renderFundTable(state.funds);
@@ -1445,14 +1392,32 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
         void fillVisibleFundNavs(requestedNavGeneration);
       }
     } catch (err) {
-      if (options.searchOnly) {
-        const target = $("#global-search-results");
-        if (target) {
-          target.innerHTML = '<div class="global-search-empty">جست‌وجوی نماد ناموفق بود: ' + esc(err.message) + '</div>';
-          target.classList.remove("hidden");
-        }
-      } else if (!options.quiet) toast("فهرست صندوق‌ها در دسترس نیست: " + err.message, true);
+      if (!options.quiet) toast(`فهرست صندوق‌ها در دسترس نیست: ${err.message}`, true);
       $("#funds-freshness") && freshness($("#funds-freshness"), "unavailable", null);
+    }
+  }
+
+  async function loadStocks() {
+    const body = $("#stock-table");
+    if (!body) return;
+    try {
+      const search = $("#stock-search")?.value || "";
+      const data = await api(`/api/stocks?search=${encodeURIComponent(search)}&sort=data_timestamp`);
+      state.stocks = data.items || [];
+      state.stocks.forEach((stock) => { if (state.stockScores[stock.fund_key] != null) stock.technical_score = state.stockScores[stock.fund_key]; });
+      $("#stock-result-count").textContent = `${nf.format(data.count || 0)} نماد`;
+      const status = _sourceByName("rahavard_stocks");
+      if (status) freshness($("#stocks-freshness"), status.status, status.last_data_timestamp);
+      body.innerHTML = state.stocks.length ? state.stocks.map((s) => {
+        const score = Number.isFinite(Number(s.technical_score)) ? Number(s.technical_score) : null;
+        const direction = score == null ? "—" : score >= 70 ? "صعودی" : score <= 40 ? "نزولی" : "خنثی";
+        const tone = direction === "صعودی" ? "positive" : direction === "نزولی" ? "negative" : direction === "خنثی" ? "neutral" : "unknown";
+        const raw = s.raw || {};
+        const daily = s.daily_return;
+        return `<tr><td data-label="نام نماد"><strong>${esc(s.name || s.symbol)}</strong></td><td data-label="امتیاز"><span class="technical-score-chip ${tone}">${score == null ? "—" : `${num(score, 0)} / 100`}</span></td><td data-label="جهت"><span class="fund-purchase-chip ${tone}">${direction}</span></td><td data-label="تغییر روزانه" class="${changeClass(daily)}">${pct(daily)}</td><td data-label="حجم">${num(s.volume, 0)}</td><td data-label="ارزش معامله">${money(s.value)}</td><td data-label="آخرین قیمت">${money(s.market_price)}</td><td data-label="زمان داده">${esc(formatDate(s.data_timestamp))}<button class="button button-quiet stock-analyze" data-stock-analysis="${esc(s.fund_key)}">تحلیل</button></td></tr>`;
+      }).join("") : `<tr><td colspan="8"><div class="empty-state"><b>نمادی برای این جست‌وجو پیدا نشد</b></div></td></tr>`;
+    } catch (error) {
+      body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><b>دریافت فهرست سهام ناموفق بود</b><small>${esc(error.message)}</small></div></td></tr>`;
     }
   }
 
@@ -1607,7 +1572,6 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
               listed.risk_score = result.risk_score;
               listed.score_change_5d = result.score_change_5d;
               listed.score_change_20d = result.score_change_20d;
-              rememberFundScore(listed);
             }
           } else {
             unavailable += 1;
@@ -1707,20 +1671,12 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
         ["ارزش معامله (ریال)", f.value], ["حجم معامله", f.volume],
         ["زمان داده", f.data_timestamp]
       ];
-      const renderProperty = ([label, value], className) => {
+      const propsHtml = props.map(([label, value]) => {
         const rendered = typeof value === "number" ? money(value) : text(value);
-        return '<div class="property ' + (className || "") + '"><span>' + esc(label) + '</span><b>' + esc(rendered) + '</b></div>';
-      };
-      const headlineProps = props.slice(5, 8);
-      const supportingProps = props.filter((_, index) => ![5, 6, 7].includes(index));
-      const headlineHtml = headlineProps.map((prop, index) => renderProperty(prop, "fund-detail-metric fund-detail-metric-" + (index + 1))).join("");
-      const propsHtml = supportingProps.map((prop) => renderProperty(prop, "fund-detail-property")).join("");
-      const technicalHtml = a ? analysisHtml(a) : '<div class="empty-state compact"><b>دادهٔ تحلیل نمودار ره‌آورد دریافت نشد</b><small>' + esc(technicalError || "دریافت کندل‌های نمودار ناموفق بود. لطفاً کمی بعد دوباره تلاش کنید.") + '</small></div>';
-      section.innerHTML =
-        '<div class="fund-detail-head"><div class="fund-detail-heading"><span class="panel-kicker">نمایهٔ صندوق <i></i> ' + esc(displaySymbol) + '</span><h2>' + esc(f.name || displaySymbol) + '</h2><p>قیمت و NAV از ره‌آورد۳۶۵ <span>·</span> داده تا ' + esc(formatDate(f.data_timestamp)) + '</p></div><button class="icon-button fund-detail-close" data-close-fund aria-label="بستن">×</button></div>' +
-        '<div class="fund-detail-body"><div class="fund-detail-overview"><div class="fund-detail-metrics">' + headlineHtml + '</div><div class="fund-detail-properties"><div class="fund-detail-section-title"><span>مشخصات صندوق</span><small>اطلاعات نماد و معاملات</small></div><div class="fund-properties">' + propsHtml + '</div></div></div>' +
-        '<aside class="fund-detail-data"><div class="fund-detail-section-title"><span>داده‌های تکمیلی</span><small>منبع و پوشش تاریخچه</small></div><p class="fund-chart-caption">کندل‌های نمودار ره‌آورد دریافت می‌شوند و مقدار اندیکاتورها داخل سامانه از روی آن‌ها محاسبه می‌شود.</p><div class="source-line">قیمت، NAV و کندل‌های تکنیکال: ره‌آورد۳۶۵<br>' + nf.format(data.history?.length || 0) + ' مشاهدهٔ قیمت · ' + nf.format(data.nav_history?.length || 0) + ' مشاهدهٔ NAV<br>محاسبهٔ اندیکاتورها: داخلی</div><a class="button button-quiet" href="/api/funds/' + encodeURIComponent(symbol) + '/history" target="_blank" rel="noopener">مشاهدهٔ دادهٔ خام قیمت و NAV <span>↗</span></a></aside></div>' +
-        '<div class="fund-analysis-full"><div class="fund-detail-section-title"><span>تحلیل تکنیکال</span><small>محاسبه‌شده از داده‌های نمودار ره‌آورد</small></div>' + technicalHtml + '</div>';
+        return `<div class="property"><span>${label}</span><b>${esc(rendered)}</b></div>`;
+      }).join("");
+      const technicalHtml = a ? analysisHtml(a) : `<div class="empty-state compact"><b>دادهٔ تحلیل نمودار ره‌آورد دریافت نشد</b><small>${esc(technicalError || "دریافت کندل‌های نمودار ناموفق بود. لطفاً کمی بعد دوباره تلاش کنید.")}</small></div>`;
+      section.innerHTML = `<div class="fund-detail-head"><div><span class="panel-kicker">نمایه صندوق · ${esc(displaySymbol)}</span><h2>${esc(f.name || displaySymbol)}</h2><p>فهرست، قیمت و NAV از ره‌آورد۳۶۵ · داده تا ${esc(formatDate(f.data_timestamp))}</p></div><button class="icon-button" data-close-fund aria-label="بستن">×</button></div><div class="fund-detail-body"><div><div class="fund-properties">${propsHtml}</div></div><div><h3>داده‌های تکمیلی</h3><p class="fund-chart-caption">کندل‌های نمودار ره‌آورد دریافت می‌شوند و مقدار اندیکاتورها داخل سامانه از روی آن‌ها محاسبه می‌شود.</p><div class="source-line">قیمت، NAV و کندل‌های تکنیکال: ره‌آورد۳۶۵ · ${nf.format(data.history?.length || 0)} مشاهده قیمت · ${nf.format(data.nav_history?.length || 0)} مشاهدهٔ NAV · محاسبهٔ اندیکاتورها: داخلی</div><a class="button button-quiet" href="/api/funds/${encodeURIComponent(symbol)}/history" target="_blank" rel="noopener">مشاهدهٔ دادهٔ خام قیمت و NAV</a></div></div><div class="fund-analysis-full"><h3>تحلیل تکنیکال از روی نمودار ره‌آورد</h3>${technicalHtml}</div>`;
       section.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (err) {
       toast(`نمایه صندوق باز نشد: ${err.message}`, true);
@@ -1729,24 +1685,6 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
 
   function renderPersonalWatchlist(items, totals = {}) {
     const body = $("#watchlist-items");
-    state.watchlistTotals = totals;
-    const sortMode = state.watchlistSortMode || "default";
-    const sortedItems = [...items];
-    if (sortMode === "exit") sortedItems.sort((a, b) => {
-      const gap = (item) => Number.isFinite(Number(item.active_exit_price)) && Number(item.price) > 0
-        ? (Number(item.price) - Number(item.active_exit_price)) / Number(item.price) * 100
-        : Number(item.distance_to_exit?.pct);
-      const av = gap(a), bv = gap(b);
-      return (Number.isFinite(av) ? av : Infinity) - (Number.isFinite(bv) ? bv : Infinity);
-    });    if (sortMode === "score") sortedItems.sort((a, b) => {
-      const av = Number(a.score_change_1d), bv = Number(b.score_change_1d);
-      return (Number.isFinite(av) && av < 0 ? av : Infinity) - (Number.isFinite(bv) && bv < 0 ? bv : Infinity);
-    });
-    if (sortMode === "profit") sortedItems.sort((a, b) => {
-      const av = Number(a.profit?.total), bv = Number(b.profit?.total);
-      return (Number.isFinite(bv) ? bv : -Infinity) - (Number.isFinite(av) ? av : -Infinity);
-    });
-    const primaryExitLabel = state.investmentHorizon === "short" ? "EMA(10)" : "SMA(30)";
     const summary = $("#watchlist-summary-values");
     const pnlTone = totals.pnl == null ? "" : Number(totals.pnl) > 0 ? "positive" : Number(totals.pnl) < 0 ? "negative" : "neutral";
     const summaryValues = [
@@ -1762,23 +1700,14 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       body.innerHTML = `<div class="empty-state watchlist-empty"><span>◎</span><b>هنوز نمادی در دیده‌بان نیست</b></div>`;
       return;
     }
-    const rows = sortedItems.map((item) => {
+    const rows = items.map((item) => {
       const custom = Boolean(item.is_custom_symbol);
       const openAttrs = custom ? "disabled aria-disabled=\"true\"" : `data-watch-open="${esc(item.fund_key)}"`;
       const profit = item.profit || {};
       const profitTone = Number(profit.total) > 0 ? "positive" : Number(profit.total) < 0 ? "negative" : "";
       const priceTone = Number(item.daily_return) > 0 ? "positive" : Number(item.daily_return) < 0 ? "negative" : "";
       const scoreValue = item.technical_score == null ? null : Number(item.technical_score);
-      const scoreTone = !Number.isFinite(scoreValue) ? "unknown" : scoreValue > 65 ? "positive" : scoreValue < 40 ? "negative" : "neutral";
-      const scoreBand = !Number.isFinite(scoreValue) ? "نامشخص" : scoreValue < 40 ? "ضعیف" : scoreValue <= 65 ? "خنثی" : "قوی";
-      const scoreDelta = item.score_change_1d == null ? null : Number(item.score_change_1d);
-      const scoreDeltaHtml = Number.isFinite(scoreDelta) ? `<small class="watch-score-delta ${scoreDelta > 0 ? "positive" : scoreDelta < 0 ? "negative" : "neutral"}" title="تغییر امتیاز نسبت به روز معاملاتی قبل">${scoreDelta > 0 ? "↑" : scoreDelta < 0 ? "↓" : "→"} ${num(Math.abs(scoreDelta), 1)}</small>` : "";
-      const familyScores = item.family_scores || {};
-      const familyScore = (key) => familyScores[key]?.score == null ? null : Number(familyScores[key].score);
-      const scoreParts = [["میانگین متحرک", familyScore("moving_averages")], ["نوسان‌گر", familyScore("oscillators")], ["روند/مومنتوم", familyScore("trend_momentum")], ["حمایت/مقاومت", familyScore("support_resistance")]].filter(([, value]) => Number.isFinite(value));
-        const volumeScore = familyScore("volume_flow");
-        if (Number.isFinite(volumeScore)) scoreParts.push(["\u062d\u062c\u0645/\u062c\u0631\u06cc\u0627\u0646 \u0646\u0642\u062f\u06cc\u0646\u06af\u06cc", volumeScore]);      const riskScore = item.risk_rank?.score == null ? null : Number(item.risk_rank.score);
-      const scoreTooltip = [...scoreParts.map(([label, value]) => `${label}: ${num(value, 1)}`), riskScore == null ? "ریسک: ناموجود" : `ریسک: ${num(riskScore, 1)}`, "حجم و جریان نقدینگی در امتیاز مدل ۴.۳ اثر دارند"].join(" · ");
+      const scoreTone = !Number.isFinite(scoreValue) ? "unknown" : Math.floor(scoreValue + 0.5) >= 70 ? "positive" : Math.floor(scoreValue + 0.5) <= 40 ? "negative" : "neutral";
       const marketValue = item.price != null && item.units != null && Number.isFinite(Number(item.price)) && Number.isFinite(Number(item.units))
         ? Number(item.price) * Number(item.units) : null;
       const exitAverage = item.active_exit_average || (item.active_exit_horizon === "کوتاه‌مدت" ? "EMA(10)" : "SMA(30)");
@@ -1798,82 +1727,20 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
           : exitTone === "positive"
             ? "قیمت بیش از ۵٪ بالاتر از حد خروج است"
             : "قیمت یا حد خروج در دسترس نیست";
-      const indicators = item.watchlist_indicators || {};
-      const metric = (key) => {
-        const value = Number(indicators[key]);
-        return indicators[key] == null || !Number.isFinite(value) ? null : value;
-      };
-      const rsi = metric("rsi");
-      const mfi = metric("mfi");
-      const stochRsi = metric("stoch_rsi");
-      const adx = metric("adx");
-      const macdLine = metric("macd_line");
-      const macdSignal = metric("macd_signal");
-      const ema20 = metric("ema20");
-      const ema50 = metric("ema50");
-      const nearestSupport = metric("nearest_support");
-      const nearestResistance = metric("nearest_resistance");
-      const positionUnits = Number(item.units) || 0;
-      const profitPct = profit.pct == null ? null : Number(profit.pct);
-      const exitConfirmed = positionUnits > 0 && Number.isFinite(Number(item.last_daily_close)) && Number.isFinite(activeExitPrice) && Number(item.last_daily_close) < activeExitPrice;
-      const resistanceGapPct = Number.isFinite(nearestResistance) && currentPrice > 0
-        ? (nearestResistance - currentPrice) / currentPrice * 100 : null;
-      const profitTakingSignals = [
-        rsi != null && rsi >= 70,
-        mfi != null && mfi >= 80,
-        stochRsi != null && stochRsi >= 0.8,
-        macdLine != null && macdSignal != null && macdLine < macdSignal,
-        resistanceGapPct != null && resistanceGapPct >= 0 && resistanceGapPct <= 3,
-      ].filter(Boolean).length;
-      const mainExitGapPct = Number.isFinite(activeExitPrice) && Number.isFinite(currentPrice) && currentPrice > 0
-        ? (currentPrice - activeExitPrice) / currentPrice * 100 : null;
-      const nearExitBroken = exitConfirmed;
-      const nearExitWarning = !exitConfirmed && mainExitGapPct != null && mainExitGapPct >= 0 && mainExitGapPct < 2;      let saleDecision;
-      if (custom) saleDecision = { label: "داده کافی نیست", reason: "برای این نماد دادهٔ تحلیلی در دسترس نیست." };
-      else if (positionUnits <= 0) saleDecision = { label: "موقعیتی ثبت نشده", reason: "برای این نماد موقعیت فعالی ثبت نشده است." };
-      else if (exitConfirmed) saleDecision = { label: "خروج کامل", reason: "آخرین کندل روزانه زیر " + exitAverage + " بسته شده؛ حد خروج تأیید است." };
-      else if (nearExitWarning || (scoreValue != null && scoreValue < 40) || profitTakingSignals > 0) {
-        const watchReason = nearExitWarning ? "قیمت به حد خروج اصلی نزدیک است؛ تا تأیید بسته‌شدن کندل زیر میانگین، موقعیت را زیر نظر بگیر." : scoreValue != null && scoreValue < 40 ? "امتیاز تکنیکال ضعیف است؛ موقعیت را زیر نظر بگیر و حد خروج را دنبال کن." : "نشانهٔ احتیاط دیده می‌شود؛ موقعیت را زیر نظر بگیر و تا تأیید حد خروج نگه‌دار.";
-        saleDecision = { label: "نگهداری تحت نظر", reason: watchReason };
-      } else saleDecision = { label: "نگهداری", reason: "حد خروج با بسته‌شدن روزانه زیر " + exitAverage + " تأیید نشده و نشانهٔ هشدار فعالی دیده نمی‌شود." };
-      const stochMacdExplanation = stochRsi != null && stochRsi <= 0.2 && macdLine != null && macdSignal != null && macdLine < macdSignal
-        ? "StochRSI در ناحیهٔ خرید است، اما MACD زیر خط سیگنال مانده؛ برگشت هنوز تأیید نشده است."
-        : "";
-      const chip = (label, tone, title = "") => `<span class="watch-indicator-chip ${tone}"${title ? ` title="${esc(title)}"` : ""}>${esc(label)}</span>`;
-      const indicatorChips = [];
-      if (rsi != null) indicatorChips.push(chip(`RSI ${num(rsi, 1)}`, rsi >= 70 ? "negative" : rsi <= 30 ? "positive" : rsi >= 50 ? "positive" : "neutral"));
-      if (mfi != null) indicatorChips.push(chip(`MFI ${num(mfi, 1)}`, mfi >= 80 ? "negative" : mfi <= 20 ? "positive" : mfi >= 50 ? "positive" : "neutral"));
-      if (stochRsi != null) indicatorChips.push(chip(`StochRSI ${num(stochRsi, 2)}`, stochRsi <= 0.2 ? "positive" : stochRsi >= 0.8 ? "negative" : "neutral", stochMacdExplanation));
-      if (macdLine != null && macdSignal != null) indicatorChips.push(chip(`MACD ${macdLine >= macdSignal ? "بالای سیگنال" : "زیر سیگنال"}`, macdLine >= macdSignal ? "positive" : "negative"));
-      if (adx != null) indicatorChips.push(chip(`ADX ${num(adx, 1)} · قدرت ${adx >= 25 ? "بالا" : adx >= 20 ? "متوسط" : "پایین"}`, "neutral"));
-      if (ema20 != null && Number.isFinite(currentPrice) && currentPrice > 0) indicatorChips.push(chip(currentPrice >= ema20 ? "بالای EMA20" : "زیر EMA20", currentPrice >= ema20 ? "positive" : "negative"));
-      if (ema50 != null && Number.isFinite(currentPrice) && currentPrice > 0) indicatorChips.push(chip(currentPrice >= ema50 ? "بالای EMA50" : "زیر EMA50", currentPrice >= ema50 ? "positive" : "negative"));
-
-      const exitDisplayTone = exitTone;
-
-      const levelNotes = [nearestResistance != null ? `مقاومت نزدیک: ${money(nearestResistance)}` : null].filter(Boolean);
-      const holding = item.holding_decision || {};
-      const basePositionLabel = holding.label || "داده کافی نیست";
-      const positionLabel = saleDecision.label === "موقعیتی ثبت نشده" || saleDecision.label === "داده کافی نیست" ? basePositionLabel : saleDecision.label;
-      let adding = item.add_position_decision || {};
-      if (nearExitWarning) adding = { label: "صبر · نزدیک حد خروج", reason: `فاصلهٔ قیمت تا حد خروج اصلی ${num(mainExitGapPct, 1)}٪ است؛ تا تأیید روزانه، حجم اضافه نکن.` };
-      const showSaleReason = ["خروج کامل", "نگهداری تحت نظر"].includes(saleDecision.label);
-      const detailLines = [holding.reason, adding.reason, stochMacdExplanation, ...levelNotes, showSaleReason ? saleDecision.reason : null].filter(Boolean);
-      const detailsHtml = detailLines.map((line) => `<p>${esc(line)}</p>`).join("");
-      const watchAnalysis = '<div class="watch-analysis-summary"><div class="watch-analysis-actions"><span>موقعیت: <b class="' + (nearExitWarning ? 'warning' : '') + '">' + esc(positionLabel) + '</b></span><span>افزایش حجم: <b>' + esc(adding.label || "صبر") + '</b></span></div><div class="watch-indicator-chips">' + (indicatorChips.join("") || `<span class="watch-analysis-empty">${esc(item.technical_error || "دادهٔ اندیکاتورهای اصلی در دسترس نیست.")}</span>`) + '</div><details class="watch-analysis-details"><summary>جزئیات تحلیل</summary><div class="watch-analysis-details-body">' + (detailsHtml || '<p>جزئیات بیشتری برای این نماد در دسترس نیست.</p>') + '</div></details></div>';      const priceFresh = item.price != null && item.price_is_cached === false;
+      const priceFresh = item.price != null && item.price_is_cached === false;
       const freshnessLabel = priceFresh ? "داده تازه" : "داده کهنه یا ناموجود";
-      return `<tr class="${nearExitBroken ? "watchlist-row-danger" : nearExitWarning ? "watchlist-row-warning" : ""}">
+      return `<tr>
         <td data-label="نماد"><div class="watchlist-symbol-cell"><button class="watch-fund-open${custom ? " watch-fund-open-unavailable" : ""}" type="button" ${openAttrs} aria-label="${custom ? "دادهٔ تحلیلی موجود نیست" : "مشاهده تحلیل"} ${esc(item.name)}"><i class="data-freshness-dot ${priceFresh ? "fresh" : "stale"}" role="img" aria-label="${freshnessLabel}" title="${freshnessLabel}"></i><strong>${esc(item.name || item.symbol || "—")}</strong></button></div></td>
         <td data-label="تعداد"><span class="watch-cell-primary">${num(item.units, 0)}</span></td>
         <td data-label="قیمت سربه‌سر"><span class="watch-cell-primary">${money(item.break_even_price)}</span></td>
         <td data-label="ارزش فعلی"><span class="watch-cell-primary">${money(marketValue)}</span></td>
         <td data-label="آخرین قیمت"><span class="watch-cell-primary">${money(item.price)}</span><small class="watch-cell-secondary ${priceTone}">${item.daily_return == null ? "—" : pct(item.daily_return)}</small></td>
         <td data-label="سود/زیان فعلی"><span class="watch-cell-primary ${profitTone}">${profit.total == null ? "—" : money(profit.total)}</span><small class="watch-cell-secondary ${profitTone}">${profit.pct == null ? "" : `(${pct(profit.pct)})`}</small></td>
-        <td data-label="حد خروج" title="حد اصلی با بسته‌شدن کندل روزانه زیر ${esc(exitAverage)} تأیید می‌شود"><span class="watch-cell-primary ${exitDisplayTone}">${money(item.active_exit_price)}</span></td>
-        <td data-label="امتیاز نماد"><span class="watch-score ${scoreTone}" title="${esc(scoreTooltip || item.technical_error || "امتیاز بر پایهٔ محاسبهٔ اندیکاتورها از نمودار روزانهٔ ره‌آورد")}">${scoreValue == null || !Number.isFinite(scoreValue) ? "—" : `${num(scoreValue, 0)}٪`}</span><small class="watch-score-band ${scoreTone}">${scoreBand}</small>${scoreDeltaHtml}</td><td data-label="تحلیل خلاصه">${watchAnalysis}</td>
+        <td data-label="حد خروج" title="${esc(exitState)}؛ حد خروج با بسته‌شدن کندل روزانه زیر ${esc(exitAverage)} تأیید می‌شود"><span class="watch-cell-primary ${exitTone}">${money(item.active_exit_price)}</span><small class="watch-cell-secondary">${esc(exitAverage)}</small></td>
+        <td data-label="امتیاز نماد"><span class="watch-score ${scoreTone}" title="${esc(item.technical_error || "امتیاز بر پایهٔ محاسبهٔ اندیکاتورها از نمودار روزانهٔ ره‌آورد")}">${scoreValue == null || !Number.isFinite(scoreValue) ? "—" : `${num(scoreValue, 0)}٪`}</span></td>
       </tr>`;
     }).join("");
-    body.innerHTML = `<div class="watchlist-sort-toolbar"><div><label for="watchlist-sort">مرتب‌سازی</label><select id="watchlist-sort"><option value="default" ${sortMode === "default" ? "selected" : ""}>ترتیب پیش‌فرض</option><option value="exit" ${sortMode === "exit" ? "selected" : ""}>نزدیک‌ترین به حد خروج</option><option value="score" ${sortMode === "score" ? "selected" : ""}>بیشترین افت امتیاز</option><option value="profit" ${sortMode === "profit" ? "selected" : ""}>بیشترین سود</option></select></div><small>حد خروج اصلی (${primaryExitLabel}) با بسته‌شدن کندل روزانه زیر آن تأیید می‌شود؛ حمایت نزدیک در فاصلهٔ کمتر از ۲٪ هشدار دارد.</small></div><table class="watchlist-table"><thead><tr><th scope="col">نماد <small>(${nf.format(items.length)})</small></th><th scope="col">تعداد</th><th scope="col">قیمت سربه‌سر</th><th scope="col">ارزش فعلی</th><th scope="col">آخرین قیمت</th><th scope="col">سود/زیان فعلی</th><th scope="col">حد خروج</th><th scope="col">امتیاز نماد</th><th scope="col">تحلیل خلاصه</th></tr></thead><tbody>${rows}</tbody></table>`;
+    body.innerHTML = `<table class="watchlist-table"><thead><tr><th scope="col">نماد <small>(${nf.format(items.length)})</small></th><th scope="col">تعداد</th><th scope="col">قیمت سربه‌سر</th><th scope="col">ارزش فعلی</th><th scope="col">آخرین قیمت</th><th scope="col">سود/زیان فعلی</th><th scope="col">حد خروج</th><th scope="col">امتیاز نماد</th></tr></thead><tbody>${rows}</tbody></table>`;
   }
 
   async function fillVisibleFundNavs(generation = fundNavGeneration) {
@@ -1958,67 +1825,11 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
             item.investment_horizon_label = analysis.investment_horizon_label || horizonLabel();
             item.last_daily_close = analysis.price;
             item.last_daily_close_timestamp = analysis.data_timestamp;
-
             item.technical_data_timestamp = analysis.data_timestamp;
             item.purchase_assessment = result.purchase_assessment;
-            item.watchlist_indicators = analysis.watchlist_indicators || {};
-            item.near_exit_price = item.watchlist_indicators.nearest_support;
-            item.near_exit_confirmed = item.near_exit_price != null && Number(analysis.price) < Number(item.near_exit_price);
-            item.family_scores = analysis.family_scores || {};
-            item.risk_rank = analysis.risk_rank || {};
-            item.score_change_1d = result.score_change_1d ?? analysis.score_change_1d;
-            item.volume_ratio = result.volume_ratio;
-            const quoteDayChange = item.daily_return == null ? null : Number(item.daily_return);
-            item.volume_pressure = Number.isFinite(Number(item.volume_ratio)) && Number(item.volume_ratio) >= 1 && Number.isFinite(quoteDayChange) && quoteDayChange < -0.5
-              ? "selling"
-              : Number.isFinite(Number(item.volume_ratio)) && Number(item.volume_ratio) >= 1 && Number.isFinite(quoteDayChange) && quoteDayChange > 0.5
-                ? "buying" : null;
-
-            const dailyClose = analysis.price == null ? null : Number(analysis.price);
-            const activeExit = item.active_exit_price == null ? null : Number(item.active_exit_price);
-            const technicalScore = item.technical_score == null ? null : Number(item.technical_score);
-            const units = item.units == null ? 0 : Number(item.units);
-            const hasCoreData = Number.isFinite(activeExit) && activeExit > 0 && Number.isFinite(technicalScore);
-            const exitConfirmed = dailyClose != null && Number.isFinite(dailyClose) && Number.isFinite(activeExit) && dailyClose < activeExit;
-            if (!hasCoreData) {
-              item.holding_decision = { label: "داده کافی نیست", tone: "unknown", reason: "برای تعیین نگهداری یا خروج، قیمت و تحلیل کامل لازم است." };
-              item.add_position_decision = { label: "فعلاً اضافه نکن", tone: "neutral", reason: "تا کامل‌شدن داده‌ها برای افزایش حجم صبر کن." };
-            } else if (dailyClose == null || !Number.isFinite(dailyClose)) {
-              item.holding_decision = units <= 0
-                ? { label: "موقعیتی ثبت نشده", tone: "neutral", reason: "برای این نماد تعداد واحدی ثبت نشده است." }
-                : { label: "در انتظار کندل روزانه", tone: "neutral", reason: "قیمت پایانی روزانه برای تأیید حد خروج در دسترس نیست." };
-              item.add_position_decision = { label: "صبر تا تأیید روزانه", tone: "neutral", reason: "تا دریافت قیمت پایانی روزانه، شکست میانگین و شرایط افزودن حجم را تأیید نمی‌کنم." };
-            } else if (exitConfirmed) {
-              item.holding_decision = units <= 0
-                ? { label: "موقعیتی ثبت نشده", tone: "neutral", reason: "برای این نماد تعداد واحدی ثبت نشده است." }
-                : { label: "فروش / کاهش", tone: "negative", reason: "آخرین کندل روزانه زیر " + item.active_exit_average + " بسته شده و حد خروج تأیید شده است." };
-              item.add_position_decision = { label: "خیر · حد خروج تأیید شد", tone: "negative", reason: "تا زمانی که کندل روزانه بالای " + item.active_exit_average + " تثبیت نشده، حجم اضافه نکن." };
-            } else if (units <= 0) {
-              item.holding_decision = { label: "موقعیتی ثبت نشده", tone: "neutral", reason: "برای این نماد تعداد واحدی ثبت نشده است." };
-              item.add_position_decision = result.purchase_assessment?.status === "suitable"
-                ? { label: "بله · پله‌ای", tone: "positive", reason: result.purchase_assessment.reason || "شرایط ورود تأیید شده؛ مرحله‌ای اضافه کن." }
-                : result.purchase_assessment?.status === "unsuitable"
-                  ? { label: "خیر · فعلاً", tone: "negative", reason: result.purchase_assessment.reason || "شرایط ورود مناسب نیست." }
-                  : { label: result.purchase_assessment?.label || "صبر · داده کافی نیست", tone: "neutral", reason: result.purchase_assessment?.reason || "برای افزایش حجم تا کامل‌شدن شرایط ورود صبر کن." };
-            } else if (technicalScore < 40) {
-              item.holding_decision = { label: "کاهش ریسک", tone: "negative", reason: "امتیاز تکنیکال ضعیف است؛ نگهداری کامل ریسک بالاتری دارد." };
-              item.add_position_decision = { label: "خیر · فعلاً", tone: "negative", reason: "امتیاز تکنیکال ضعیف است." };
-            } else {
-              item.holding_decision = { label: "نگهداری", tone: "positive", reason: "آخرین کندل روزانه بالای " + item.active_exit_average + " بسته شده؛ حد خروج فقط با بسته‌شدن روزانه زیر آن فعال می‌شود." };
-              item.add_position_decision = result.purchase_assessment?.status === "suitable"
-                ? { label: "بله · پله‌ای", tone: "positive", reason: result.purchase_assessment.reason || "شرایط ورود تأیید شده؛ مرحله‌ای اضافه کن." }
-                : result.purchase_assessment?.status === "unsuitable"
-                  ? { label: "خیر · فعلاً", tone: "negative", reason: result.purchase_assessment.reason || "شرایط ورود مناسب نیست." }
-                  : { label: result.purchase_assessment?.label || "صبر · داده کافی نیست", tone: "neutral", reason: result.purchase_assessment?.reason || "برای افزایش حجم تا کامل‌شدن شرایط ورود صبر کن." };
-            }
             item.distance_to_exit = item.price != null && item.active_exit_price != null
               ? { value: Number(item.price) - Number(item.active_exit_price), pct: (Number(item.price) - Number(item.active_exit_price)) / Number(item.price) * 100 }
               : null;
-            if (item.volume_pressure === "selling") {
-              item.add_position_decision = { label: "خیر · حجم همراه با فروش", tone: "negative", reason: `حجم معاملات ${item.volume_ratio == null ? "بالاست" : `حدود ${num(item.volume_ratio, 2)} برابر میانگین است`} و کندل روزانه نزولی بسته شده؛ افزایش حجم را فشار فروش در نظر بگیر.` };
-            } else if (item.volume_pressure === "buying" && result.purchase_assessment?.status === "suitable") {
-              item.add_position_decision = { label: "بله · فشار خرید", tone: "positive", reason: `حجم معاملات ${item.volume_ratio == null ? "بالاست" : `حدود ${num(item.volume_ratio, 2)} برابر میانگین است`} و کندل روزانه صعودی بسته شده؛ جهت حجم و قیمت همسو است. ورود را پله‌ای انجام بده.` };
-            }
           }
           renderPersonalWatchlist(state.watchlist, data.totals || {});
         } catch (error) {
@@ -2116,9 +1927,10 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
     state.currentView = name;
     $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
     $$(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
-    const title = ({ overview: "داشبورد", funds: "صندوق‌ها", watchlist: "دیده‌بان", settings: "تنظیمات", admin: "وضعیت سامانه" })[name] || "داشبورد";
+    const title = ({ overview: "داشبورد", funds: "صندوق‌ها", stocks: "سهام", watchlist: "دیده‌بان", settings: "تنظیمات", admin: "وضعیت سامانه" })[name] || "داشبورد";
     $("#crumb-current").textContent = title;
     if (name === "funds") await loadFunds({ forceNav: true });
+    if (name === "stocks") await loadStocks();
     if (name === "watchlist") await loadWatchlist();
     if (name === "admin") await loadAdmin();
     if (name === "settings") await loadSettings();
@@ -2136,6 +1948,7 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
       await loadOverview();
       if (state.currentView === "admin") await loadAdmin();
       if (state.currentView === "funds") await loadFunds({ forceNav: true });
+      if (state.currentView === "stocks") await loadStocks();
       if (state.currentView === "watchlist") await loadWatchlist();
     } catch (err) { toast(`همگام‌سازی کامل نشد: ${err.message}`, true); }
     finally { buttons.forEach((b) => { b.disabled = false; b.classList.remove("spinning"); }); }
@@ -2197,13 +2010,8 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
   $("#watchlist-items").addEventListener("click", async (event) => {
     const open = event.target.closest("[data-watch-open]");
     if (!open) return;
-    await openView("watchlist");
+    await openView("funds");
     await showFund(open.dataset.watchOpen);
-  });
-  $("#watchlist-items").addEventListener("change", (event) => {
-    if (event.target.id !== "watchlist-sort") return;
-    state.watchlistSortMode = event.target.value;
-    renderPersonalWatchlist(state.watchlist, state.watchlistTotals || {});
   });
   $("#watchlist-refresh").addEventListener("click", async (event) => {
     const button = event.currentTarget;
@@ -2264,29 +2072,26 @@ return `<section class="fund-recommendation ${tone} fund-model-recommendation">
   });
   $("#global-search").addEventListener("input", (event) => {
     const value = event.target.value.trim();
-    clearTimeout(globalSearchTimer);
-    const target = $("#global-search-results");
-    if (value.length < 2) { target?.classList.add("hidden"); return; }
-    if (target) { target.innerHTML = '<div class="global-search-empty">در حال جست‌وجو…</div>'; target.classList.remove("hidden"); }
-    globalSearchTimer = setTimeout(() => loadFunds({ search: value, searchOnly: true, quiet: true }), 240);
+    if (value.length >= 2) { openView("funds"); $("#fund-search").value = value; loadFunds({ search: value }); }
   });
-  $("#global-search-results").addEventListener("click", async (event) => {
-    const result = event.target.closest("[data-global-fund-open]");
-    if (!result) return;
-    const key = result.dataset.globalFundOpen;
-    $("#global-search-results").classList.add("hidden");
-    $("#global-search").blur();
-    await openView("watchlist");
-    await showFund(key);
-  });
-  document.addEventListener("click", (event) => {
-    if (!event.target.closest(".global-search-wrap")) $("#global-search-results").classList.add("hidden");
+  $("#stock-search")?.addEventListener("input", () => { clearTimeout(loadStocks.timer); loadStocks.timer = setTimeout(loadStocks, 250); });
+  $("#stock-table")?.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-stock-analysis]");
+    if (!button) return;
+    button.disabled = true; button.textContent = "محاسبه…";
+    try {
+      const result = await api(`/api/stocks/${encodeURIComponent(button.dataset.stockAnalysis)}/technical?horizon=${encodeURIComponent(state.investmentHorizon)}`);
+      const stock = state.stocks.find((item) => item.fund_key === button.dataset.stockAnalysis);
+      if (stock) { stock.technical_score = Number(result.technical_score); state.stockScores[stock.fund_key] = stock.technical_score; }
+      await loadStocks();
+      toast(`امتیاز ${stock?.name || "نماد"}: ${num(result.technical_score, 0)} از ۱۰۰`);
+    } catch (error) { toast(`تحلیل نماد انجام نشد: ${error.message}`, true); button.disabled = false; button.textContent = "تحلیل"; }
   });
   document.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); $("#global-search").focus(); }
     if (event.key === "Escape") { $("#global-search").value = ""; }
   });
-  $("#global-search").addEventListener("search", () => { if (!$("#global-search").value) $("#global-search-results").classList.add("hidden"); });
+  $("#global-search").addEventListener("search", () => { if (!$("#global-search").value) openView("overview"); });
  scheduleWatchlistRefresh();
  document.addEventListener("visibilitychange", () => {
    if (!document.hidden && state.currentView === "watchlist") loadWatchlist();
