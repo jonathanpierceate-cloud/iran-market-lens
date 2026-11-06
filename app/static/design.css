@@ -860,12 +860,12 @@ body.light-mode #view-settings .alert-form { background: #f5f9f6; border-color: 
 #view-stocks #stock-table-grid td { min-width: 0; max-width: none; padding: 10px 11px; border-left: 1px solid rgba(122, 139, 158, .16); text-align: center; vertical-align: middle; }
 #view-stocks #stock-table-grid th { position: sticky; top: 0; z-index: 3; background: #303744; color: #d0d6e0; font-size: 12px; font-weight: 700; white-space: nowrap; border-bottom: 1px solid #3d4655; }
 #view-stocks #stock-table-grid th:first-child,
-#view-stocks #stock-table-grid td:first-child { width: 20%; text-align: right; }
-#view-stocks #stock-table-grid th:nth-child(2), #view-stocks #stock-table-grid td:nth-child(2) { width: 11%; }
-#view-stocks #stock-table-grid th:nth-child(3), #view-stocks #stock-table-grid td:nth-child(3) { width: 10%; }
-#view-stocks #stock-table-grid th:nth-child(4), #view-stocks #stock-table-grid td:nth-child(4) { width: 12%; }
-#view-stocks #stock-table-grid th:nth-child(5), #view-stocks #stock-table-grid td:nth-child(5) { width: 10%; }
-#view-stocks #stock-table-grid th:nth-child(6), #view-stocks #stock-table-grid td:nth-child(6) { width: 14%; }
+#view-stocks #stock-table-grid td:first-child { width: 18%; text-align: right; }
+#view-stocks #stock-table-grid th:nth-child(2), #view-stocks #stock-table-grid td:nth-child(2) { width: 10%; }
+#view-stocks #stock-table-grid th:nth-child(3), #view-stocks #stock-table-grid td:nth-child(3) { width: 18%; }
+#view-stocks #stock-table-grid th:nth-child(4), #view-stocks #stock-table-grid td:nth-child(4) { width: 10%; }
+#view-stocks #stock-table-grid th:nth-child(5), #view-stocks #stock-table-grid td:nth-child(5) { width: 9%; }
+#view-stocks #stock-table-grid th:nth-child(6), #view-stocks #stock-table-grid td:nth-child(6) { width: 12%; }
 #view-stocks #stock-table-grid th:nth-child(7), #view-stocks #stock-table-grid td:nth-child(7) { width: 13%; }
 #view-stocks #stock-table-grid th:nth-child(8), #view-stocks #stock-table-grid td:nth-child(8) { width: 10%; }
 #view-stocks #stock-table-grid th[data-stock-sort] { cursor: pointer; }
@@ -885,6 +885,14 @@ body.light-mode #view-settings .alert-form { background: #f5f9f6; border-color: 
 #view-stocks #stock-table-grid .fund-latest-change.positive { color: #16c79a; }
 #view-stocks #stock-table-grid .fund-latest-change.negative { color: #ff7b89; }
 #view-stocks .fund-update-time { color: #a8b3c2; font: 500 11px Tahoma, sans-serif; }
+#view-stocks #stock-table-grid tbody td.stock-buy-cell { min-width: 210px; direction: rtl; text-align: right; white-space: normal; }
+#view-stocks .fund-purchase-assessment { display: grid; justify-items: start; gap: 5px; width: 100%; min-width: 0; }
+#view-stocks .fund-purchase-chip { display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; max-width: 100%; padding: 5px 10px; border: 1px solid transparent; border-radius: 999px; font: 700 12px Tahoma, sans-serif; line-height: 1.45; white-space: normal; overflow-wrap: anywhere; text-align: center; }
+#view-stocks .fund-purchase-chip.suitable { color: #71d6af; border-color: rgba(76, 196, 151, .32); background: rgba(48, 145, 111, .14); }
+#view-stocks .fund-purchase-chip.wait { color: #edc578; border-color: rgba(222, 177, 82, .32); background: rgba(165, 119, 33, .13); }
+#view-stocks .fund-purchase-chip.unsuitable { color: #ef9aa2; border-color: rgba(226, 101, 120, .32); background: rgba(153, 53, 72, .13); }
+#view-stocks .fund-purchase-chip.unknown { color: #90a2a0; border-color: rgba(127, 157, 151, .22); background: rgba(83, 108, 105, .12); }
+#view-stocks .fund-purchase-assessment small { max-width: 260px; color: #91aaa6; font: 11px Tahoma, sans-serif; line-height: 1.7; }
 #view-stocks .fund-detail { padding: 0; overflow: hidden; background: linear-gradient(145deg, #1a2d35, #14242c); border-color: #385660; }
 #view-stocks .fund-detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 24px 26px 18px; background: linear-gradient(120deg, rgba(42, 88, 83, .26), transparent 55%); border-bottom: 1px solid rgba(102, 150, 148, .2); }
 #view-stocks .fund-detail-head h2 { margin-top: 5px; font-size: 26px; }
@@ -898,6 +906,11 @@ body.light-mode #view-stocks #stock-table-grid th[data-stock-sort]:hover,
 body.light-mode #view-stocks #stock-table-grid th[data-stock-sort].is-sorted { background: #dce9e4; color: #29483f; }
 body.light-mode #view-stocks #stock-table-grid td { color: #334253; border-color: #dce3e8; }
 body.light-mode #view-stocks #stock-table-grid .fund-latest-price { color: #26384b; }
+body.light-mode #view-stocks .fund-purchase-chip.suitable { color: #16845c; background: #e1f4e9; }
+body.light-mode #view-stocks .fund-purchase-chip.wait { color: #946a1a; background: #fbf1d9; }
+body.light-mode #view-stocks .fund-purchase-chip.unsuitable { color: #b33d4d; background: #fbe8eb; }
+body.light-mode #view-stocks .fund-purchase-chip.unknown { color: #71847f; background: #edf3ef; }
+body.light-mode #view-stocks .fund-purchase-assessment small { color: #6c877e; }
 body.light-mode #view-stocks .fund-detail { background: linear-gradient(145deg, #fff, #f5f8fa); }
 body.light-mode #view-stocks .fund-detail-head h2,
 body.light-mode #view-stocks .fund-detail-body > div > h3 { color: #26384b; }
