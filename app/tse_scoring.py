@@ -44,7 +44,7 @@ def _score(z: float | None) -> float | None:
 def _signal(score: float | None) -> str:
     if score is None:
         return "Insufficient Data"
-    shown_score = math.floor(score + 0.5)
+        shown_score = score
     if shown_score >= 70:
         return "Buy"
     if shown_score > 40:
