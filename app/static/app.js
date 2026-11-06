@@ -1486,7 +1486,7 @@
         }
       });
       const resultCount = $("#fund-result-count");
-      if (resultCount) resultCount.textContent = `${nf.format(Math.min(10, data.count))} از ۱۰ رتبهٔ برتر`;
+      if (resultCount) resultCount.textContent = `${nf.format(Math.min(10, data.count))} از ۲۵ رتبهٔ برتر`;
       fundRankingReady = false;
       renderFundTable(state.funds);
       renderMarketWatchlist(options.existing?.length ? options.existing : state.funds.slice(0, 5));
@@ -1536,7 +1536,7 @@
       let processed = state.stocks.length - pending.length;
       if (pending.length) {
         startRankingLoader("stocks", state.stocks.length, processed);
-        body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><b>امتیازدهی همهٔ ${nf.format(state.stocks.length)} نماد در حال انجام است</b><small>پس از پایان، فقط ۱۰ رتبهٔ برتر نمایش داده می‌شوند.</small></div></td></tr>`;
+        body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><b>امتیازدهی همهٔ ${nf.format(state.stocks.length)} نماد در حال انجام است</b><small>پس از پایان، فقط ۲۵ رتبهٔ برتر نمایش داده می‌شوند.</small></div></td></tr>`;
         if (progress) progress.textContent = `امتیازدهی: ${nf.format(processed)} از ${nf.format(state.stocks.length)}`;
         for (let offset = 0; offset < pending.length; offset += 16) {
             if (generation !== stockScoreGeneration || requestedHorizon !== state.investmentHorizon) return;
@@ -1580,10 +1580,10 @@
     const ranked = state.stocks.filter((stock) => Number.isFinite(Number(stock.technical_score)))
       .sort((a, b) => Number(b.technical_score) - Number(a.technical_score));
     const matching = search ? ranked.filter((stock) => `${stock.name || ""} ${stock.display_symbol || ""} ${stock.symbol || ""}`.toLocaleLowerCase("fa").includes(search)) : ranked;
-    const topTen = matching.slice(0, 10);
+    const top25 = matching.slice(0, 25);
     if (stockSortState.key !== "technical_score") {
       const key = stockSortState.key;
-      topTen.sort((a, b) => {
+      top25.sort((a, b) => {
         const left = a[key], right = b[key];
         if (["name", "data_timestamp"].includes(key)) {
           const leftText = key === "name" ? (left || a.display_symbol || a.symbol || "") : String(left || "");
@@ -1596,11 +1596,11 @@
         return (leftNumber - rightNumber) * stockSortState.direction;
       });
     }
-    $("#stock-result-count").textContent = `${nf.format(topTen.length)} از ۱۰ رتبهٔ برتر · ${nf.format(ranked.length)} امتیاز معتبر`;
+    $("#stock-result-count").textContent = `${nf.format(top25.length)} از ۲۵ رتبهٔ برتر · ${nf.format(ranked.length)} امتیاز معتبر`;
     if (progress) progress.textContent = state.stocks.length > ranked.length
       ? `${nf.format(state.stocks.length - ranked.length)} نماد به‌دلیل نبود دادهٔ کافی رتبه نگرفت.`
       : "رتبه‌بندی بر پایهٔ امتیاز تکنیکال";
-    body.innerHTML = topTen.length ? topTen.map((s) => {
+    body.innerHTML = top25.length ? top25.map((s) => {
         const score = Number.isFinite(Number(s.technical_score)) ? Number(s.technical_score) : null;
         const scoreTone = score == null ? "unknown" : score >= 70 ? "positive" : score <= 40 ? "negative" : "neutral";
         const assessment = s.purchase_assessment || {};
