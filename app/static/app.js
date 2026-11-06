@@ -1408,6 +1408,10 @@
       const search = $("#stock-search")?.value?.trim().toLocaleLowerCase("fa") || "";
       const data = await api(`/api/stocks?sort=data_timestamp`);
       state.stocks = data.items || [];
+      state.stocks.forEach((stock) => {
+        const cacheKey = `${requestedHorizon}:${stock.fund_key}:${stock.data_timestamp || ""}`;
+        if (state.stockScores[cacheKey] != null) stock.technical_score = state.stockScores[cacheKey];
+      });
       $("#stock-result-count").textContent = `۰ از ${nf.format(state.stocks.length)} امتیاز`;
       const status = _sourceByName("rahavard_stocks");
       if (status) freshness($("#stocks-freshness"), status.status, status.last_data_timestamp);
@@ -1429,6 +1433,7 @@
               if (stock && result.technical_score != null) {
                 stock.technical_score = Number(result.technical_score);
                 stock.trend = result.trend;
+                state.stockScores[`${requestedHorizon}:${stock.fund_key}:${stock.data_timestamp || ""}`] = stock.technical_score;
               }
             }
             processed = Math.min(state.stocks.length, processed + batch.length);
