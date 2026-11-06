@@ -13,6 +13,7 @@
   let fundNavGeneration = 0;
   const fundNavAttemptedKeys = new Set();
   const fundNavValueCache = new Map();
+  let stockScoreGeneration = 0;
   const nf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const en = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const dates = new Intl.DateTimeFormat("fa-IR-u-nu-latn", { dateStyle: "medium", timeStyle: "short" });
@@ -1273,6 +1274,7 @@
     toast(`امتیازدهی ${horizonLabel()} در حال به‌روزرسانی است…`);
     const reloads = [loadOverview()];
     if (state.currentView === "funds") reloads.push(loadFunds());
+    if (state.currentView === "stocks") reloads.push(loadStocks());
     if (state.currentView === "watchlist") reloads.push(loadWatchlist());
     const detail = $("#fund-detail");
     if (state.currentView === "funds" && detail && !detail.classList.contains("hidden") && detail.dataset.fundSymbol) {
@@ -1401,21 +1403,56 @@
     const body = $("#stock-table");
     if (!body) return;
     try {
-      const search = $("#stock-search")?.value || "";
-      const data = await api(`/api/stocks?search=${encodeURIComponent(search)}&sort=data_timestamp`);
+      const generation = ++stockScoreGeneration;
+      const requestedHorizon = state.investmentHorizon;
+      const search = $("#stock-search")?.value?.trim().toLocaleLowerCase("fa") || "";
+      const data = await api(`/api/stocks?sort=data_timestamp`);
       state.stocks = data.items || [];
-      state.stocks.forEach((stock) => { if (state.stockScores[stock.fund_key] != null) stock.technical_score = state.stockScores[stock.fund_key]; });
-      $("#stock-result-count").textContent = `${nf.format(data.count || 0)} نماد`;
+      $("#stock-result-count").textContent = `۰ از ${nf.format(state.stocks.length)} امتیاز`;
       const status = _sourceByName("rahavard_stocks");
       if (status) freshness($("#stocks-freshness"), status.status, status.last_data_timestamp);
-      body.innerHTML = state.stocks.length ? state.stocks.map((s) => {
+      const progress = $("#stock-score-note");
+      const pending = state.stocks.filter((stock) => stock.technical_score == null);
+      let processed = state.stocks.length - pending.length;
+      if (pending.length) {
+        body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><b>امتیازدهی همهٔ ${nf.format(state.stocks.length)} نماد در حال انجام است</b><small>پس از پایان، فقط ۱۰ رتبهٔ برتر نمایش داده می‌شوند.</small></div></td></tr>`;
+        if (progress) progress.textContent = `امتیازدهی: ${nf.format(processed)} از ${nf.format(state.stocks.length)}`;
+        for (let offset = 0; offset < pending.length; offset += 16) {
+            if (generation !== stockScoreGeneration || requestedHorizon !== state.investmentHorizon) return;
+            const batch = pending.slice(offset, offset + 16);
+            const response = await api("/api/stocks/scores/batch", {
+              method: "POST",
+              body: JSON.stringify({ stock_keys: batch.map((stock) => stock.fund_key) })
+            });
+            for (const result of response.items || []) {
+              const stock = state.stocks.find((item) => item.fund_key === result.fund_key);
+              if (stock && result.technical_score != null) {
+                stock.technical_score = Number(result.technical_score);
+                stock.trend = result.trend;
+              }
+            }
+            processed = Math.min(state.stocks.length, processed + batch.length);
+            $("#stock-result-count").textContent = `${nf.format(processed)} از ${nf.format(state.stocks.length)} امتیاز`;
+            if (progress) progress.textContent = `امتیازدهی: ${nf.format(processed)} از ${nf.format(state.stocks.length)}`;
+        }
+      }
+      if (generation !== stockScoreGeneration || requestedHorizon !== state.investmentHorizon) return;
+      const ranked = state.stocks.filter((stock) => Number.isFinite(Number(stock.technical_score)))
+        .sort((a, b) => Number(b.technical_score) - Number(a.technical_score));
+      const matching = search ? ranked.filter((stock) => `${stock.name || ""} ${stock.symbol || ""}`.toLocaleLowerCase("fa").includes(search)) : ranked;
+      const topTen = matching.slice(0, 10);
+      $("#stock-result-count").textContent = `${nf.format(topTen.length)} از ۱۰ رتبهٔ برتر · ${nf.format(ranked.length)} امتیاز معتبر`;
+      if (progress) progress.textContent = state.stocks.length > ranked.length
+        ? `${nf.format(state.stocks.length - ranked.length)} نماد به‌دلیل نبود دادهٔ کافی رتبه نگرفت.`
+        : "رتبه‌بندی بر پایهٔ امتیاز تکنیکال";
+      body.innerHTML = topTen.length ? topTen.map((s) => {
         const score = Number.isFinite(Number(s.technical_score)) ? Number(s.technical_score) : null;
         const direction = score == null ? "—" : score >= 70 ? "صعودی" : score <= 40 ? "نزولی" : "خنثی";
         const tone = direction === "صعودی" ? "positive" : direction === "نزولی" ? "negative" : direction === "خنثی" ? "neutral" : "unknown";
         const raw = s.raw || {};
         const daily = s.daily_return;
-        return `<tr><td data-label="نام نماد"><strong>${esc(s.name || s.symbol)}</strong></td><td data-label="امتیاز"><span class="technical-score-chip ${tone}">${score == null ? "—" : `${num(score, 0)} / 100`}</span></td><td data-label="جهت"><span class="fund-purchase-chip ${tone}">${direction}</span></td><td data-label="تغییر روزانه" class="${changeClass(daily)}">${pct(daily)}</td><td data-label="حجم">${num(s.volume, 0)}</td><td data-label="ارزش معامله">${money(s.value)}</td><td data-label="آخرین قیمت">${money(s.market_price)}</td><td data-label="زمان داده">${esc(formatDate(s.data_timestamp))}<button class="button button-quiet stock-analyze" data-stock-analysis="${esc(s.fund_key)}">تحلیل</button></td></tr>`;
-      }).join("") : `<tr><td colspan="8"><div class="empty-state"><b>نمادی برای این جست‌وجو پیدا نشد</b></div></td></tr>`;
+        return `<tr><td data-label="نام نماد"><strong>${esc(s.name || s.symbol)}</strong></td><td data-label="امتیاز"><span class="technical-score-chip ${tone}">${num(score, 0)} / 100</span></td><td data-label="جهت"><span class="fund-purchase-chip ${tone}">${direction}</span></td><td data-label="تغییر روزانه" class="${changeClass(daily)}">${pct(daily)}</td><td data-label="حجم">${num(s.volume, 0)}</td><td data-label="ارزش معامله">${money(s.value)}</td><td data-label="آخرین قیمت">${money(s.market_price)}</td><td data-label="زمان داده">${esc(formatDate(s.data_timestamp))}</td></tr>`;
+      }).join("") : `<tr><td colspan="8"><div class="empty-state"><b>${search ? "نمادی در میان رتبه‌های برتر با این جست‌وجو پیدا نشد" : "امتیاز معتبری برای رتبه‌بندی در دسترس نیست"}</b></div></td></tr>`;
     } catch (error) {
       body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><b>دریافت فهرست سهام ناموفق بود</b><small>${esc(error.message)}</small></div></td></tr>`;
     }
@@ -2075,18 +2112,6 @@
     if (value.length >= 2) { openView("funds"); $("#fund-search").value = value; loadFunds({ search: value }); }
   });
   $("#stock-search")?.addEventListener("input", () => { clearTimeout(loadStocks.timer); loadStocks.timer = setTimeout(loadStocks, 250); });
-  $("#stock-table")?.addEventListener("click", async (event) => {
-    const button = event.target.closest("[data-stock-analysis]");
-    if (!button) return;
-    button.disabled = true; button.textContent = "محاسبه…";
-    try {
-      const result = await api(`/api/stocks/${encodeURIComponent(button.dataset.stockAnalysis)}/technical?horizon=${encodeURIComponent(state.investmentHorizon)}`);
-      const stock = state.stocks.find((item) => item.fund_key === button.dataset.stockAnalysis);
-      if (stock) { stock.technical_score = Number(result.technical_score); state.stockScores[stock.fund_key] = stock.technical_score; }
-      await loadStocks();
-      toast(`امتیاز ${stock?.name || "نماد"}: ${num(result.technical_score, 0)} از ۱۰۰`);
-    } catch (error) { toast(`تحلیل نماد انجام نشد: ${error.message}`, true); button.disabled = false; button.textContent = "تحلیل"; }
-  });
   document.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); $("#global-search").focus(); }
     if (event.key === "Escape") { $("#global-search").value = ""; }
