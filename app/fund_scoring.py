@@ -561,7 +561,7 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     family_weights = {key: float(value) / 100.0
                       for key, value in engine["score_weights"].items()}
     indicator_weights = engine["indicator_weights"]
-    model_version = "update_4_2" if dashboard_model else "update_4_3_1"
+    model_version = "update_4_3" if dashboard_model else "update_4_3"
     model_profile = f"{horizon}_{model_version}_indicators"
     entry_quality = _entry_quality_score(rows, price, context)
     nav_assessment = _nav_score(price, context)
@@ -593,9 +593,9 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
     top_negative = min(scored_families, key=lambda row: row[1]) if scored_families else None
     return {
         "technical_score": round(final_score, 1) if final_score is not None else None,
-        "score_method": (f"dashboard_rahavard_excel_weighted_update42_{horizon}"
+        "score_method": (f"dashboard_rahavard_excel_weighted_update43_{horizon}"
                           if dashboard_model else
-                          f"fund_rahavard_excel_weighted_update431_{horizon}"),
+                          f"fund_rahavard_excel_weighted_update43_{horizon}"),
         "score_weights": {key: round(weight * 100) for key, weight in family_weights.items()},
         "indicator_weights": {
             family_key: {key: round(float(weight), 1) for key, weight in weights.items()}
@@ -629,9 +629,9 @@ def score_fund_model(groups: dict[str, list[dict[str, Any]]], price: float | Non
         "entry_quality": entry_quality,
         "top_factors": {
             "positive": ({"family": top_positive[0], "score": round(top_positive[1], 1)}
-                          if top_positive and math.floor(top_positive[1] + 0.5) >= 70 else None),
+                          if top_positive and top_positive[1] >= 70 else None),
             "negative": ({"family": top_negative[0], "score": round(top_negative[1], 1)}
-                          if top_negative and math.floor(top_negative[1] + 0.5) <= 40 else None),
+                          if top_negative and top_negative[1] <= 40 else None),
         },
         "missing_data": diagnostics,
         "valid_groups": engine["valid_groups"],
