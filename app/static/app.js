@@ -20,6 +20,11 @@
   let globalSearchGeneration = 0;
   let fundDetailGeneration = 0;
   let stockDetailGeneration = 0;
+  const rankingLoaderState = {
+    funds: { timer: 0, startedAt: 0, processed: 0, total: null, averageMsPerItem: 260 },
+    stocks: { timer: 0, startedAt: 0, processed: 0, total: null, averageMsPerItem: 140 },
+  };
+  const faNumber = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 0 });
   const nf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const en = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const dates = new Intl.DateTimeFormat("fa-IR-u-nu-latn", { dateStyle: "medium", timeStyle: "short" });
@@ -1259,6 +1264,59 @@
     }
   }
 
+  function formatRemainingTime(milliseconds) {
+    const seconds = Math.max(1, Math.ceil(milliseconds / 1000));
+    if (seconds < 60) return "حدود " + faNumber.format(seconds) + " ثانیه";
+    return "حدود " + faNumber.format(Math.ceil(seconds / 60)) + " دقیقه";
+  }
+
+  function renderRankingLoader(kind) {
+    const loader = rankingLoaderState[kind];
+    const panel = $(kind === "funds" ? "#fund-ranking-loader" : "#stock-ranking-loader");
+    if (!loader || !panel || panel.classList.contains("hidden")) return;
+    const label = kind === "funds" ? "صندوق" : "سهم";
+    const total = Number(loader.total) || 0;
+    const processed = Math.min(Number(loader.processed) || 0, total);
+    const percent = total ? Math.min(100, Math.floor(processed / total * 100)) : 0;
+    const remaining = total ? Math.max(0, total - processed) * loader.averageMsPerItem : loader.averageMsPerItem * 12;
+    const progressText = total ? "بررسی‌شده " + faNumber.format(processed) + " از " + faNumber.format(total) + " " + label : "در حال دریافت فهرست و آماده‌سازی محاسبه…";
+    const etaText = total ? "زمان تقریبی باقی‌مانده: " + formatRemainingTime(remaining) : "زمان باقی‌مانده پس از دریافت فهرست برآورد می‌شود.";
+    const heading = kind === "funds" ? "در حال رتبه‌بندی صندوق‌ها" : "در حال رتبه‌بندی سهام";
+    panel.innerHTML = "<div class=\"ranking-loader-spinner\" aria-hidden=\"true\"></div><div class=\"ranking-loader-content\"><div class=\"ranking-loader-heading\"><strong>" + heading + "</strong><span>" + faNumber.format(percent) + "٪</span></div><p>" + progressText + "</p><div class=\"ranking-loader-track\" role=\"progressbar\" aria-label=\"" + heading + "\" aria-valuemin=\"0\" aria-valuemax=\"100\" aria-valuenow=\"" + percent + "\"><span style=\"width:" + percent + "%\"></span></div><div class=\"ranking-loader-meta\"><span>" + etaText + "</span><small>زمان برآوردی با پیشرفت محاسبه به‌روز می‌شود.</small></div></div>";
+  }
+
+  function startRankingLoader(kind, total = null, processed = 0) {
+    const loader = rankingLoaderState[kind];
+    const panel = $(kind === "funds" ? "#fund-ranking-loader" : "#stock-ranking-loader");
+    if (!loader || !panel) return;
+    if (loader.timer) clearInterval(loader.timer);
+    loader.startedAt = Date.now();
+    loader.processed = Math.max(0, Number(processed) || 0);
+    loader.total = Number.isFinite(Number(total)) && Number(total) > 0 ? Number(total) : null;
+    panel.classList.remove("hidden");
+    renderRankingLoader(kind);
+    loader.timer = setInterval(() => renderRankingLoader(kind), 1000);
+  }
+
+  function updateRankingLoader(kind, processed, total) {
+    const loader = rankingLoaderState[kind];
+    if (!loader) return;
+    loader.processed = Math.max(0, Number(processed) || 0);
+    loader.total = Number.isFinite(Number(total)) && Number(total) > 0 ? Number(total) : null;
+    if (loader.processed > 0) {
+      const observedMsPerItem = (Date.now() - loader.startedAt) / loader.processed;
+      loader.averageMsPerItem = loader.averageMsPerItem * 0.35 + observedMsPerItem * 0.65;
+    }
+    renderRankingLoader(kind);
+  }
+
+  function stopRankingLoader(kind) {
+    const loader = rankingLoaderState[kind];
+    const panel = $(kind === "funds" ? "#fund-ranking-loader" : "#stock-ranking-loader");
+    if (loader && loader.timer) clearInterval(loader.timer);
+    if (loader) loader.timer = 0;
+    if (panel) { panel.classList.add("hidden"); panel.innerHTML = ""; }
+  }
   function horizonLabel(horizon = state.investmentHorizon) {
     return horizon === "short" ? "کوتاه‌مدت" : "میان‌مدت";
   }
@@ -1278,14 +1336,17 @@
     fundScoreAttemptedKeys.clear();
     syncInvestmentHorizonControl();
     toast(`امتیازدهی ${horizonLabel()} در حال به‌روزرسانی است…`);
-    const reloads = [loadOverview()];
-    if (state.currentView === "funds") reloads.push(loadFunds());
-    if (state.currentView === "stocks") reloads.push(loadStocks());
-    if (state.currentView === "watchlist") reloads.push(loadWatchlist());
-    const detail = $("#fund-detail");
-    if (state.currentView === "funds" && detail && !detail.classList.contains("hidden") && detail.dataset.fundSymbol) {
-      reloads.push(showFund(detail.dataset.fundSymbol));
-    }
+    const reloads = [];
+    if (state.currentView === "overview") reloads.push(loadOverview());
+    else if (state.currentView === "funds") {
+      reloads.push(loadFunds());
+      const detail = $("#fund-detail");
+      if (detail && !detail.classList.contains("hidden") && detail.dataset.fundSymbol) reloads.push(showFund(detail.dataset.fundSymbol));
+    } else if (state.currentView === "stocks") {
+      reloads.push(loadStocks());
+      const detail = $("#stock-detail");
+      if (detail && !detail.classList.contains("hidden") && detail.dataset.stockSymbol) reloads.push(showStock(detail.dataset.stockSymbol));
+    } else if (state.currentView === "watchlist") reloads.push(loadWatchlist());
     await Promise.all(reloads);
     toast(`مدل امتیازدهی ${horizonLabel()} اعمال شد.`);
   }
@@ -1339,7 +1400,7 @@
       $("#source-count").textContent = `${nf.format(connected)}/${nf.format(sourceList.length)}`;
       $("#sidebar-status").className = `status-dot ${connected ? "" : "bad"}`;
       $("#last-updated").textContent = `آخرین بررسی ${formatDate(summary.as_of)}`;
-      await loadFunds({ quiet: true, existing: summary.top_funds });
+      renderMarketWatchlist(summary.top_funds || []);
     } catch (err) {
       toast(`خواندن داشبورد انجام نشد: ${err.message}`, true);
     }
@@ -1360,6 +1421,7 @@
   async function loadFunds(options = {}) {
     if (options.forceNav) fundNavAttemptedKeys.clear();
     fundScoreGeneration += 1;
+    if (state.currentView === "funds") startRankingLoader("funds");
     const requestedNavGeneration = ++fundNavGeneration;
     const requestedHorizon = state.investmentHorizon;
     try {
@@ -1404,6 +1466,7 @@
         fundRankingReady = true;
       }
     } catch (err) {
+      stopRankingLoader("funds");
       if (!options.quiet) toast(`فهرست صندوق‌ها در دسترس نیست: ${err.message}`, true);
       $("#funds-freshness") && freshness($("#funds-freshness"), "unavailable", null);
     }
@@ -1412,6 +1475,7 @@
   async function loadStocks() {
     const body = $("#stock-table");
     if (!body) return;
+    if (state.currentView === "stocks") startRankingLoader("stocks");
     try {
       const generation = ++stockScoreGeneration;
       const requestedHorizon = state.investmentHorizon;
@@ -1429,6 +1493,7 @@
       const pending = state.stocks.filter((stock) => stock.technical_score == null);
       let processed = state.stocks.length - pending.length;
       if (pending.length) {
+        startRankingLoader("stocks", state.stocks.length, processed);
         body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><b>امتیازدهی همهٔ ${nf.format(state.stocks.length)} نماد در حال انجام است</b><small>پس از پایان، فقط ۱۰ رتبهٔ برتر نمایش داده می‌شوند.</small></div></td></tr>`;
         if (progress) progress.textContent = `امتیازدهی: ${nf.format(processed)} از ${nf.format(state.stocks.length)}`;
         for (let offset = 0; offset < pending.length; offset += 16) {
@@ -1447,13 +1512,16 @@
               }
             }
             processed = Math.min(state.stocks.length, processed + batch.length);
+            updateRankingLoader("stocks", processed, state.stocks.length);
             $("#stock-result-count").textContent = `${nf.format(processed)} از ${nf.format(state.stocks.length)} امتیاز`;
             if (progress) progress.textContent = `امتیازدهی: ${nf.format(processed)} از ${nf.format(state.stocks.length)}`;
         }
       }
       if (generation !== stockScoreGeneration || requestedHorizon !== state.investmentHorizon) return;
+      stopRankingLoader("stocks");
       renderStockTable();
     } catch (error) {
+      stopRankingLoader("stocks");
       body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><b>دریافت فهرست سهام ناموفق بود</b><small>${esc(error.message)}</small></div></td></tr>`;
     }
   }
@@ -1669,10 +1737,12 @@
       .map(String))];
     if (!pending.length) {
       fundRankingReady = true;
+      stopRankingLoader("funds");
       renderFundTable(state.funds);
       return;
     }
 
+    startRankingLoader("funds", pending.length, 0);
     fundScoreFillRunning = true;
     const progress = $("#fund-score-progress");
     let processed = 0;
@@ -1740,6 +1810,7 @@
           }
         }
         processed += batch.length;
+        updateRankingLoader("funds", processed, pending.length);
         state.funds = sortedFundItems(state.funds);
         if (progress) progress.textContent = `محاسبهٔ امتیازها: ${nf.format(processed)} از ${nf.format(pending.length)}`;
       }
@@ -1748,6 +1819,7 @@
         state.funds = sortedFundItems(state.funds);
         renderFundTable(state.funds);
       }
+      if (generation === fundScoreGeneration && requestedHorizon === state.investmentHorizon) stopRankingLoader("funds");
       if (progress && processed >= pending.length) {
         progress.textContent = unavailable
           ? `${nf.format(scored)} امتیاز آماده شد · ${nf.format(unavailable)} نماد دادهٔ کافی نداشت`
@@ -2119,6 +2191,16 @@
 
   async function openView(name, options = {}) {
     if (!$("#view-" + name)) return;
+    const previousView = state.currentView;
+    if (previousView === "funds" && name !== "funds") {
+      fundScoreGeneration += 1;
+      fundNavGeneration += 1;
+      stopRankingLoader("funds");
+    }
+    if (previousView === "stocks" && name !== "stocks") {
+      stockScoreGeneration += 1;
+      stopRankingLoader("stocks");
+    }
     state.currentView = name;
     $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
     $$(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
@@ -2140,11 +2222,11 @@
       const result = await api("/api/refresh", { method: "POST" });
       const ok = (result.sources || []).filter((x) => x.status === "connected").length;
       toast(`بررسی منابع پایان یافت · ${nf.format(ok)} منبع متصل`);
-      await loadOverview();
-      if (state.currentView === "admin") await loadAdmin();
-      if (state.currentView === "funds") await loadFunds({ forceNav: true });
-      if (state.currentView === "stocks") await loadStocks();
-      if (state.currentView === "watchlist") await loadWatchlist();
+      if (state.currentView === "overview") await loadOverview();
+      else if (state.currentView === "admin") await loadAdmin();
+      else if (state.currentView === "funds") await loadFunds({ forceNav: true });
+      else if (state.currentView === "stocks") await loadStocks();
+      else if (state.currentView === "watchlist") await loadWatchlist();
     } catch (err) { toast(`همگام‌سازی کامل نشد: ${err.message}`, true); }
     finally { buttons.forEach((b) => { b.disabled = false; b.classList.remove("spinning"); }); }
   }
