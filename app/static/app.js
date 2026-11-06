@@ -1486,7 +1486,7 @@
         }
       });
       const resultCount = $("#fund-result-count");
-      if (resultCount) resultCount.textContent = `${nf.format(Math.min(10, data.count))} از ۲۵ رتبهٔ برتر`;
+      if (resultCount) resultCount.textContent = `${nf.format(Math.min(10, data.count))} از ۱۰ رتبهٔ برتر`;
       fundRankingReady = false;
       renderFundTable(state.funds);
       renderMarketWatchlist(options.existing?.length ? options.existing : state.funds.slice(0, 5));
