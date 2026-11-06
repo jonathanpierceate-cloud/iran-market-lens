@@ -5,7 +5,8 @@
   let savedHorizon = "long";
   try { savedHorizon = localStorage.getItem(horizonStorageKey) === "short" ? "short" : "long"; } catch {}
   const state = { summary: null, gold: null, gold18k: null, dollar: null, tepix: null, funds: [], stocks: [], stockScores: {}, watchlist: [], currentView: "overview", investmentHorizon: savedHorizon, watchlistRefreshTimer: null, watchlistRefreshSeconds: 900 };
-  const fundSortState = { key: "data_timestamp", direction: -1 };
+  const fundSortState = { key: "technical_score", direction: -1 };
+  const stockSortState = { key: "technical_score", direction: -1 };
   let fundScoreFillRunning = false;
   let fundScoreGeneration = 0;
   const fundScoreAttemptedKeys = new Set();
@@ -14,6 +15,11 @@
   const fundNavAttemptedKeys = new Set();
   const fundNavValueCache = new Map();
   let stockScoreGeneration = 0;
+  let fundRankingReady = false;
+  let globalSearchTimer = 0;
+  let globalSearchGeneration = 0;
+  let fundDetailGeneration = 0;
+  let stockDetailGeneration = 0;
   const nf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const en = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const dates = new Intl.DateTimeFormat("fa-IR-u-nu-latn", { dateStyle: "medium", timeStyle: "short" });
@@ -1353,6 +1359,7 @@
 
   async function loadFunds(options = {}) {
     if (options.forceNav) fundNavAttemptedKeys.clear();
+    fundScoreGeneration += 1;
     const requestedNavGeneration = ++fundNavGeneration;
     const requestedHorizon = state.investmentHorizon;
     try {
@@ -1375,7 +1382,8 @@
         }
       });
       const resultCount = $("#fund-result-count");
-      if (resultCount) resultCount.textContent = `${nf.format(data.count)} صندوق`;
+      if (resultCount) resultCount.textContent = `${nf.format(Math.min(10, data.count))} از ۱۰ رتبهٔ برتر`;
+      fundRankingReady = false;
       renderFundTable(state.funds);
       renderMarketWatchlist(options.existing?.length ? options.existing : state.funds.slice(0, 5));
       const fundCount = $("#fund-count");
@@ -1392,6 +1400,8 @@
       if (state.currentView === "funds") {
         void fillVisibleFundScores();
         void fillVisibleFundNavs(requestedNavGeneration);
+      } else {
+        fundRankingReady = true;
       }
     } catch (err) {
       if (!options.quiet) toast(`فهرست صندوق‌ها در دسترس نیست: ${err.message}`, true);
@@ -1442,24 +1452,99 @@
         }
       }
       if (generation !== stockScoreGeneration || requestedHorizon !== state.investmentHorizon) return;
-      const ranked = state.stocks.filter((stock) => Number.isFinite(Number(stock.technical_score)))
-        .sort((a, b) => Number(b.technical_score) - Number(a.technical_score));
-      const matching = search ? ranked.filter((stock) => `${stock.name || ""} ${stock.symbol || ""}`.toLocaleLowerCase("fa").includes(search)) : ranked;
-      const topTen = matching.slice(0, 10);
-      $("#stock-result-count").textContent = `${nf.format(topTen.length)} از ۱۰ رتبهٔ برتر · ${nf.format(ranked.length)} امتیاز معتبر`;
-      if (progress) progress.textContent = state.stocks.length > ranked.length
-        ? `${nf.format(state.stocks.length - ranked.length)} نماد به‌دلیل نبود دادهٔ کافی رتبه نگرفت.`
-        : "رتبه‌بندی بر پایهٔ امتیاز تکنیکال";
-      body.innerHTML = topTen.length ? topTen.map((s) => {
+      renderStockTable();
+    } catch (error) {
+      body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><b>دریافت فهرست سهام ناموفق بود</b><small>${esc(error.message)}</small></div></td></tr>`;
+    }
+  }
+
+  function renderStockTable() {
+    const body = $("#stock-table");
+    if (!body) return;
+    const search = $("#stock-search")?.value?.trim().toLocaleLowerCase("fa") || "";
+    const progress = $("#stock-score-note");
+    const ranked = state.stocks.filter((stock) => Number.isFinite(Number(stock.technical_score)))
+      .sort((a, b) => Number(b.technical_score) - Number(a.technical_score));
+    const matching = search ? ranked.filter((stock) => `${stock.name || ""} ${stock.display_symbol || ""} ${stock.symbol || ""}`.toLocaleLowerCase("fa").includes(search)) : ranked;
+    const topTen = matching.slice(0, 10);
+    if (stockSortState.key !== "technical_score") {
+      const key = stockSortState.key;
+      topTen.sort((a, b) => {
+        const left = a[key], right = b[key];
+        if (["name", "data_timestamp", "trend"].includes(key)) {
+          const leftText = key === "name" ? (left || a.display_symbol || a.symbol || "") : String(left || "");
+          const rightText = key === "name" ? (right || b.display_symbol || b.symbol || "") : String(right || "");
+          return String(leftText).localeCompare(String(rightText), key === "name" ? "fa" : "en") * stockSortState.direction;
+        }
+        const leftNumber = Number(left), rightNumber = Number(right);
+        if (!Number.isFinite(leftNumber)) return 1;
+        if (!Number.isFinite(rightNumber)) return -1;
+        return (leftNumber - rightNumber) * stockSortState.direction;
+      });
+    }
+    $("#stock-result-count").textContent = `${nf.format(topTen.length)} از ۱۰ رتبهٔ برتر · ${nf.format(ranked.length)} امتیاز معتبر`;
+    if (progress) progress.textContent = state.stocks.length > ranked.length
+      ? `${nf.format(state.stocks.length - ranked.length)} نماد به‌دلیل نبود دادهٔ کافی رتبه نگرفت.`
+      : "رتبه‌بندی بر پایهٔ امتیاز تکنیکال";
+    body.innerHTML = topTen.length ? topTen.map((s) => {
         const score = Number.isFinite(Number(s.technical_score)) ? Number(s.technical_score) : null;
         const direction = score == null ? "—" : score >= 70 ? "صعودی" : score <= 40 ? "نزولی" : "خنثی";
         const tone = direction === "صعودی" ? "positive" : direction === "نزولی" ? "negative" : direction === "خنثی" ? "neutral" : "unknown";
-        const raw = s.raw || {};
         const daily = s.daily_return;
-        return `<tr><td data-label="نام نماد"><strong>${esc(s.name || s.symbol)}</strong></td><td data-label="امتیاز"><span class="technical-score-chip ${tone}">${num(score, 0)} / 100</span></td><td data-label="جهت"><span class="fund-purchase-chip ${tone}">${direction}</span></td><td data-label="تغییر روزانه" class="${changeClass(daily)}">${pct(daily)}</td><td data-label="حجم">${num(s.volume, 0)}</td><td data-label="ارزش معامله">${money(s.value)}</td><td data-label="آخرین قیمت">${money(s.market_price)}</td><td data-label="زمان داده">${esc(formatDate(s.data_timestamp))}</td></tr>`;
+        return `<tr><td data-label="نام نماد"><button class="row-open stock-symbol-open" data-stock="${esc(s.fund_key || s.symbol)}"><span class="fund-table-name"><i class="fund-freshness-dot ${s.price_is_cached === false ? "fresh" : "stale"}" aria-hidden="true"></i><strong>${esc(s.name || s.display_symbol || s.symbol)}</strong></span></button></td><td data-label="امتیاز"><span class="technical-score-chip ${tone}">${num(score, 0)} / 100</span></td><td data-label="جهت"><span class="fund-purchase-chip ${tone}">${direction}</span></td><td data-label="تغییر روزانه" class="${changeClass(daily)}">${pct(daily)}</td><td data-label="حجم">${num(s.volume, 0)}</td><td data-label="ارزش معامله">${money(s.value)}</td><td data-label="آخرین قیمت"><span class="fund-latest-price">${money(s.market_price)}</span><small class="fund-latest-change ${changeClass(daily)}">${pct(daily)}</small></td><td data-label="زمان داده" class="fund-update-time">${esc(formatDate(s.data_timestamp))}</td></tr>`;
       }).join("") : `<tr><td colspan="8"><div class="empty-state"><b>${search ? "نمادی در میان رتبه‌های برتر با این جست‌وجو پیدا نشد" : "امتیاز معتبری برای رتبه‌بندی در دسترس نیست"}</b></div></td></tr>`;
+    updateStockSortIndicators();
+  }
+
+  function updateStockSortIndicators() {
+    $$('[data-stock-sort]').forEach((header) => {
+      const active = header.dataset.stockSort === stockSortState.key;
+      header.classList.toggle("is-sorted", active);
+      header.setAttribute("aria-sort", active ? (stockSortState.direction === 1 ? "ascending" : "descending") : "none");
+      const indicator = $(".sort-indicator", header);
+      if (indicator) indicator.textContent = active ? (stockSortState.direction === 1 ? "▲" : "▼") : "⇅";
+    });
+  }
+
+  function sortStockTable(key) {
+    if (!key) return;
+    if (stockSortState.key === key) stockSortState.direction *= -1;
+    else {
+      stockSortState.key = key;
+      stockSortState.direction = ["name", "data_timestamp"].includes(key) ? 1 : -1;
+    }
+    renderStockTable();
+  }
+
+  async function showStock(identifier, selectedStock = null) {
+    const detailGeneration = ++stockDetailGeneration;
+    const section = $("#stock-detail");
+    const requestedHorizon = state.investmentHorizon;
+    const stock = selectedStock || state.stocks.find((item) => item.fund_key === identifier || item.symbol === identifier);
+    section.dataset.stockSymbol = identifier;
+    section.classList.remove("hidden");
+    section.innerHTML = `<div class="empty-state"><b>در حال دریافت کارت‌های تحلیل ${esc(stock?.name || stock?.display_symbol || "نماد")}…</b></div>`;
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+    try {
+      const analysis = await api(`/api/stocks/${encodeURIComponent(identifier)}/technical?horizon=${encodeURIComponent(requestedHorizon)}`);
+      if (detailGeneration !== stockDetailGeneration || requestedHorizon !== state.investmentHorizon) return;
+      const score = analysis.technical_score == null ? null : Number(analysis.technical_score);
+      const trend = analysis.trend || (score >= 70 ? "bullish" : score <= 40 ? "bearish" : "neutral");
+      const trendLabel = trend === "bullish" ? "صعودی" : trend === "bearish" ? "نزولی" : "خنثی";
+      const trendTone = trend === "bullish" ? "positive" : trend === "bearish" ? "negative" : "neutral";
+      const props = [
+        ["نماد", stock?.display_symbol || stock?.symbol || stock?.name || identifier],
+        ["قیمت آخرین معامله", stock?.market_price], ["تغییر روزانه", stock?.daily_return == null ? null : pct(stock.daily_return)],
+        ["حجم", stock?.volume], ["ارزش معامله", stock?.value], ["امتیاز تکنیکال", analysis.technical_score == null ? null : `${num(analysis.technical_score, 0)} / 100`],
+        ["زمان داده", stock?.data_timestamp || analysis.data_timestamp]
+      ];
+      const propsHtml = props.map(([label, value]) => `<div class="property"><span>${label}</span><b>${esc(typeof value === "number" ? money(value) : text(value))}</b></div>`).join("");
+      section.innerHTML = `<div class="fund-detail-head"><div><span class="panel-kicker">نمایه سهام · ${esc(stock?.display_symbol || stock?.symbol || identifier)}</span><h2>${esc(stock?.name || stock?.display_symbol || stock?.symbol || identifier)}</h2><p>قیمت و فهرست از ره‌آورد۳۶۵ · تحلیل تکنیکال از کندل‌های نمودار</p></div><button class="icon-button" data-close-stock aria-label="بستن">×</button></div><div class="fund-detail-body"><div><h3>مشخصات نماد</h3><div class="fund-properties">${propsHtml}</div></div><div><h3>جمع‌بندی تحلیل</h3><div class="source-line"><strong>امتیاز: ${score == null ? "—" : `${num(score, 0)} از ۱۰۰`}</strong><br><span class="fund-purchase-chip ${trendTone}">${trendLabel}</span><br>میانگین‌های متحرک، نوسانگرها، حمایت و مقاومت بر اساس داده‌های نمودار محاسبه شده‌اند.</div></div></div><div class="fund-analysis-full"><h3>کارت‌های تحلیل تکنیکال</h3>${analysisHtml(analysis)}</div>`;
+      const cached = `${requestedHorizon}:${stock?.fund_key || identifier}:${stock?.data_timestamp || ""}`;
+      if (stock && analysis.technical_score != null) state.stockScores[cached] = Number(analysis.technical_score);
+      section.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (error) {
-      body.innerHTML = `<tr><td colspan="8"><div class="empty-state"><b>دریافت فهرست سهام ناموفق بود</b><small>${esc(error.message)}</small></div></td></tr>`;
+      section.innerHTML = `<div class="empty-state"><b>کارت تحلیل نماد دریافت نشد</b><small>${esc(error.message)}</small></div>`;
     }
   }
 
@@ -1524,6 +1609,10 @@
   // ETF directory rows expose a Rahavard asset ID, not necessarily an exchange ticker.
   function renderFundTable(items) {
     const target = $("#fund-table");
+    if (!fundRankingReady) {
+      target.innerHTML = `<tr><td colspan="11"><div class="empty-state fund-empty-state"><b>در حال محاسبهٔ امتیاز صندوق‌ها</b><small>پس از پایان محاسبه، ۱۰ رتبهٔ برتر نمایش داده می‌شوند.</small></div></td></tr>`;
+      return;
+    }
     if (!items.length) {
       const search = $("#fund-search")?.value.trim() || "";
       const category = $("#fund-category")?.value.trim() || "";
@@ -1532,8 +1621,18 @@
       target.innerHTML = `<tr><td colspan="11"><div class="empty-state fund-empty-state"><span>&#9632;</span><b>${filtered ? "نتیجه‌ای برای فیلتر فعلی پیدا نشد" : "صندوقی از ره‌آورد۳۶۵ دریافت نشده"}</b><small>${filtered ? `فیلتر فعال: ${esc(filterLabel)} · برای نمایش همه صندوق‌ها فیلتر را پاک کنید.` : "وضعیت اتصال ره‌آورد را در صفحه وضعیت سامانه ببینید."}</small>${filtered ? `<button class="button button-quiet fund-clear-filter" type="button" data-clear-fund-filters>پاک کردن فیلترها</button>` : ""}</div></td></tr>`;
       return;
     }
+    const rankedItems = items.filter((fund) => Number.isFinite(Number(fund.technical_score)))
+      .sort((a, b) => Number(b.technical_score) - Number(a.technical_score))
+      .slice(0, 10);
+    if (!rankedItems.length) {
+      target.innerHTML = `<tr><td colspan="11"><div class="empty-state fund-empty-state"><b>امتیاز معتبری برای رتبه‌بندی در دسترس نیست</b><small>نمادهای بدون امتیاز معتبر در فهرست رتبه‌های برتر نمایش داده نمی‌شوند.</small></div></td></tr>`;
+      return;
+    }
+    const displayItems = fundSortState.key === "technical_score"
+      ? rankedItems
+      : sortedFundItems(rankedItems);
     const amount = (value) => value == null ? "—" : money(value);
-    target.innerHTML = items.map((f) => {
+    target.innerHTML = displayItems.map((f) => {
       const price = f.market_price ?? f.real_close_price;
       const scoreValue = f.technical_score == null ? null : Number(f.technical_score);
       const scoreCoverage = f.data_coverage_pct == null ? null : Number(f.data_coverage_pct);
@@ -1555,6 +1654,8 @@
       return `<tr><td data-label="نام نماد"><button class="row-open fund-symbol-open" data-fund="${esc(f.fund_key || f.symbol)}"><span class="fund-table-name"><i class="fund-freshness-dot ${priceFresh ? "fresh" : "stale"}" role="img" aria-label="${freshnessLabel}" title="${freshnessLabel}"></i><strong>${esc(fundName)}</strong></span></button></td><td data-label="نوع صندوق"><span class="fund-type-chip">${esc(typeLabel)}</span></td><td data-label="امتیاز" class="fund-technical-score">${scoreCell}</td><td data-label="وضعیت خرید" class="fund-buy-cell">${assessmentCell}</td><td data-label="بازده ماهانه"><span class="watch-cell-primary ${changeClass(f.monthly_return)}">${pct(f.monthly_return)}</span></td><td data-label="بازده ۳ماهه"><span class="watch-cell-primary ${changeClass(f.three_month_return)}">${pct(f.three_month_return)}</span></td><td data-label="بازده ۶ماهه"><span class="watch-cell-primary ${changeClass(f.six_month_return)}">${pct(f.six_month_return)}</span></td><td data-label="بازده یک‌ساله"><span class="watch-cell-primary ${changeClass(f.one_year_return)}">${pct(f.one_year_return)}</span></td><td data-label="حباب">${premiumCell}</td><td data-label="آخرین قیمت">${priceCell}</td><td data-label="زمان داده" class="fund-update-time">${esc(formatDate(timestamp))}</td></tr>`;
     }).join("");
     updateFundSortIndicators();
+    const resultCount = $("#fund-result-count");
+    if (resultCount) resultCount.textContent = `${nf.format(displayItems.length)} از ۱۰ رتبهٔ برتر`;
   }
 
   async function fillVisibleFundScores() {
@@ -1566,7 +1667,11 @@
       .map((fund) => fund.fund_key || fund.symbol)
       .filter((key) => key && !fundScoreAttemptedKeys.has(String(key)))
       .map(String))];
-    if (!pending.length) return;
+    if (!pending.length) {
+      fundRankingReady = true;
+      renderFundTable(state.funds);
+      return;
+    }
 
     fundScoreFillRunning = true;
     const progress = $("#fund-score-progress");
@@ -1636,8 +1741,12 @@
         }
         processed += batch.length;
         state.funds = sortedFundItems(state.funds);
-        renderFundTable(state.funds);
         if (progress) progress.textContent = `محاسبهٔ امتیازها: ${nf.format(processed)} از ${nf.format(pending.length)}`;
+      }
+      if (generation === fundScoreGeneration && requestedHorizon === state.investmentHorizon) {
+        fundRankingReady = true;
+        state.funds = sortedFundItems(state.funds);
+        renderFundTable(state.funds);
       }
       if (progress && processed >= pending.length) {
         progress.textContent = unavailable
@@ -1668,10 +1777,11 @@
   }
 
   async function showFund(symbol) {
+    const detailGeneration = ++fundDetailGeneration;
     const requestedHorizon = state.investmentHorizon;
     try {
       const data = await api(`/api/funds/${encodeURIComponent(symbol)}?skip_technical=true`);
-      if (requestedHorizon !== state.investmentHorizon) return;
+      if (detailGeneration !== fundDetailGeneration || requestedHorizon !== state.investmentHorizon) return;
       const section = $("#fund-detail");
       section.dataset.fundSymbol = symbol;
       section.classList.remove("hidden");
@@ -1688,6 +1798,7 @@
           technicalError = error?.message || "دریافت دادهٔ نمودار تکنیکال ره‌آورد ناموفق بود.";
         }
       }
+      if (detailGeneration !== fundDetailGeneration || requestedHorizon !== state.investmentHorizon) return;
       const id = f.rahavard_asset_id || f.symbol;
       if (a?.technical_score != null) {
         const listedFund = state.funds.find((item) => item.fund_key === symbol || item.symbol === symbol || String(item.rahavard_asset_id || "") === String(id));
@@ -1964,15 +2075,57 @@
     }, seconds * 1000);
   }
 
-  async function openView(name) {
+  function normalizedSearchValue(value) {
+    return toEnglishDigits(value).trim().toLocaleLowerCase("fa")
+      .replace(/[يى]/g, "ی").replace(/ك/g, "ک").replace(/[\s\u200c]+/g, "");
+  }
+
+  async function searchAndOpenAnalysis(query, generation) {
+    const normalizedQuery = normalizedSearchValue(query);
+    try {
+      const [fundResult, stockResult] = await Promise.allSettled([
+        api(`/api/funds?search=${encodeURIComponent(query)}&sort=data_timestamp`),
+        api(`/api/stocks?search=${encodeURIComponent(query)}&sort=data_timestamp`)
+      ]);
+      if (generation !== globalSearchGeneration) return;
+      const funds = fundResult.status === "fulfilled" ? (fundResult.value.items || []) : [];
+      const stocks = stockResult.status === "fulfilled" ? (stockResult.value.items || []) : [];
+      const keyFields = ["name", "display_symbol", "symbol", "fund_key", "rahavard_asset_id", "registration_no"];
+      const exact = (items) => items.find((item) => keyFields.some((key) => item[key] != null && normalizedSearchValue(item[key]) === normalizedQuery));
+      const selectedStock = exact(stocks) || (stocks.length && !funds.length ? stocks[0] : null);
+      const selectedFund = exact(funds) || (funds.length && !stocks.length ? funds[0] : null);
+      if (selectedStock) {
+        await openView("stocks", { skipLoad: true });
+        if (generation !== globalSearchGeneration) return;
+        $("#stock-search").value = query;
+        void loadStocks();
+        await showStock(selectedStock.fund_key || selectedStock.symbol, selectedStock);
+      } else if (selectedFund) {
+        await openView("funds", { skipLoad: true });
+        if (generation !== globalSearchGeneration) return;
+        $("#fund-search").value = query;
+        $("#fund-category").value = "";
+        await loadFunds({ search: query, category: "" });
+        await showFund(selectedFund.fund_key || selectedFund.symbol);
+      } else if (fundResult.status === "rejected" && stockResult.status === "rejected") {
+        toast("جست‌وجو در فهرست سهام و صندوق‌ها ناموفق بود.", true);
+      } else {
+        toast("نماد یا صندوقی با این عبارت پیدا نشد.");
+      }
+    } catch (error) {
+      if (generation === globalSearchGeneration) toast(`جست‌وجو ناموفق بود: ${error.message}`, true);
+    }
+  }
+
+  async function openView(name, options = {}) {
     if (!$("#view-" + name)) return;
     state.currentView = name;
     $$(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${name}`));
     $$(".nav-item").forEach((b) => b.classList.toggle("active", b.dataset.view === name));
     const title = ({ overview: "داشبورد", funds: "صندوق‌ها", stocks: "سهام", watchlist: "دیده‌بان", settings: "تنظیمات", admin: "وضعیت سامانه" })[name] || "داشبورد";
     $("#crumb-current").textContent = title;
-    if (name === "funds") await loadFunds({ forceNav: true });
-    if (name === "stocks") await loadStocks();
+    if (name === "funds" && !options.skipLoad) await loadFunds({ forceNav: true });
+    if (name === "stocks" && !options.skipLoad) await loadStocks();
     if (name === "watchlist") await loadWatchlist();
     if (name === "admin") await loadAdmin();
     if (name === "settings") await loadSettings();
@@ -2100,7 +2253,20 @@
     event.preventDefault();
     sortFundTable(header.dataset.fundSort);
   });
+  $("#stock-table-grid")?.addEventListener("click", (event) => {
+    const header = event.target.closest("th[data-stock-sort]");
+    if (header) { sortStockTable(header.dataset.stockSort); return; }
+    const symbol = event.target.closest("[data-stock]");
+    if (symbol) void showStock(symbol.dataset.stock);
+  });
+  $("#stock-table-grid")?.addEventListener("keydown", (event) => {
+    const header = event.target.closest("th[data-stock-sort]");
+    if (!header || (event.key !== "Enter" && event.key !== " ")) return;
+    event.preventDefault();
+    sortStockTable(header.dataset.stockSort);
+  });
   $("#fund-detail").addEventListener("click", (event) => { if (event.target.closest("[data-close-fund]")) { $("#fund-detail").classList.add("hidden"); delete $("#fund-detail").dataset.fundSymbol; } });
+  $("#stock-detail")?.addEventListener("click", (event) => { if (event.target.closest("[data-close-stock]")) { $("#stock-detail").classList.add("hidden"); delete $("#stock-detail").dataset.stockSymbol; } });
   $(".market-strip").addEventListener("click", (event) => {
     const trigger = event.target.closest("[data-analysis-toggle]");
     if (trigger) toggleMarketAnalysis(trigger.dataset.analysisToggle);
@@ -2114,14 +2280,22 @@
   });
   $("#global-search").addEventListener("input", (event) => {
     const value = event.target.value.trim();
-    if (value.length >= 2) { openView("funds"); $("#fund-search").value = value; loadFunds({ search: value }); }
+    const generation = ++globalSearchGeneration;
+    clearTimeout(globalSearchTimer);
+    if (value.length >= 2) globalSearchTimer = setTimeout(() => void searchAndOpenAnalysis(value, generation), 500);
   });
   $("#stock-search")?.addEventListener("input", () => { clearTimeout(loadStocks.timer); loadStocks.timer = setTimeout(loadStocks, 250); });
   document.addEventListener("keydown", (event) => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") { event.preventDefault(); $("#global-search").focus(); }
     if (event.key === "Escape") { $("#global-search").value = ""; }
   });
-  $("#global-search").addEventListener("search", () => { if (!$("#global-search").value) openView("overview"); });
+  $("#global-search").addEventListener("search", () => {
+    const value = $("#global-search").value.trim();
+    const generation = ++globalSearchGeneration;
+    clearTimeout(globalSearchTimer);
+    if (!value) openView("overview");
+    else if (value.length >= 2) void searchAndOpenAnalysis(value, generation);
+  });
  scheduleWatchlistRefresh();
  document.addEventListener("visibilitychange", () => {
    if (!document.hidden && state.currentView === "watchlist") loadWatchlist();
