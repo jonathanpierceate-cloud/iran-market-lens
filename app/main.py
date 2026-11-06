@@ -62,6 +62,10 @@ class FundScoreBatchInput(BaseModel):
     chart_fetch_ms: dict[str, int] = Field(default_factory=dict)
 
 
+class StockScoreBatchInput(BaseModel):
+    stock_keys: list[str] = Field(default_factory=list, max_length=16)
+
+
 class FundTechnicalBarsInput(BaseModel):
     bars: list[dict[str, Any]] = Field(min_length=2, max_length=500)
     chart_fetch_ms: int | None = Field(default=None, ge=0, le=120000)
@@ -1007,14 +1011,27 @@ def funds(search: str = "", category: str = "", sort: str = "data_timestamp",
 
 
 @app.get("/api/stocks")
-def stocks(search: str = "", sort: str = "data_timestamp"):
+def stocks(search: str = "", sort: str = "data_timestamp",
+           horizon: str = Query(default="long")):
     items = db.funds(search=search, sort=sort, source="Rahavard365Stock")
+    horizon = normalize_horizon(horizon)
+    score_cache = db.fund_indicator_snapshots(source="AliVestStockScore")
     for item in items:
         raw = item.get("raw") if isinstance(item.get("raw"), dict) else {}
         item.update({"rahavard_asset_id": str(raw.get("asset_id") or item.get("registration_no") or ""),
                      "updated_at": item.get("data_timestamp"),
                      "price_is_cached": _timestamp_is_cached(item.get("data_timestamp")),
                      "real_close_price_change_percent": raw.get("real_close_price_change_percent")})
+        cached = score_cache.get(item["fund_key"])
+        cached_data = cached.get("data") if isinstance(cached, dict) else None
+        if (isinstance(cached_data, dict)
+                and cached_data.get("investment_horizon") == horizon
+                and cached_data.get("market_timestamp")
+                and str(cached_data.get("market_timestamp")) == str(item.get("data_timestamp"))
+                and cached_data.get("technical_score") is not None):
+            item.update({"technical_score": cached_data.get("technical_score"),
+                         "trend": cached_data.get("trend"),
+                         "score_data_timestamp": cached_data.get("data_timestamp")})
     return {"items": items, "count": len(items), "source": "Rahavard365Stock",
             "data_status": "available" if items else "unavailable"}
 
@@ -1024,6 +1041,51 @@ def _stock_or_error(identifier: str) -> dict[str, Any]:
     if not stock or stock.get("ambiguous") or stock.get("source") != "Rahavard365Stock":
         raise HTTPException(status_code=404, detail="نماد در فهرست سهام ره‌آورد پیدا نشد")
     return stock
+
+
+@app.post("/api/stocks/scores/batch")
+async def stock_score_batch(payload: StockScoreBatchInput,
+                            horizon: str = Query(default="long")):
+    horizon = normalize_horizon(horizon)
+    keys = list(dict.fromkeys(key.strip() for key in payload.stock_keys if key.strip()))
+    if not keys:
+        raise HTTPException(status_code=422, detail="نمادی برای محاسبهٔ امتیاز ارسال نشده است")
+    semaphore = asyncio.Semaphore(4)
+
+    async def calculate(identifier: str) -> dict[str, Any]:
+        async with semaphore:
+            try:
+                stock = _stock_or_error(identifier)
+                cached = db.fund_indicator_snapshots(source="AliVestStockScore").get(stock["fund_key"])
+                cached_data = cached.get("data") if isinstance(cached, dict) else None
+                market_timestamp = stock.get("data_timestamp")
+                if (isinstance(cached_data, dict)
+                        and cached_data.get("investment_horizon") == horizon
+                        and market_timestamp
+                        and str(cached_data.get("market_timestamp")) == str(market_timestamp)
+                        and cached_data.get("technical_score") is not None):
+                    return {"fund_key": stock["fund_key"], **cached_data, "cached": True, "error": None}
+
+                result, bars, _ = await _analyze_fund_chart(stock, horizon=horizon)
+                score = result.get("technical_score")
+                stamp = result.get("data_timestamp")
+                item = {"technical_score": score, "trend": result.get("trend"),
+                        "signal": result.get("signal"), "investment_horizon": horizon,
+                        "market_timestamp": market_timestamp, "data_timestamp": stamp}
+                if score is not None:
+                    db.save_fund_indicator_snapshot(stock["fund_key"], item, stamp,
+                                                    source="AliVestStockScore")
+                return {"fund_key": stock["fund_key"], **item, "cached": False,
+                        "error": None if score is not None else "امتیاز با داده‌های موجود قابل محاسبه نبود"}
+            except HTTPException as exc:
+                return {"fund_key": identifier, "technical_score": None, "error": str(exc.detail)}
+            except Exception as exc:
+                return {"fund_key": identifier, "technical_score": None, "error": str(exc)[:180]}
+
+    items = await asyncio.gather(*(calculate(key) for key in keys))
+    return {"items": items, "processed": len(items),
+            "scored": sum(item.get("technical_score") is not None for item in items),
+            "unavailable": sum(item.get("technical_score") is None for item in items)}
 
 
 @app.get("/api/stocks/{symbol}/technical")
