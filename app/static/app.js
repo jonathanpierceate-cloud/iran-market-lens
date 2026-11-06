@@ -9,7 +9,11 @@
   const stockSortState = { key: "technical_score", direction: -1 };
   let fundScoreFillRunning = false;
   let fundScoreGeneration = 0;
-  const fundScoreAttemptedKeys = new Set();
+  const fundScoreCacheStorageKey = "alivest.fundScoreResults.v1";
+  const fundScoreResultCache = (() => {
+    try { return new Map(JSON.parse(sessionStorage.getItem(fundScoreCacheStorageKey) || "[]")); }
+    catch { return new Map(); }
+  })();
   let fundNavFillRunning = false;
   let fundNavGeneration = 0;
   const fundNavAttemptedKeys = new Set();
@@ -24,6 +28,20 @@
     funds: { timer: 0, startedAt: 0, processed: 0, total: null, averageMsPerItem: 260 },
     stocks: { timer: 0, startedAt: 0, processed: 0, total: null, averageMsPerItem: 140 },
   };
+  function fundScoreCacheKey(fund, horizon = state.investmentHorizon) {
+    const identifier = String(fund?.fund_key || fund?.symbol || "");
+    const timestamp = String(fund?.data_timestamp || fund?.updated_at || "");
+    return `${horizon}:${identifier}:${timestamp}`;
+  }
+
+  function persistFundScoreCache() {
+    try {
+      while (fundScoreResultCache.size > 600) {
+        fundScoreResultCache.delete(fundScoreResultCache.keys().next().value);
+      }
+      sessionStorage.setItem(fundScoreCacheStorageKey, JSON.stringify([...fundScoreResultCache]));
+    } catch {}
+  }
   const faNumber = new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 0 });
   const nf = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
   const en = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 });
@@ -1333,7 +1351,6 @@
     state.investmentHorizon = next;
     try { localStorage.setItem(horizonStorageKey, next); } catch {}
     fundScoreGeneration += 1;
-    fundScoreAttemptedKeys.clear();
     syncInvestmentHorizonControl();
     toast(`امتیازدهی ${horizonLabel()} در حال به‌روزرسانی است…`);
     const reloads = [];
@@ -1432,7 +1449,10 @@
       url.searchParams.set("search", search); url.searchParams.set("category", category); url.searchParams.set("sort", sort);
       const data = await api(url.pathname + url.search);
       if (requestedHorizon !== state.investmentHorizon) return;
-      state.funds = sortedFundItems(data.items);
+      state.funds = sortedFundItems(data.items).map((fund) => {
+        const cachedScore = fundScoreResultCache.get(fundScoreCacheKey(fund, requestedHorizon));
+        return cachedScore ? { ...fund, ...cachedScore } : fund;
+      });
       state.funds.forEach((fund) => {
         const cachedNav = fundNavValueCache.get(String(fund.fund_key || fund.symbol || ""));
         if (cachedNav) {
@@ -1731,9 +1751,9 @@
     const generation = fundScoreGeneration;
     const requestedHorizon = state.investmentHorizon;
     const pending = [...new Set(state.funds
-      .filter((fund) => fund.technical_score == null)
+      .filter((fund) => fund.technical_score == null && !fundScoreResultCache.has(fundScoreCacheKey(fund, requestedHorizon)))
       .map((fund) => fund.fund_key || fund.symbol)
-      .filter((key) => key && !fundScoreAttemptedKeys.has(String(key)))
+      .filter((key) => key)
       .map(String))];
     if (!pending.length) {
       fundRankingReady = true;
@@ -1759,7 +1779,6 @@
           });
         } catch (error) {
           if (generation !== fundScoreGeneration || requestedHorizon !== state.investmentHorizon) return;
-          batch.forEach((key) => fundScoreAttemptedKeys.add(key));
           unavailable += batch.length;
           if (progress) progress.textContent = "دریافت امتیازهای نمودار ره‌آورد موقتاً متوقف شد؛ دوباره فهرست را به‌روز کنید.";
           break;
@@ -1771,7 +1790,6 @@
           const key = String(result.fund_key || "");
           if (!key) continue;
           returned.add(key);
-          fundScoreAttemptedKeys.add(key);
           const listed = state.funds.find((fund) => String(fund.fund_key || fund.symbol) === key);
           if (listed) {
             listed.fund_type_key = result.fund_type_key || listed.fund_type_key;
@@ -1789,6 +1807,19 @@
               listed.risk_score = result.risk_score;
               listed.score_change_5d = result.score_change_5d;
               listed.score_change_20d = result.score_change_20d;
+              const cachedScore = {
+                technical_score: listed.technical_score,
+                data_coverage_pct: listed.data_coverage_pct,
+                medium_term_exit_price: listed.medium_term_exit_price,
+                purchase_assessment: listed.purchase_assessment,
+                buy_suitability_rank: listed.buy_suitability_rank,
+                risk_score: listed.risk_score,
+                score_change_5d: listed.score_change_5d,
+                score_change_20d: listed.score_change_20d,
+                fund_type_key: listed.fund_type_key,
+                fund_type_label: listed.fund_type_label,
+              };
+              fundScoreResultCache.set(fundScoreCacheKey(listed, requestedHorizon), cachedScore);
             }
           } else {
             unavailable += 1;
@@ -1800,7 +1831,6 @@
         }
         for (const key of batch) {
           if (!returned.has(key)) {
-            fundScoreAttemptedKeys.add(key);
             unavailable += 1;
             const listed = state.funds.find((fund) => String(fund.fund_key || fund.symbol) === key);
             if (listed) {
@@ -1809,6 +1839,7 @@
             }
           }
         }
+        persistFundScoreCache();
         processed += batch.length;
         updateRankingLoader("funds", processed, pending.length);
         state.funds = sortedFundItems(state.funds);
