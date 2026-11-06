@@ -1532,7 +1532,7 @@
       const status = _sourceByName("rahavard_stocks");
       if (status) freshness($("#stocks-freshness"), status.status, status.last_data_timestamp);
       const progress = $("#stock-score-note");
-      const pending = state.stocks.filter((stock) => stock.technical_score == null);
+    const pending = state.stocks.filter((stock) => stock.technical_score == null || !stock.purchase_assessment);
       let processed = state.stocks.length - pending.length;
       if (pending.length) {
         startRankingLoader("stocks", state.stocks.length, processed);
@@ -1541,7 +1541,7 @@
         for (let offset = 0; offset < pending.length; offset += 16) {
             if (generation !== stockScoreGeneration || requestedHorizon !== state.investmentHorizon) return;
             const batch = pending.slice(offset, offset + 16);
-            const response = await api("/api/stocks/scores/batch", {
+            const response = await api(`/api/stocks/scores/batch?horizon=${encodeURIComponent(requestedHorizon)}`, {
               method: "POST",
               body: JSON.stringify({ stock_keys: batch.map((stock) => stock.fund_key) })
             });
@@ -1551,6 +1551,10 @@
                 stock.technical_score = Number(result.technical_score);
                 stock.trend = result.trend;
                 state.stockScores[`${requestedHorizon}:${stock.fund_key}:${stock.data_timestamp || ""}`] = stock.technical_score;
+              }
+              if (stock && result.purchase_assessment) {
+                stock.purchase_assessment = result.purchase_assessment;
+                stock.buy_suitability_rank = result.buy_suitability_rank ?? result.purchase_assessment.rank;
               }
             }
             processed = Math.min(state.stocks.length, processed + batch.length);
@@ -1581,7 +1585,7 @@
       const key = stockSortState.key;
       topTen.sort((a, b) => {
         const left = a[key], right = b[key];
-        if (["name", "data_timestamp", "trend"].includes(key)) {
+        if (["name", "data_timestamp"].includes(key)) {
           const leftText = key === "name" ? (left || a.display_symbol || a.symbol || "") : String(left || "");
           const rightText = key === "name" ? (right || b.display_symbol || b.symbol || "") : String(right || "");
           return String(leftText).localeCompare(String(rightText), key === "name" ? "fa" : "en") * stockSortState.direction;
@@ -1598,10 +1602,12 @@
       : "رتبه‌بندی بر پایهٔ امتیاز تکنیکال";
     body.innerHTML = topTen.length ? topTen.map((s) => {
         const score = Number.isFinite(Number(s.technical_score)) ? Number(s.technical_score) : null;
-        const direction = score == null ? "—" : score >= 70 ? "صعودی" : score <= 40 ? "نزولی" : "خنثی";
-        const tone = direction === "صعودی" ? "positive" : direction === "نزولی" ? "negative" : direction === "خنثی" ? "neutral" : "unknown";
+        const scoreTone = score == null ? "unknown" : score >= 70 ? "positive" : score <= 40 ? "negative" : "neutral";
+        const assessment = s.purchase_assessment || {};
+        const assessmentStatus = ["suitable", "wait", "unsuitable"].includes(assessment.status) ? assessment.status : "unknown";
+        const assessmentCell = `<div class="fund-purchase-assessment"><span class="fund-purchase-chip ${assessmentStatus}">${esc(assessment.label || "داده کافی نیست")}</span><small>${esc(assessment.reason || s.technical_error || "ارزیابی پس از دریافت دادهٔ تکنیکال نمایش داده می‌شود.")}</small></div>`;
         const daily = s.daily_return;
-        return `<tr><td data-label="نام نماد"><button class="row-open stock-symbol-open" data-stock="${esc(s.fund_key || s.symbol)}"><span class="fund-table-name"><i class="fund-freshness-dot ${s.price_is_cached === false ? "fresh" : "stale"}" aria-hidden="true"></i><strong>${esc(s.name || s.display_symbol || s.symbol)}</strong></span></button></td><td data-label="امتیاز"><span class="technical-score-chip ${tone}">${num(score, 0)} / 100</span></td><td data-label="جهت"><span class="fund-purchase-chip ${tone}">${direction}</span></td><td data-label="تغییر روزانه" class="${changeClass(daily)}">${pct(daily)}</td><td data-label="حجم">${num(s.volume, 0)}</td><td data-label="ارزش معامله">${money(s.value)}</td><td data-label="آخرین قیمت"><span class="fund-latest-price">${money(s.market_price)}</span><small class="fund-latest-change ${changeClass(daily)}">${pct(daily)}</small></td><td data-label="زمان داده" class="fund-update-time">${esc(formatDate(s.data_timestamp))}</td></tr>`;
+        return `<tr><td data-label="نام نماد"><button class="row-open stock-symbol-open" data-stock="${esc(s.fund_key || s.symbol)}"><span class="fund-table-name"><i class="fund-freshness-dot ${s.price_is_cached === false ? "fresh" : "stale"}" aria-hidden="true"></i><strong>${esc(s.name || s.display_symbol || s.symbol)}</strong></span></button></td><td data-label="امتیاز"><span class="technical-score-chip ${scoreTone}">${num(score, 0)} / 100</span></td><td data-label="وضعیت خرید" class="stock-buy-cell">${assessmentCell}</td><td data-label="تغییر روزانه" class="${changeClass(daily)}">${pct(daily)}</td><td data-label="حجم">${num(s.volume, 0)}</td><td data-label="ارزش معامله">${money(s.value)}</td><td data-label="آخرین قیمت"><span class="fund-latest-price">${money(s.market_price)}</span><small class="fund-latest-change ${changeClass(daily)}">${pct(daily)}</small></td><td data-label="زمان داده" class="fund-update-time">${esc(formatDate(s.data_timestamp))}</td></tr>`;
       }).join("") : `<tr><td colspan="8"><div class="empty-state"><b>${search ? "نمادی در میان رتبه‌های برتر با این جست‌وجو پیدا نشد" : "امتیاز معتبری برای رتبه‌بندی در دسترس نیست"}</b></div></td></tr>`;
     updateStockSortIndicators();
   }
