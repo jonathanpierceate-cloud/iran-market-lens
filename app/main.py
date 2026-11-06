@@ -1063,15 +1063,19 @@ async def stock_score_batch(payload: StockScoreBatchInput,
                         and cached_data.get("investment_horizon") == horizon
                         and market_timestamp
                         and str(cached_data.get("market_timestamp")) == str(market_timestamp)
-                        and cached_data.get("technical_score") is not None):
+                        and cached_data.get("technical_score") is not None
+                        and isinstance(cached_data.get("purchase_assessment"), dict)):
                     return {"fund_key": stock["fund_key"], **cached_data, "cached": True, "error": None}
 
                 result, bars, _ = await _analyze_fund_chart(stock, horizon=horizon)
                 score = result.get("technical_score")
                 stamp = result.get("data_timestamp")
+                purchase_assessment = _fund_purchase_assessment(stock.get("market_price") or stock.get("real_close_price"), result)
                 item = {"technical_score": score, "trend": result.get("trend"),
                         "signal": result.get("signal"), "investment_horizon": horizon,
-                        "market_timestamp": market_timestamp, "data_timestamp": stamp}
+                        "market_timestamp": market_timestamp, "data_timestamp": stamp,
+                        "purchase_assessment": purchase_assessment,
+                        "buy_suitability_rank": purchase_assessment.get("rank")}
                 if score is not None:
                     db.save_fund_indicator_snapshot(stock["fund_key"], item, stamp,
                                                     source="AliVestStockScore")
