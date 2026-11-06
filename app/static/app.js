@@ -9,7 +9,7 @@
   const stockSortState = { key: "technical_score", direction: -1 };
   let fundScoreFillRunning = false;
   let fundScoreGeneration = 0;
-  const fundScoreCacheStorageKey = "alivest.fundScoreResults.v1";
+  const fundScoreCacheStorageKey = "alivest.fundScoreResults.v2";
   const fundScoreResultCache = (() => {
     try { return new Map(JSON.parse(sessionStorage.getItem(fundScoreCacheStorageKey) || "[]")); }
     catch { return new Map(); }
@@ -31,7 +31,8 @@
   function fundScoreCacheKey(fund, horizon = state.investmentHorizon) {
     const identifier = String(fund?.fund_key || fund?.symbol || "");
     const timestamp = String(fund?.data_timestamp || fund?.updated_at || "");
-    return `${horizon}:${identifier}:${timestamp}`;
+    const price = String(fund?.market_price ?? fund?.real_close_price ?? "");
+    return `${horizon}:${identifier}:${timestamp}:${price}`;
   }
 
   function persistFundScoreCache() {
