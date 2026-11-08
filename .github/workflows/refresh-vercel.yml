@@ -19,7 +19,7 @@ jobs:
         run: |
           set -euo pipefail
           response="$(curl --fail-with-body --silent --show-error --max-time 120 \
-            https://iran-market-lens.vercel.app/api/refresh)"
+            https://iran-market-lens-teal.vercel.app/api/refresh)"
           echo "$response"
           echo "$response" | jq -e '
             any(.sources[]; .name == "rahavard_funds" and .status == "connected")
