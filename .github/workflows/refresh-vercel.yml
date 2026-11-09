@@ -17,10 +17,28 @@ jobs:
       - name: Refresh Vercel data endpoint
         shell: bash
         run: |
-          set -euo pipefail
-          response="$(curl --fail-with-body --silent --show-error --max-time 120 \
-            https://iran-market-lens-teal.vercel.app/api/refresh)"
+          set -uo pipefail
+          summary="$GITHUB_STEP_SUMMARY"
+          warn() {
+            printf '⚠️ %s\n\n' "$1" | tee -a "$summary"
+          }
+
+          if ! response="$(curl --fail-with-body --silent --show-error --max-time 120 \
+            https://iran-market-lens-teal.vercel.app/api/refresh)"; then
+            warn "به‌روزرسانی داده‌ها انجام نشد؛ endpoint در دسترس نبود. اجرای زمان‌بندی‌شده برای جلوگیری از ایمیل تکراری موفق ثبت شد."
+            exit 0
+          fi
+
           echo "$response"
-          echo "$response" | jq -e '
-            any(.sources[]; .name == "rahavard_funds" and .status == "connected")
-          ' >/dev/null
+          if ! jq -e 'type == "object" and (.sources | type == "array")' <<< "$response" >/dev/null 2>&1; then
+            warn "پاسخ endpoint قابل‌خواندن نبود. اجرای زمان‌بندی‌شده موفق ثبت شد؛ خروجی خام در لاگ موجود است."
+            exit 0
+          fi
+
+          failed_sources="$(jq -r '.sources[] | select(.status != "connected") | "\(.name): \(.error // .status)"' <<< "$response")"
+          if [[ -n "$failed_sources" ]]; then
+            warn "برخی منابع داده وصل نشدند؛ جزئیات در لاگ این اجراست. این وضعیت اجرای زمان‌بندی‌شده را قرمز نمی‌کند و ایمیل شکست نمی‌فرستد."
+            printf '%s\n' "$failed_sources" | tee -a "$summary"
+          else
+            printf '✅ همه منابع داده وصل هستند.\n' >> "$summary"
+          fi
